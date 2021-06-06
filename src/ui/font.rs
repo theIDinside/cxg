@@ -28,6 +28,42 @@ pub struct Font {
 
 const GLYPH_COUNT: f64 = 128.0;
 
+#[cfg(debug_assertions)]
+fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {
+    println!("we are in debug mode");
+    let mut png_data: Vec<u8> = Vec::with_capacity(pixels.len() * 4);
+
+    for _p in pixels.iter() {
+        let p = *_p;
+        png_data.extend_from_slice(&[p, p, p, 0xff]);
+    }
+
+    let font_file_name = format!("{}_{}", font_path.file_stem().unwrap().to_str().unwrap(), pixel_size);
+    let mut output_file = std::path::PathBuf::new();
+    
+    output_file.push("./");
+    output_file.push("debug");
+    if !output_file.exists() {
+        std::fs::create_dir("./debug").unwrap();
+    }
+    output_file.push(font_file_name);
+    output_file.set_extension("png");
+    println!("Path: {}", &output_file.display());
+    let path = output_file.as_path();
+    let file = File::create(path).unwrap();
+    let ref mut w = BufWriter::new(file);
+
+    let mut encoder = png::Encoder::new(w, tex_width, tex_height);
+    encoder.set_color(png::ColorType::RGBA);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&png_data).unwrap(); // Save
+    println!("Wrote to file {}", path.display());
+}
+
+#[cfg(not(debug_assertions))]
+fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {}
+
 impl Font {
     pub fn new(font_path: &Path, pixel_size: i32, characters: Vec<char>) -> Result<Font, ft::Error> {
         let lib = ft::Library::init()?;
@@ -98,31 +134,7 @@ impl Font {
             Font::upload_texture(&pixels, texture_dimension.x, texture_dimension.y)
         };
 
-        let mut png_data: Vec<u8> = Vec::with_capacity(pixels.len() * 4);
-
-        for _p in pixels.iter() {
-            let p = *_p;
-            png_data.extend_from_slice(&[p, p, p, 0xff]);
-        }
-
-        let font_file_name = format!("{}_{}", font_path.file_stem().unwrap().to_str().unwrap(), pixel_size);
-        let mut output_file = std::path::PathBuf::new();
-        std::fs::create_dir("./debug").unwrap();
-        output_file.push("./");
-        output_file.push("debug");
-        output_file.push(font_file_name);
-        output_file.set_extension("png");
-        println!("Path: {}", &output_file.display());
-        let path = output_file.as_path();
-        let file = File::create(path).unwrap();
-        let ref mut w = BufWriter::new(file);
-
-        let mut encoder = png::Encoder::new(w, texture_dimension.x as u32, texture_dimension.y as u32); // Width is 2 pixels and height is 1.
-        encoder.set_color(png::ColorType::RGBA);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().unwrap();
-        writer.write_image_data(&png_data).unwrap(); // Save
-        println!("Wrote to file {}", path.display());
+        debug_write_font_texture_to_file(font_path, &pixels, pixel_size, texture_dimension.x as u32, texture_dimension.y as u32);
 
         Ok(
             Font {
