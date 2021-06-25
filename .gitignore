@@ -2,3 +2,5 @@
 Cargo.lock
 debug/
 fonts
+.idea/
+.vscode/

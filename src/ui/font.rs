@@ -1,21 +1,32 @@
-use super::Vec2i;
 use std::collections::HashMap;
 use std::path::Path;
-use std::fs::File;
-use std::io::BufWriter;     
+
+
+use crate::datastructure::generic::Vec2i;     
 
 /// Contains the texture coordinates & related glyph info about size & dimension
-struct GlyphInfo {
-    x0: i32,
-    x1: i32,
-    y0: i32,
-    y1: i32,
-    advance: i32,
-    offsets: Vec2i,
-    size: Vec2i,
-    bearing: Vec2i
+pub struct GlyphInfo {
+    pub x0: i32,
+    pub x1: i32,
+    pub y0: i32,
+    pub y1: i32,
+    pub advance: i32,
+    pub offsets: Vec2i,
+    pub size: Vec2i,
+    pub bearing: Vec2i
 }
 
+impl GlyphInfo {
+    pub fn width(&self) -> f32 {
+        (self.x1 - self.x0) as f32
+    }
+
+    pub fn height(&self) -> f32 {
+        (self.y1 - self.y0) as f32
+    }
+}
+
+#[allow(unused)]
 pub struct Font {
     pixel_size: i32,
     row_height: i32,
@@ -23,13 +34,16 @@ pub struct Font {
     max_bearing_size_diff: i32,
     glyph_cache: HashMap<char, GlyphInfo>,
     pixel_data: Vec<u8>,
-    texture_id: gl::types::GLuint
+    texture_id: gl::types::GLuint,
+    texture_dimensions: Vec2i
 }
 
 const GLYPH_COUNT: f64 = 128.0;
 
 #[cfg(debug_assertions)]
 fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {
+    use std::fs::File;
+    use std::io::BufWriter;
     println!("we are in debug mode");
     let mut png_data: Vec<u8> = Vec::with_capacity(pixels.len() * 4);
 
@@ -69,7 +83,6 @@ impl Font {
         let lib = ft::Library::init()?;
         let face = lib.new_face(font_path, 0)?;
         face.set_pixel_sizes(pixel_size as u32, pixel_size as u32)?;
-
         let max_dim = ((1 + face.size_metrics().unwrap().height >> 6) as f64 * GLYPH_COUNT.sqrt().ceil()) as i32;
 
         let mut texture_dimension = Vec2i { x: 1, y: 1};
@@ -144,7 +157,8 @@ impl Font {
                 max_bearing_size_diff,
                 pixel_data: pixels,
                 texture_id,
-                glyph_cache
+                glyph_cache,
+                texture_dimensions: texture_dimension
             }
         )
     }
@@ -154,8 +168,30 @@ impl Font {
         gl::GenTextures(1, &mut id);
         gl::BindTexture(gl::TEXTURE_2D, id);
         gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as i32, width, height, 0, gl::RED, gl::UNSIGNED_BYTE, data.as_ptr() as *const std::ffi::c_void);
+        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as i32, width, height, 0, gl::RED, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);
         gl::GenerateMipmap(gl::TEXTURE_2D);
         id
+    }
+
+    pub fn bind(&self) {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
+        }
+    }
+
+    pub fn get_glyph(&self, character: char) -> Option<&GlyphInfo> {
+        self.glyph_cache.get(&character)
+    }
+
+    pub fn texture_width(&self) -> i32 {
+        self.texture_dimensions.x
+    }
+
+    pub fn texture_height(&self) -> i32 {
+        self.texture_dimensions.y
+    }
+
+    pub fn row_height(&self) -> i32 {
+        self.row_height
     }
 }
