@@ -4,6 +4,7 @@ use std::sync::mpsc::Receiver;
 use crate::opengl::rect::{RectRenderer};
 use crate::opengl::shaders::{RectShader, TextShader};
 use crate::opengl::types::RGBAColor;
+use crate::textbuffer::simplebuffer::{Movement, TextKind};
 use crate::ui::UID;
 use crate::ui::panel::{Panel};
 use crate::ui::coordinate::{Layout, Coordinate, Size, PointArithmetic, Anchor};
@@ -40,6 +41,7 @@ pub struct Application<'app> {
     popup: Option<Popup<'app>>,
     active_ui_element: UID,
     debug: bool,
+    active_view: Option<*mut View<'app>>
 }
 
 impl<'app> Application<'app> {
@@ -50,7 +52,8 @@ impl<'app> Application<'app> {
             let font = &self.fonts[0];
             let Size {width, height} = view_size;
             let view_name = view_name.as_ref().map(|name| name.as_ref()).unwrap_or("unnamed view");
-            let view = View::new(view_name, view_id.into(), TextRenderer::create(self.font_shader.clone(), font, 64 * 1024 * 100).expect("Failed to create TextRenderer"), RectRenderer::create(self.rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, width, height, font.row_height());
+            let view = View::new(view_name, view_id.into(), TextRenderer::create(self.font_shader.clone(), font, 1024 * 10).expect("Failed to create TextRenderer"), 
+            RectRenderer::create(self.rect_shader.clone(), 1024 * 10).expect("failed to create rectangle renderer"), 0, width, height, font.row_height());
             self.active_ui_element = UID::View(*view.id);
             p.add_view(view);
         }
@@ -65,7 +68,7 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let sb_tr = TextRenderer::create(font_shader.clone(), &fonts[0], 64 * 1024 * 100).expect("Failed to create TextRenderer");
+        let sb_tr = TextRenderer::create(font_shader.clone(), &fonts[0], 1024).expect("Failed to create TextRenderer");
         let mut sb_wr = RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer");
         sb_wr.set_color(RGBAColor::new(0.5,0.5,0.5, 1.0));
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
@@ -77,18 +80,21 @@ impl<'app> Application<'app> {
         let panel2 = Panel::new(1, Layout::Vertical(10.into()), Some(15), None, 1024 / 2, 768 - sb_size.height, (1024 / 2, 768 - sb_size.height).into());
         let mut panels = vec![panel, panel2];
         
-        let view = View::new("Left view", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 64 * 1024 * 100).expect("Failed to create TextRenderer"), RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
+        let view = View::new("Left view", active_view_id.into(), 
+        TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),
+         RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
         panels[0].add_view(view);
         active_view_id += 1;
         
-        let view = View::new("Right Top", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 64 * 1024 * 100).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create window renderer"), 0, 1024, 768, fonts[0].row_height());
+        let view = View::new("Right Top", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create window renderer"), 0, 1024, 768, fonts[0].row_height());
         panels[1].add_view(view);
         active_view_id += 1;
 
-        let view = View::new("Right Bottom", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 64 * 1024 * 100).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
+        let mut view = View::new("Right Bottom", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
+        view.insert_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16");
         panels[1].add_view(view);
 
-        let mut popup = View::new("Popup view", (active_view_id + 1).into(), TextRenderer::create(font_shader.clone(), &fonts[0], 64 * 1024 * 100).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 524, 518, fonts[0].row_height());
+        let mut popup = View::new("Popup view", (active_view_id + 1).into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 524, 518, fonts[0].row_height());
         
         popup.set_anchor((250, 768-250).into());
         popup.update();
@@ -112,6 +118,16 @@ impl<'app> Application<'app> {
             popup, 
             active_ui_element: UID::View(active_view_id),
             debug: false,
+            active_view: None
+        }
+    }
+
+    pub fn init<'b>(&'b mut self) {
+        match self.active_ui_element {
+            UID::View(id) => {
+                self.active_view = self.panels[1].get_view(id.into());
+            }
+            UID::Panel(_id) => todo!(),
         }
     }
 
@@ -131,55 +147,94 @@ impl<'app> Application<'app> {
         self.rect_shader.set_projection(&mvp);
     }
 
-    pub fn split_panel(&mut self) {}
+    fn handle_resize_event(&mut self, width: i32, height: i32) {
+        println!("App window {:?} ===> {}x{}", self.window_size, width, height);
+        let new_panel_space_size = Size::new(width, height - self.status_bar.size.height);
+        let size_change_factor = new_panel_space_size / self.panel_space_size;
+
+        for p in self.panels.iter_mut() {
+            let old_size = p.size;
+            let new_size = Size::vector_multiply(p.size, size_change_factor);
+            p.resize(new_size.width, new_size.height);
+            let Anchor(x, y) = Anchor::vector_multiply(p.anchor, size_change_factor);
+            p.set_anchor(x, y);
+            p.size_changed(old_size);
+
+            for v in p.children.iter_mut() {
+                v.update();
+            }
+        }
+
+        Application::set_dimensions(self, width, height);
+        self.status_bar.size.width = width;
+        self.status_bar.anchor = Anchor(0, height);
+        self.status_bar.update();
+
+        unsafe {
+            gl::Viewport(0, 0, width, height) 
+        }
+    }
 
     // NOTE: not the same version as in common.rs!
     pub fn process_events(&mut self, window: &mut Window, events: &Receiver<(f64, glfw::WindowEvent)>) {
         for (_, event) in glfw::flush_messages(events) {
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
-                    // make sure the viewport matches the new window dimensions; note that width and
-                    // height will be significantly larger than specified on retina displays.
-                    println!("App window {:?} ===> {}x{}", self.window_size, width, height);
-                    let new_panel_space_size = Size::new(width, height - self.status_bar.size.height);
-                    let size_change_factor = new_panel_space_size / self.panel_space_size;
-
-                    for p in self.panels.iter_mut() {
-                        let old_size = p.size;
-                        let new_size = Size::vector_multiply(p.size, size_change_factor);
-                        p.resize(new_size.width, new_size.height);
-                        let Anchor(x, y) = Anchor::vector_multiply(p.anchor, size_change_factor);
-                        p.set_anchor(x, y);
-                        p.size_changed(old_size);
-
-                        for v in p.children.iter_mut() {
-                            v.update();
-                        }
-                    }
-
-                    Application::set_dimensions(self, width, height);
-                    self.status_bar.size.width = width;
-                    self.status_bar.anchor = Anchor(0, height);
-                    self.status_bar.update();
-
-                    unsafe {
-                        gl::Viewport(0, 0, width, height) 
-                    }
+                    self.handle_resize_event(width, height);
                 },
                 glfw::WindowEvent::Char(ch) => {
-                    self.char_insert(ch);
-                    println!("char input: {}", ch)
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            let v = v.as_mut().unwrap();
+                            v.insert_ch(ch);
+                        }
+                    }
                 },
-                glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    println!("Dumping buf contents: {:?}", self.buf.buf);
-                    window.set_should_close(true);
+                glfw::WindowEvent::Key(Key::Right, _, action, modifier) if action == Action::Repeat  || action == Action::Press => {
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            if modifier == Modifiers::Control {
+                                (*v).move_cursor(Movement::Forward(TextKind::Word, 1));
+                            } else {
+                                (*v).move_cursor(Movement::Forward(TextKind::Char, 1));
+                            }
+                        }
+                    }
                 },
+                glfw::WindowEvent::Key(Key::Left, _, action, modifier) if action == Action::Repeat  || action == Action::Press => {
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            if modifier == Modifiers::Control {
+                                (*v).move_cursor(Movement::Backward(TextKind::Word, 1));
+                            } else {
+                                (*v).move_cursor(Movement::Backward(TextKind::Char, 1));
+                            }
+                        }
+                    }
+                },
+                glfw::WindowEvent::Key(Key::Backspace, _, action, _) if action == Action::Repeat  || action == Action::Press => {
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            let v = v.as_mut().unwrap();
+                            v.backspace_handle(TextKind::Char);
+                        }
+                    }
+                }
                 glfw::WindowEvent::Key(Key::F1, _, Action::Press, _) => {
                     self.debug = !self.debug;
                     println!("Opening debug interface...");
                     println!("Application window: {:?}", self.window_size);
                     for p in self.panels.iter() {
                         println!("{:?}", p);
+                    }
+
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            let v = v.as_mut().unwrap();
+                            v.buffer.debug_metadata();
+                            v.debug_viewcursor();
+                            // v.debug_viewed_range();
+                        }
                     }
                 },
                 glfw::WindowEvent::Key(Key::P, _, Action::Press, Modifiers::Control) => {
@@ -192,9 +247,11 @@ impl<'app> Application<'app> {
                     window.set_should_close(true);
                 }
                 glfw::WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
-                    match self.active_input {
-                        ActiveInput::Application => println!("Handle execution of commands etc"),
-                        ActiveInput::TextFile(_) => self.char_insert('\n'),
+                    if let Some(v) = self.active_view {
+                        unsafe {
+                            let v = v.as_mut().unwrap();
+                            v.insert_ch('\n');
+                        }
                     }
                 }
                 glfw::WindowEvent::Key(_, _, Action::Press, _) => {
@@ -230,20 +287,7 @@ impl<'app> Application<'app> {
 
         for p in self.panels.iter_mut() {
             for v in p.children.iter_mut() {
-                
-                
-                if self.debug {
-                    unsafe {
-                        gl::ClearColor(0.4, 0.7, 0.3, 1.0);
-                        gl::Clear(gl::COLOR_BUFFER_BIT);
-                    }
-                    v.draw();
-                    unsafe {
-                        gl::Disable(gl::SCISSOR_TEST);
-                    }
-                } else {
-                    v.draw();
-                }
+                v.draw();
             }
         }
 

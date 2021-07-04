@@ -183,6 +183,8 @@ impl Font {
         self.glyph_cache.get(&character)
     }
 
+    
+
     pub fn texture_width(&self) -> i32 {
         self.texture_dimensions.x
     }
@@ -193,5 +195,13 @@ impl Font {
 
     pub fn row_height(&self) -> i32 {
         self.row_height
+    }
+
+    pub fn get_max_glyph_width(&self) -> i32 {
+        let mut w = 0;
+        for (_, g) in self.glyph_cache.iter() {
+            w = std::cmp::max(g.size.x, w);
+        }
+        w
     }
 }

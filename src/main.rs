@@ -1,20 +1,49 @@
+#![feature(core_intrinsics)]
+
 extern crate glfw;
 extern crate gl;
 extern crate freetype as ft;
 extern crate png;
+extern crate libc;
 
+pub enum DebuggerCatch {
+    Handle(String),
+    Panic(String)
+}
+
+macro_rules! debugger_catch {
+    ($assert_expr:expr, $message:literal) => {
+        if !$assert_expr {
+            println!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
+            unsafe { libc::raise(libc::SIGTRAP); }
+        }
+    };
+
+    ($assert_expr:expr, $handleRequest:expr) => {
+        let (file, line, column) = (file!(), line!(), column!());
+        if !$assert_expr {
+            match $handleRequest {
+                DebuggerCatch::Handle(message) => {
+                    println!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
+                    unsafe { libc::raise(libc::SIGTRAP); }
+                },
+                DebuggerCatch::Panic(message) => {
+                    panic!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
+                },
+            }
+        }
+    };
+
+}
 
 #[macro_use]
 pub mod opengl;
-
 pub mod datastructure;
 pub mod app;
 pub mod ui;
 pub mod textbuffer;
 
-
 use opengl::glinit;
-
 use self::glfw::{Context};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -30,24 +59,46 @@ impl From<glfw::InitError> for MainInitError {
 }
 
 type Main = Result<(), MainInitError>;
+static mut handler: fn(i32) = |i| {};
+
+pub fn init_debug_break(f: fn(i32)) {
+    unsafe {
+        handler = f as fn(i32);
+    };    
+}
+
+pub fn foo() {
+    init_debug_break(|i: i32| { 
+        println!("trap handler executing");
+    });
+    let virtual_address =  unsafe { handler as usize };
+    let ptr = virtual_address as *const ();
+    let code: extern "C" fn(i32) = unsafe { std::mem::transmute(ptr) };
+    
+    unsafe {
+        libc::signal(libc::SIGTRAP, code as _);
+    }
+}
+
 
 fn main() -> Main {
     let width = 1024;
     let height = 768;
-    let font_path = std::path::Path::new("fonts/SourceCodePro-Semibold.ttf");
+    let font_path = std::path::Path::new("fonts/SourceCodePro-Bold.ttf");
     assert_eq!(font_path.exists(), true);
     let mut glfw_handle = glfw::init(glfw::FAIL_ON_ERRORS)?;
+    foo();
 
     glfw_handle.window_hint(glfw::WindowHint::ContextVersion(4,3));
     glfw_handle.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
     let (mut window, events) = glfw_handle.create_window(width, height, "Testing GLFW on Rust", glfw::WindowMode::Windowed).expect("Failed to create GLFW Window");
-
+    
     window.make_current();
     window.set_char_polling(true);
     window.set_key_polling(true);
     window.set_framebuffer_size_polling(true);
     window.set_refresh_polling(true); // We need to redraw everything 
-
+    glfw_handle.set_swap_interval(glfw::SwapInterval::None);
     gl::load_with(|sym| window.get_proc_address(sym) as * const _);
     unsafe {
         glinit::init_gl();
@@ -62,19 +113,25 @@ fn main() -> Main {
     let fonts = vec![font];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
-
     let mut app = app::Application::create(&fonts, font_program, rectangle_program);
+    app.init();
     
     let mut last_update = glfw_handle.get_time();
+    let mut frame_counter = 0;
     while !window.should_close() {
         let now_time = glfw_handle.get_time();
-        if now_time - last_update >= 0.005f64 {
+        if now_time - last_update > 1.0f64 {
+            println!("second...");
             last_update = now_time;
+            window.set_title(&format!("{} FPS", frame_counter));
+            frame_counter = 0;
         }
         app.process_events(&mut window, &events);
         app.update_window();
         window.swap_buffers();
-        glfw_handle.wait_events_timeout(1.0 / 90.0);
+        glfw_handle.poll_events();
+        // glfw_handle.wait_events_timeout(1.0 / 90.0);
+        frame_counter += 1;
     }
 
     Ok(())

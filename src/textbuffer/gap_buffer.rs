@@ -33,6 +33,20 @@ impl <T> GapBuffer<T> {
         }
     }
 
+    /// Returns pointer to begin, and element count up until gap.start, and pointer to where the gap ends in the buffer, and element count until end of buffer
+    fn data_pointers(&mut self) -> ((*mut T, usize), (*mut T, usize)) {
+        let res = unsafe {
+        ((self.data.as_mut_ptr(), self.gap.start),
+        (self.data.as_mut_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end))
+        };
+        res
+    }
+
+    /// Requires for us to *only* have one gap (which is currently the only feature of this gap buffer. Implementing a multi gap buffer, should probably 
+    /// be implemented as a buffer of multiple gap buffers instead, for simplicity, allocated in some form of arena for "cache" locality or at least memory locality in RAM 
+    /// (as to prevent page faults)
+    pub fn free_space_size(&self) -> usize { self.gap.len() }
+
     pub fn capacity(&self) -> usize {
         self.data.capacity()
     }
@@ -90,6 +104,28 @@ impl <T> GapBuffer<T> {
                 self.gap = pos..pos + gap.len();
             }
         }
+    }
+
+    pub fn insert_slice(&mut self, slice: &[T]) {
+        use std::ptr::copy_nonoverlapping as memcpy;
+        if self.gap.len() <= slice.len() {
+            self.enlarge_gap_sized(slice.len());
+        }
+        unsafe {
+            memcpy(slice.as_ptr(), self.data.as_mut_ptr().offset(self.gap.start as isize), slice.len());
+        }
+        self.gap.start += slice.len();
+    }
+
+    pub fn insert_data(&mut self, data: &Vec<T>) {
+        use std::ptr::copy_nonoverlapping as memcpy;
+        if self.gap.len() <= data.len() {
+            self.enlarge_gap_sized(data.len());
+        }
+        unsafe {
+            memcpy(data.as_ptr(), self.data.as_mut_ptr().offset(self.gap.start as isize), data.len());
+        }
+        self.gap.start += data.len();
     }
 
     pub fn insert(&mut self, elem: T) {
@@ -153,6 +189,27 @@ impl <T> GapBuffer<T> {
             copyNoOverlap(self.space(0), newbuf.as_mut_ptr(), self.gap.start);
             let newgap_end = newbuf.as_mut_ptr().offset(newgap.end as isize);
             copyNoOverlap(self.space(self.gap.end), newgap_end, aftergap);
+        }
+        self.data = newbuf;
+        self.gap = newgap;
+    }
+
+    /// Enlarge gap with added_gap_size elements
+    /// Problem domain:
+    ///     First, calculate new gap length, which is current len + added_size
+    ///     Create a new buffer, with capacity of self.capacity() + added_size
+    ///     copy everying from 0 .. gap.start to new buffer [0 .. gap.start]
+    ///     copy everything from self.data[gap.end .. capacity()] to new_buffer[gap.end + added_size .. new_buffer.capacity()]
+    ///     we have now a new buffer, with a gap len of gap.len() + added_size and all the contents of the old buffer copied
+    pub fn enlarge_gap_sized(&mut self, added_gap_size: usize) {
+        use std::ptr::copy_nonoverlapping as memcpy;
+        let mut newbuf: Vec<T> = Vec::with_capacity(self.capacity() + added_gap_size);
+        let ((src_a, elem_count_a), (src_b, elem_count_b)) = self.data_pointers();
+        let newgap = self.gap.start .. newbuf.capacity() - elem_count_b;
+        unsafe {            
+            memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
+            let newgap_end = newbuf.as_mut_ptr().offset(newgap.end as isize);
+            memcpy(src_b, newgap_end, elem_count_b);
         }
         self.data = newbuf;
         self.gap = newgap;
@@ -304,6 +361,38 @@ impl BufferString for GapBuffer<char> {
             for i in range {
                 match self.get(i) {
                     Some(c) => tmpbuf.push(*c),
+                    _ => {}
+                }
+                if i == self.len() {
+                    return tmpbuf;
+                }
+            }
+            tmpbuf
+        };
+        return res;
+    }
+}
+
+impl BufferString for GapBuffer<u8> {
+    fn read_string(&self, range: std::ops::Range<usize>) -> String {
+        let res = if range.len() < self.len() {
+            let mut tmpbuf = String::with_capacity(range.len());
+            for i in range {
+                match self.get(i) {
+                    Some(c) => {
+                        tmpbuf.push(*c as char);
+                    },
+                    _ => {
+
+                    }
+                }
+            }
+            tmpbuf
+        } else {
+            let mut tmpbuf = String::with_capacity(self.len());
+            for i in range {
+                match self.get(i) {
+                    Some(c) => tmpbuf.push(*c as char),
                     _ => {}
                 }
                 if i == self.len() {

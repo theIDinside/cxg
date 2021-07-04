@@ -41,8 +41,7 @@ impl RectVertex {
     }
 }
 
-
-#[allow(unused)]
+#[derive(Clone, Copy)]
 pub struct TextVertex {
     pub x: glfloat,
     pub y: glfloat,
@@ -54,6 +53,7 @@ pub struct TextVertex {
 }
 
 impl TextVertex {
+    #[inline(always)]
     pub fn new(x: glfloat,y: glfloat,u: glfloat,v: glfloat,r: glfloat,g: glfloat,b: glfloat) -> TextVertex {
         TextVertex {
             x, y, u, v, r, g, b

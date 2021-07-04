@@ -1,6 +1,7 @@
 use crate::datastructure::generic::Vec2i;
+use super::coordinate::{Anchor, Size};
 
-
+#[derive(Debug)]
 pub struct BoundingBox {
     /// Bottom left corner
     pub min: Vec2i,     
@@ -19,5 +20,18 @@ impl BoundingBox {
     pub fn box_hit_check(&self, pos: Vec2i) -> bool {
         pos.x >= self.min.x && pos.y >= self.min.y &&
         pos.x <= self.max.x && pos.y <= self.max.y
+    }
+
+    pub fn get_anchor(&self) -> Anchor {
+        Anchor(self.min.x, self.max.y)        
+    }
+}
+
+impl From<(Anchor, Size)> for BoundingBox {
+    #[inline(always)]
+    fn from(tuple: (Anchor, Size)) -> Self {
+        let (anchor, size) = tuple;
+        let Anchor(x, y) = anchor;
+        BoundingBox::new(Vec2i::new(x, y - size.height), Vec2i::new(x + size.width, y))
     }
 }

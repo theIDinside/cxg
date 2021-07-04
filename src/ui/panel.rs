@@ -1,23 +1,23 @@
 use super::coordinate::{Anchor, Layout, Size, PointArithmetic, Coordinate};
-use super::view::View;
+use super::view::{View, ViewId};
 use crate::ui::{Vec2i};
 
 use std::fmt::{Formatter};
 
 /// A panel is a top container, that contains children of Views. Views are essentially panels where
 /// text can be rendered
-pub struct Panel<'a> {
+pub struct Panel<'app> {
     pub id: u32,
     pub layout: Layout,
     pub margin: Option<i32>,
     pub border: Option<i32>,
     pub size: Size,
     pub anchor: Anchor,
-    pub children: Vec<View<'a>>,
+    pub children: Vec<View<'app>>,
     active_view: usize
 }
 
-impl<'a> std::fmt::Debug for Panel<'a> {
+impl<'app> std::fmt::Debug for Panel<'app> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Panel").field("id", &self.id)
             .field("size", &self.size)
@@ -81,9 +81,9 @@ pub enum Edge {
     Bottom,
 }
 
-impl<'a> Panel<'a> {
+impl<'app> Panel<'app> {
     pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor
-    ) -> Panel<'a> {
+    ) -> Panel<'app> {
         Panel {
             id: id,
             layout: layout,
@@ -131,7 +131,7 @@ impl<'a> Panel<'a> {
         }
     }
 
-    pub fn add_view(&mut self, mut view: View<'a>) {
+    pub fn add_view(&mut self, mut view: View<'app>) {
         if self.children.is_empty() {
             let adjusted_anchor = self.margin.and_then(|margin| Some(Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))).unwrap_or(self.anchor);
             view.resize(self.width() - self.margin.unwrap_or(0) * 2, self.height() - self.margin.unwrap_or(0) * 2);
@@ -245,6 +245,15 @@ impl<'a> Panel<'a> {
 
     pub fn resize(&mut self, w: i32, h: i32) {
         self.size = Size::new(w, h);
+    }
+
+    pub fn get_view(&mut self, view_id: ViewId) -> Option<*mut View<'app>> {
+        for v in self.children.iter_mut() {
+            if *v.id() == *view_id {
+                return Some(v);
+            }
+        }
+        None
     }
 
     pub fn size_changed(&mut self, old_size: Size) {

@@ -8,6 +8,7 @@ pub mod view;
 pub mod statusbar;
 pub mod font;
 
+#[derive(Clone, Copy, Debug)]
 pub enum UID {
     View(u32),
     Panel(u32),

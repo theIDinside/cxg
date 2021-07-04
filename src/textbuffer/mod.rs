@@ -1,35 +1,7 @@
 pub mod gap_buffer;
+pub mod simplebuffer;
+pub mod metadata;
 // pub mod text_buffer;
-
-use std::fmt::{Display, Formatter as Fmt, Error as FmtError};
-
-
-type FileName = String;
-type SourceErrorMessage = String;
-#[derive(Debug)]
-pub enum SaveFileError {
-    FileExisted(FileName),
-    Other(FileName, SourceErrorMessage)
-}
-
-pub type FileResult<T> = std::result::Result<T, SaveFileError>;
-impl Display for SaveFileError {
-    fn fmt(&self, f: &mut Fmt) -> Result<(), FmtError> {
-        let res = match self {
-            SaveFileError::FileExisted(fname) => {
-                fname.chars().chain(" exists already, writing to file denied.".chars()).collect::<String>()
-            },
-            SaveFileError::Other(fname, cause) => {
-                "Writing to "
-                    .chars()
-                    .chain(fname.chars())
-                    .chain(" failed. Underlying cause was: ".chars())
-                    .chain(cause.chars()).collect::<String>()
-            }
-        };
-        write!(f, "{}", res)
-    }
-}
 
 pub trait Buffer<T> where T: Sized {
     fn insert(&mut self, data: T);
@@ -38,6 +10,80 @@ pub trait Buffer<T> where T: Sized {
 
 pub trait BufferString {
     fn read_string(&self, range: std::ops::Range<usize>) -> String;
+}
+
+
+pub mod cursor {
+    use std::cmp::Ordering;
+    #[derive(Default, Debug, Copy, Clone)]
+    pub struct BufferCursor {
+        /// Absolute index into buffer
+        pub pos: usize, 
+        pub row: usize,
+        pub col: usize
+    }
+
+    impl PartialEq for BufferCursor {
+        fn ne(&self, other: &Self) -> bool {
+            self.pos != other.pos
+        }
+
+        fn eq(&self, other: &Self) -> bool {
+            self.pos == other.pos
+        }
+    }
+
+    impl Eq for BufferCursor {}
+
+    impl Ord for BufferCursor {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.pos.cmp(&other.pos)
+        }
+    }
+
+    impl PartialOrd for BufferCursor {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    pub enum CursorMovement {
+        Valid,
+        InvalidColumn
+    }
+
+    impl BufferCursor {
+        pub fn absolute(&self) -> usize { self.pos }
+        pub fn char_at_idx(&self) -> std::ops::Range<usize> { self.pos .. self.pos + 1 }
+
+        pub fn forward(&mut self, ch: char) {
+            if ch == '\n' {
+                self.col = 0;
+                self.row += 1;
+            } else {
+                self.col += 1;
+            }
+            self.pos += 1;
+        }
+
+        pub fn backward(&mut self, ch: char) -> CursorMovement {
+            if ch == '\n' {
+                self.row -= 1;
+                self.pos -= 1;
+                self.col = 0;
+                CursorMovement::InvalidColumn
+            } else {
+                self.pos -= 1;
+                if self.col == 0 {
+                    CursorMovement::InvalidColumn
+                } else {
+                    self.col -= 1;
+                    CursorMovement::Valid
+                }
+            }
+        }
+    }
+
 }
 
 
@@ -132,5 +178,22 @@ mod tests {
         let simon: String = "Simon".into();
         gb.map_to(simon.chars());
         assert_eq!("hello Simon", gb.read_string(0..25));
+    }
+
+    #[test]
+    fn test_insert_slice() {
+        let mut gb = GB::new();
+        let foo = String::from("fucker");
+
+        gb.insert('h' as u8);
+        gb.insert('e' as u8);
+        gb.insert('l' as u8);
+        gb.insert('l' as u8);
+        gb.insert('o' as u8);
+        gb.insert(' ' as u8);
+        gb.insert_slice("world! ".as_bytes());
+        assert_eq!(gb.read_string(0..gb.len()), "hello world! ");
+        gb.insert_slice(foo.as_bytes());
+        assert_eq!(gb.read_string(0..gb.len()), "hello world! fucker");
     }
 }

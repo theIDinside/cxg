@@ -17,6 +17,7 @@ impl OpenGLHandle {
         unsafe {
             gl::BindVertexArray(self.vao);
             gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
         }
     }
 }
