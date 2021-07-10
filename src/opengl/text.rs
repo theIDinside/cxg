@@ -1,5 +1,5 @@
 use super::{Primitive, types::TextVertex as TVertex};
-use crate::ui::{boundingbox::BoundingBox, font::{Font, GlyphInfo}};
+use crate::ui::{font::{Font, GlyphInfo}};
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct RendererId(pub u32);

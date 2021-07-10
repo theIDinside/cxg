@@ -1,31 +1,30 @@
-use glfw::{Window, Key, Action, Modifiers};
+use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
-use crate::opengl::rect::{RectRenderer};
+use crate::opengl::rect::RectRenderer;
 use crate::opengl::shaders::{RectShader, TextShader};
 use crate::opengl::types::RGBAColor;
 use crate::textbuffer::simplebuffer::{Movement, TextKind};
-use crate::ui::UID;
-use crate::ui::panel::{Panel};
-use crate::ui::coordinate::{Layout, Coordinate, Size, PointArithmetic, Anchor};
+use crate::ui::coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size};
+use crate::ui::panel::Panel;
 use crate::ui::statusbar::StatusBar;
-use crate::ui::view::{View, Popup};
+use crate::ui::view::{Popup, View};
+use crate::ui::UID;
 
-use crate::opengl::text::{TextRenderer};
+use crate::opengl::text::TextRenderer;
 use crate::ui::font::Font;
 
-
 pub struct TextBuffer {
-    buf: Vec<char>
+    buf: Vec<char>,
 }
 
 #[allow(unused)]
 enum ActiveInput {
     TextFile(usize),
-    Application
+    Application,
 }
 
-
+static TEST_DATA: &str = include_str!("./textbuffer/simplebuffer.rs");
 
 pub struct Application<'app> {
     _title_bar: String,
@@ -41,25 +40,47 @@ pub struct Application<'app> {
     popup: Option<Popup<'app>>,
     active_ui_element: UID,
     debug: bool,
-    active_view: Option<*mut View<'app>>
+    active_view: *mut View<'app>,
+    active_views: Vec<*mut View<'app>>,
 }
 
 impl<'app> Application<'app> {
-
     pub fn open_text_view(&mut self, parent_panel: u32, view_name: Option<String>, view_size: Size) {
-        let view_id = self.panels.iter().flat_map(|panel| panel.children.iter().map(|v| *v.id)).max().unwrap_or(0);
-        if let Some(p) = self.panels.iter_mut().find(|panel| panel.id == parent_panel) {
+        let view_id = self
+            .panels
+            .iter()
+            .flat_map(|panel| panel.children.iter().map(|v| *v.id))
+            .max()
+            .unwrap_or(0);
+        if let Some(p) = self
+            .panels
+            .iter_mut()
+            .find(|panel| panel.id == parent_panel)
+        {
             let font = &self.fonts[0];
-            let Size {width, height} = view_size;
-            let view_name = view_name.as_ref().map(|name| name.as_ref()).unwrap_or("unnamed view");
-            let view = View::new(view_name, view_id.into(), TextRenderer::create(self.font_shader.clone(), font, 1024 * 10).expect("Failed to create TextRenderer"), 
-            RectRenderer::create(self.rect_shader.clone(), 1024 * 10).expect("failed to create rectangle renderer"), 0, width, height, font.row_height());
+            let Size { width, height } = view_size;
+            let view_name = view_name
+                .as_ref()
+                .map(|name| name.as_ref())
+                .unwrap_or("unnamed view");
+            let view = View::new(
+                view_name,
+                view_id.into(),
+                TextRenderer::create(self.font_shader.clone(), font, 1024 * 10)
+                    .expect("Failed to create TextRenderer"),
+                RectRenderer::create(self.rect_shader.clone(), 1024 * 10)
+                    .expect("failed to create rectangle renderer"),
+                0,
+                width,
+                height,
+                font.row_height(),
+            );
             self.active_ui_element = UID::View(*view.id);
             p.add_view(view);
         }
     }
 
-    pub fn create(fonts: &'app Vec<Font>, font_shader: super::opengl::shaders::TextShader, rect_shader: RectShader) -> Application<'app> {
+    pub fn create(fonts: &'app Vec<Font>,font_shader: super::opengl::shaders::TextShader,rect_shader: RectShader) -> Application<'app> {
         let mut active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -68,42 +89,90 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let sb_tr = TextRenderer::create(font_shader.clone(), &fonts[0], 1024).expect("Failed to create TextRenderer");
-        let mut sb_wr = RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer");
-        sb_wr.set_color(RGBAColor::new(0.5,0.5,0.5, 1.0));
+        let sb_tr = TextRenderer::create(font_shader.clone(), &fonts[0], 1024)
+            .expect("Failed to create TextRenderer");
+        let mut sb_wr = RectRenderer::create(rect_shader.clone(), 8 * 60)
+            .expect("failed to create rectangle renderer");
+        sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
         let sb_anchor = Anchor(0, 768);
         let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size);
         status_bar.update();
 
-        let panel = Panel::new(0, Layout::Horizontal(10.into()), Some(15), None, 1024 / 2, 768 - sb_size.height, (0, 768 - sb_size.height).into());
-        let panel2 = Panel::new(1, Layout::Vertical(10.into()), Some(15), None, 1024 / 2, 768 - sb_size.height, (1024 / 2, 768 - sb_size.height).into());
+        let panel = Panel::new(
+            0,
+            Layout::Horizontal(10.into()),
+            Some(15),
+            None,
+            1024 / 2,
+            768 - sb_size.height,
+            (0, 768 - sb_size.height).into(),
+        );
+        let panel2 = Panel::new(
+            1,
+            Layout::Vertical(10.into()),
+            Some(15),
+            None,
+            1024 / 2,
+            768 - sb_size.height,
+            (1024 / 2, 768 - sb_size.height).into(),
+        );
         let mut panels = vec![panel, panel2];
-        
-        let view = View::new("Left view", active_view_id.into(), 
-        TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),
-         RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
+
+        let view = View::new(
+            "Left view",
+            active_view_id.into(),
+            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10)
+                .expect("Failed to create TextRenderer"),
+            RectRenderer::create(rect_shader.clone(), 8 * 60)
+                .expect("failed to create rectangle renderer"),
+            0,
+            1024,
+            768,
+            fonts[0].row_height(),
+        );
         panels[0].add_view(view);
         active_view_id += 1;
-        
-        let view = View::new("Right Top", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create window renderer"), 0, 1024, 768, fonts[0].row_height());
-        panels[1].add_view(view);
-        active_view_id += 1;
 
-        let mut view = View::new("Right Bottom", active_view_id.into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 1024, 768, fonts[0].row_height());
-        view.insert_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16");
+        let mut view = View::new(
+            "Right Bottom",
+            active_view_id.into(),
+            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).unwrap(),
+            RectRenderer::create(rect_shader.clone(), 8 * 60).unwrap(),
+            0,
+            1024,
+            768,
+            fonts[0].row_height(),
+        );
+        view.insert_str("\n\nabcd\n123");
+        // view.insert_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16");
         panels[1].add_view(view);
 
-        let mut popup = View::new("Popup view", (active_view_id + 1).into(), TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).expect("Failed to create TextRenderer"),RectRenderer::create(rect_shader.clone(), 8 * 60).expect("failed to create rectangle renderer"), 0, 524, 518, fonts[0].row_height());
-        
-        popup.set_anchor((250, 768-250).into());
+        let mut popup = View::new(
+            "Popup view",
+            (active_view_id + 1).into(),
+            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10).unwrap(),
+            RectRenderer::create(rect_shader.clone(), 8 * 60).unwrap(),
+            0,
+            524,
+            518,
+            fonts[0].row_height(),
+        );
+
+        popup.set_anchor((250, 768 - 250).into());
         popup.update();
-        &popup.window_renderer.set_color(RGBAColor{r: 0.3, g: 0.34, b: 0.48, a: 0.8});
+        popup.window_renderer.set_color(RGBAColor {
+            r: 0.3,
+            g: 0.34,
+            b: 0.48,
+            a: 0.8,
+        });
 
-        
+        let popup = Some(Popup {
+            visible: false,
+            view: popup,
+        });
 
-        let popup = Some( Popup { visible: false, view: popup });
-        
         Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -115,17 +184,24 @@ impl<'app> Application<'app> {
             font_shader,
             rect_shader,
             panels,
-            popup, 
+            popup,
             active_ui_element: UID::View(active_view_id),
             debug: false,
-            active_view: None
+            active_view: std::ptr::null_mut(),
+            active_views: vec![],
         }
     }
 
     pub fn init<'b>(&'b mut self) {
         match self.active_ui_element {
             UID::View(id) => {
-                self.active_view = self.panels[1].get_view(id.into());
+                if let Some(v) = self.panels[1].get_view(id.into()) {
+                    self.active_view = v;
+                }
+                self.active_views.push(self.active_view);
+                for v in self.active_views.iter() {
+                    println!("View: {:?}", unsafe { &(**v) });
+                }
             }
             UID::Panel(_id) => todo!(),
         }
@@ -135,7 +211,7 @@ impl<'app> Application<'app> {
         match self.active_input {
             ActiveInput::TextFile(_) => {
                 self.buf.buf.push(ch);
-            },
+            }
             _ => {}
         }
     }
@@ -148,7 +224,10 @@ impl<'app> Application<'app> {
     }
 
     fn handle_resize_event(&mut self, width: i32, height: i32) {
-        println!("App window {:?} ===> {}x{}", self.window_size, width, height);
+        println!(
+            "App window {:?} ===> {}x{}",
+            self.window_size, width, height
+        );
         let new_panel_space_size = Size::new(width, height - self.status_bar.size.height);
         let size_change_factor = new_panel_space_size / self.panel_space_size;
 
@@ -170,9 +249,7 @@ impl<'app> Application<'app> {
         self.status_bar.anchor = Anchor(0, height);
         self.status_bar.update();
 
-        unsafe {
-            gl::Viewport(0, 0, width, height) 
-        }
+        unsafe { gl::Viewport(0, 0, width, height) }
     }
 
     // NOTE: not the same version as in common.rs!
@@ -181,46 +258,80 @@ impl<'app> Application<'app> {
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
                     self.handle_resize_event(width, height);
-                },
+                }
                 glfw::WindowEvent::Char(ch) => {
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            let v = v.as_mut().unwrap();
-                            v.insert_ch(ch);
-                        }
-                    }
-                },
-                glfw::WindowEvent::Key(Key::Right, _, action, modifier) if action == Action::Repeat  || action == Action::Press => {
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            if modifier == Modifiers::Control {
-                                (*v).move_cursor(Movement::Forward(TextKind::Word, 1));
-                            } else {
-                                (*v).move_cursor(Movement::Forward(TextKind::Char, 1));
-                            }
-                        }
-                    }
-                },
-                glfw::WindowEvent::Key(Key::Left, _, action, modifier) if action == Action::Repeat  || action == Action::Press => {
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            if modifier == Modifiers::Control {
-                                (*v).move_cursor(Movement::Backward(TextKind::Word, 1));
-                            } else {
-                                (*v).move_cursor(Movement::Backward(TextKind::Char, 1));
-                            }
-                        }
-                    }
-                },
-                glfw::WindowEvent::Key(Key::Backspace, _, action, _) if action == Action::Repeat  || action == Action::Press => {
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            let v = v.as_mut().unwrap();
-                            v.backspace_handle(TextKind::Char);
-                        }
+                    if let Some(v) = unsafe { self.active_view.as_mut() } {
+                        v.insert_ch(ch);
                     }
                 }
-                glfw::WindowEvent::Key(Key::F1, _, Action::Press, _) => {
+                glfw::WindowEvent::Key(key, _, action, m) => {
+                    self.handle_key_event(window, key, action, m);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub fn handle_key_event(
+        &mut self,
+        window: &mut Window,
+        key: glfw::Key,
+        action: glfw::Action,
+        modifier: glfw::Modifiers,
+    ) {
+        let v = unsafe { self.active_view.as_mut().unwrap() };
+
+        match key {
+            Key::Home => match modifier {
+                Modifiers::Control => v.cursor_goto(crate::textbuffer::metadata::Index(0)),
+                _ => v.move_cursor(Movement::Begin(TextKind::Line)),
+            },
+            Key::End => match modifier {
+                Modifiers::Control => {
+                    v.goto_buffer_end();
+                    v.cursor_goto(crate::textbuffer::metadata::Index(v.buffer.len()))
+                }
+                _ => v.move_cursor(Movement::End(TextKind::Line)),
+            },
+            Key::Right if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    v.move_cursor(Movement::Forward(TextKind::Word, 1));
+                } else {
+                    v.move_cursor(Movement::Forward(TextKind::Char, 1));
+                }
+            }
+            Key::Left if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    v.move_cursor(Movement::Backward(TextKind::Word, 1));
+                } else {
+                    v.move_cursor(Movement::Backward(TextKind::Char, 1));
+                }
+            }
+            Key::Up if action == Action::Repeat || action == Action::Press => {
+                v.move_cursor(Movement::Backward(TextKind::Line, 1));
+            }
+            Key::Down if action == Action::Repeat || action == Action::Press => {
+                v.move_cursor(Movement::Forward(TextKind::Line, 1));
+            }
+            Key::Backspace if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    v.delete(Movement::Backward(TextKind::Word, 1));
+                } else if modifier.is_empty() {
+                    v.delete(Movement::Backward(TextKind::Char, 1));
+                }
+            }
+            Key::Delete if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    v.delete(Movement::Forward(TextKind::Word, 1));
+                } else if modifier.is_empty() {
+                    v.delete(Movement::Forward(TextKind::Char, 1));
+                }
+            }
+
+            Key::F1 => {
+                if modifier == Modifiers::Control {
+                    v.insert_str(TEST_DATA);
+                } else {
                     self.debug = !self.debug;
                     println!("Opening debug interface...");
                     println!("Application window: {:?}", self.window_size);
@@ -228,37 +339,34 @@ impl<'app> Application<'app> {
                         println!("{:?}", p);
                     }
 
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            let v = v.as_mut().unwrap();
-                            v.buffer.debug_metadata();
-                            v.debug_viewcursor();
-                            // v.debug_viewed_range();
-                        }
+                    #[cfg(debug_assertions)]
+                    {
+                        v.buffer.debug_metadata();
                     }
-                },
-                glfw::WindowEvent::Key(Key::P, _, Action::Press, Modifiers::Control) => {
-                    println!("Open popup panel");
-                    if let Some(p) = self.popup.as_mut() {
-                        p.visible = !p.visible;
-                    }
+
+                    v.debug_viewcursor();
                 }
-                glfw::WindowEvent::Key(Key::Q, _, Action::Press, Modifiers::Control) => {
-                    window.set_should_close(true);
-                }
-                glfw::WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
-                    if let Some(v) = self.active_view {
-                        unsafe {
-                            let v = v.as_mut().unwrap();
-                            v.insert_ch('\n');
-                        }
-                    }
-                }
-                glfw::WindowEvent::Key(_, _, Action::Press, _) => {
-                    // println!("Key input handler - Key: {}  Scancode: {}", k.get_name().unwrap(), k.get_scancode().unwrap());
-                },
-                _ => {}
             }
+            Key::P if modifier == Modifiers::Control => {
+                if let Some(p) = self.popup.as_mut() {
+                    if p.visible {
+                        if let Some(v) = self.active_views.pop() {
+                            self.active_view = v;
+                        }
+                    } else {
+                        self.active_views.push(self.active_view);
+                        self.active_view = &mut p.view as _;
+                    }
+                    p.visible = !p.visible;
+                }
+            }
+            Key::Q if modifier == Modifiers::Control => {
+                window.set_should_close(true);
+            }
+            Key::Enter if action == Action::Press || action == Action::Repeat => {
+                v.insert_ch('\n');
+            }
+            _ => {}
         }
     }
 
@@ -293,7 +401,6 @@ impl<'app> Application<'app> {
 
         if let Some(v) = self.popup.as_mut() {
             if v.visible {
-                v.window_renderer.draw();
                 v.view.draw();
             }
         }

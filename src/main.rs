@@ -11,12 +11,15 @@ pub enum DebuggerCatch {
     Panic(String)
 }
 
+#[cfg(debug_assertions)]
 macro_rules! debugger_catch {
     ($assert_expr:expr, $message:literal) => {
         if !$assert_expr {
             println!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
             unsafe { libc::raise(libc::SIGTRAP); }
+            println!("Reached stoppable debug statement");
         }
+        
     };
 
     ($assert_expr:expr, $handleRequest:expr) => {
@@ -26,6 +29,7 @@ macro_rules! debugger_catch {
                 DebuggerCatch::Handle(message) => {
                     println!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
                     unsafe { libc::raise(libc::SIGTRAP); }
+                    println!("Reached stoppable debug statement");
                 },
                 DebuggerCatch::Panic(message) => {
                     panic!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
@@ -33,8 +37,31 @@ macro_rules! debugger_catch {
             }
         }
     };
-
 }
+
+#[cfg(not(debug_assertions))]
+macro_rules! debugger_catch {
+    ($assert_expr:expr, $message:literal) => {};
+    ($assert_expr:expr, $handleRequest:expr) => {};
+}
+
+
+#[allow(unused)]
+macro_rules! Assert {
+    ($assert_expr:expr, $message:literal) => {
+        if !$assert_expr {
+            panic!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
+        }
+    };
+
+    ($assert_expr:expr, $message:expr) => {
+        let (file, line, column) = (file!(), line!(), column!());
+        if !$assert_expr {
+            panic!("Assert failed - {} @ {}:{}:{}", $message, file, line, column);
+        }
+    };
+}
+
 
 #[macro_use]
 pub mod opengl;
@@ -59,19 +86,19 @@ impl From<glfw::InitError> for MainInitError {
 }
 
 type Main = Result<(), MainInitError>;
-static mut handler: fn(i32) = |i| {};
+static mut TRAP_HANDLER: fn(i32) = |_| {};
 
 pub fn init_debug_break(f: fn(i32)) {
     unsafe {
-        handler = f as fn(i32);
+        TRAP_HANDLER = f as fn(i32);
     };    
 }
 
 pub fn foo() {
     init_debug_break(|i: i32| { 
-        println!("trap handler executing");
+        println!("trap handler executing. Signal: {}", i);
     });
-    let virtual_address =  unsafe { handler as usize };
+    let virtual_address =  unsafe { TRAP_HANDLER as usize };
     let ptr = virtual_address as *const ();
     let code: extern "C" fn(i32) = unsafe { std::mem::transmute(ptr) };
     
@@ -79,7 +106,6 @@ pub fn foo() {
         libc::signal(libc::SIGTRAP, code as _);
     }
 }
-
 
 fn main() -> Main {
     let width = 1024;
@@ -109,29 +135,37 @@ fn main() -> Main {
 
     font_program.bind();
     let char_range = (0 .. 0x00f6u8).map(|x| x as char).collect();
-    let font = ui::font::Font::new(font_path, 20, char_range).expect("Failed to create font");
+    let font = ui::font::Font::new(font_path, 12, char_range).expect("Failed to create font");
     let fonts = vec![font];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
     let mut app = app::Application::create(&fonts, font_program, rectangle_program);
     app.init();
     
-    let mut last_update = glfw_handle.get_time();
-    let mut frame_counter = 0;
-    while !window.should_close() {
-        let now_time = glfw_handle.get_time();
-        if now_time - last_update > 1.0f64 {
-            println!("second...");
-            last_update = now_time;
-            window.set_title(&format!("{} FPS", frame_counter));
-            frame_counter = 0;
+    let _last_update = glfw_handle.get_time();
+    let mut _frame_counter = 0.0;
+
+
+
+
+    let _updatefps = |last_update: &mut f64, glfw_handle: &mut  glfw::Glfw, frame_counter: &mut f64| {
+        if *frame_counter > 20000.0 {
+            let now_time = glfw_handle.get_time();
+            let diff_time = now_time - *last_update;
+            *last_update = now_time;
+            println!("FPS: {}", *frame_counter / diff_time);
+            *frame_counter = 0.0;
         }
+        *frame_counter += 1.0;
+    };
+
+    while !window.should_close() {
+        // updatefps(&mut last_update, &mut glfw_handle, &mut window, &mut frame_counter);
         app.process_events(&mut window, &events);
         app.update_window();
         window.swap_buffers();
         glfw_handle.poll_events();
         // glfw_handle.wait_events_timeout(1.0 / 90.0);
-        frame_counter += 1;
     }
 
     Ok(())

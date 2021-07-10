@@ -76,7 +76,7 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
 }
 
 #[cfg(not(debug_assertions))]
-fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {}
+fn debug_write_font_texture_to_file(_font_path: &Path, _pixels: &Vec<u8>, _pixel_size: i32, _tex_width: u32, _tex_height: u32) {}
 
 impl Font {
     pub fn new(font_path: &Path, pixel_size: i32, characters: Vec<char>) -> Result<Font, ft::Error> {

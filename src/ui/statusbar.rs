@@ -9,7 +9,6 @@ pub struct StatusBar<'app> {
     pub size: Size,
     pub anchor: Anchor,
     pub display_data: Vec<char>,
-    needs_rerender: bool,
 }
 
 
@@ -21,14 +20,12 @@ impl<'app> StatusBar<'app> {
             size,
             anchor,
             display_data: vec![],
-            needs_rerender: true,
         }
     }
 
     pub fn update_string_contents(&mut self, data: &str) {
         self.display_data.clear();
         self.display_data = data.chars().map(|c| c).collect();
-        self.needs_rerender = true;
     }
 
     pub fn update(&mut self) {

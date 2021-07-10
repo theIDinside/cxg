@@ -2,11 +2,12 @@ use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
 use crate::textbuffer::simplebuffer::{Movement, SimpleBuffer, TextKind};
+use crate::textbuffer::metadata::{Line, Index};
 use crate::ui::font::Font;
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
 
-use crate::opengl::{Primitive, Renderable};
+use crate::opengl::{Renderable};
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
 
@@ -94,7 +95,7 @@ impl<'a> View<'a>{
             size: Size::new(width, height),
             anchor: Anchor(0, 0),
             topmost_line_in_buffer: 0,
-            displayable_lines: 0,
+            displayable_lines: height / row_height,
             row_height,
             cursor_width,
             panel_id: None,
@@ -127,34 +128,35 @@ impl<'a> View<'a>{
                 gl::ClearColor(0.2, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
-            self.text_renderer.push_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);
+            self.text_renderer.push_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);    
+            let rows_down: i32 = self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
+            let cols_in = self.buffer.cursor_col() as i32;
+            
+            let g = self.text_renderer.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
+            let cursor_width = g.map(|glyph| {
+                if glyph.width() == 0 as _ {
+                    glyph.advance
+                } else {
+                    glyph.width() as _
+                }
+            }).unwrap_or(self.cursor_width);
+
+            let nl_buf_idx = self.buffer.meta_data().get_line_buffer_index(self.buffer.cursor_row()).unwrap();
+            debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer");
+            let line_contents = self.buffer.get_slice(nl_buf_idx .. (nl_buf_idx + cols_in as usize));
+
+            let min_x = top_x + line_contents.iter().map(|& c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width)).sum::<i32>();
+
+            use crate::datastructure::generic::Vec2i;
+
+            let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
+            let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.row_height));
+
+            let bb = BoundingBox::new(min, max);
+            self.cursor_renderer.set_rect(bb);
             self.view_changed = false;
+
         }
-
-        let rows_down: i32 = self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
-        let cols_in = self.buffer.cursor_col() as i32;
-        
-        let g = self.text_renderer.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
-        let cursor_width = g.map(|glyph| {
-            if glyph.width() == 0 as _ {
-                glyph.advance
-            } else {
-                glyph.width() as _
-            }
-        }).unwrap_or(self.cursor_width);
-
-        let nl_buf_idx = self.buffer.meta_data().get_line_buffer_index(self.buffer.cursor_row()).unwrap();
-        let line_contents = self.buffer.get_slice(nl_buf_idx .. (nl_buf_idx + cols_in as usize));
-
-        let min_x = top_x + line_contents.iter().map(|& c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width)).sum::<i32>();
-
-        use crate::datastructure::generic::Vec2i;
-
-        let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
-        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.row_height));
-
-        let bb = BoundingBox::new(min, max);
-        self.cursor_renderer.set_rect(bb);
         
         self.window_renderer.draw();
         self.text_renderer.bind();
@@ -210,6 +212,10 @@ impl<'a> View<'a>{
             if let (Some(a), end) = md.get_byte_indices_of_lines(self.topmost_line_in_buffer as _, (self.topmost_line_in_buffer + self.displayable_lines) as _ ) {
                 self.buffer_in_view = a .. end.unwrap_or(self.buffer.len());
             }
+        } else {
+            if let (Some(a), end) = md.get_byte_indices_of_lines(self.topmost_line_in_buffer as _, (self.topmost_line_in_buffer + self.displayable_lines) as _ ) {
+                self.buffer_in_view = a .. end.unwrap_or(self.buffer.len());
+            }
         }
         self.view_changed = true;
     }
@@ -222,11 +228,52 @@ impl<'a> View<'a>{
         self.text_renderer.pristine = false;
     }
 
+    pub fn cursor_goto(&mut self, pos: Index) {
+        self.buffer.cursor_goto(pos);
+        self.adjust_view_range();
+    }
+
+    pub fn goto_buffer_end(&mut self) {
+        let md = self.buffer.meta_data();
+        md.get(md.line_count().wrapping_sub(self.displayable_lines as _));
+    }
+
     pub fn move_cursor(&mut self, dir: Movement) {
         match dir {
             Movement::Forward(kind, count) => self.buffer.cursor_move_forward(kind, count),
-            Movement::Backward(kind, count) => self.buffer.cursor_move_backward(kind, count)
+            Movement::Backward(kind, count) => self.buffer.cursor_move_backward(kind, count),
+            Movement::Begin(kind) => {
+                match kind {
+                    TextKind::Char => todo!(),
+                    TextKind::Word => todo!(),
+                    TextKind::Line => {
+                        if let Some(Line(start)) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
+                            self.buffer.cursor_goto(Index(start));
+                        }
+                    },
+                    TextKind::Block => todo!(),
+                }
+            },
+            Movement::End(kind) => {
+                match kind {
+                    TextKind::Char => todo!(),
+                    TextKind::Word => todo!(),
+                    TextKind::Line => {
+                        if let Some(Index(end)) = self.buffer.meta_data().get(self.buffer.cursor_row()+1).map(|Line(start)| Index(start-1)) {
+                            self.buffer.cursor_goto(Index(end));
+                        }
+                    },
+                    TextKind::Block => todo!(),
+                }
+            },
         }
+        self.adjust_view_range();
+    }
+
+    pub fn delete(&mut self, dir: Movement) {
+        self.buffer.delete(dir);
+        self.view_changed = true;
+        self.validate_range();
         self.adjust_view_range();
     }
 

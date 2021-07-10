@@ -14,7 +14,6 @@ pub struct Panel<'app> {
     pub size: Size,
     pub anchor: Anchor,
     pub children: Vec<View<'app>>,
-    active_view: usize
 }
 
 impl<'app> std::fmt::Debug for Panel<'app> {
@@ -92,7 +91,6 @@ impl<'app> Panel<'app> {
             size: Size::new(width, height),
             anchor: anchor,
             children: vec![],
-            active_view: 0
         }
     }
 
@@ -165,7 +163,7 @@ impl<'app> Panel<'app> {
             v.update();
         }
     }
-
+/*
     pub fn resize_panel(&mut self, resize: Resize) {
         let (ax, ay) = self.anchor.values_mut();
         let (width, height) = self.size.values_mut();
@@ -242,7 +240,7 @@ impl<'app> Panel<'app> {
             v.update();
         }
     }
-
+*/
     pub fn resize(&mut self, w: i32, h: i32) {
         self.size = Size::new(w, h);
     }

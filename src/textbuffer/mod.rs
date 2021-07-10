@@ -23,6 +23,14 @@ pub mod cursor {
         pub col: usize
     }
 
+    impl Into<BufferCursor> for (usize, usize, usize) {
+        #[inline(always)]
+        fn into(self) -> BufferCursor {
+            let (pos, row, col) = self;
+            BufferCursor { pos, row, col }
+        }
+    }
+
     impl PartialEq for BufferCursor {
         fn ne(&self, other: &Self) -> bool {
             self.pos != other.pos
@@ -55,33 +63,9 @@ pub mod cursor {
     impl BufferCursor {
         pub fn absolute(&self) -> usize { self.pos }
         pub fn char_at_idx(&self) -> std::ops::Range<usize> { self.pos .. self.pos + 1 }
-
-        pub fn forward(&mut self, ch: char) {
-            if ch == '\n' {
-                self.col = 0;
-                self.row += 1;
-            } else {
-                self.col += 1;
-            }
-            self.pos += 1;
-        }
-
-        pub fn backward(&mut self, ch: char) -> CursorMovement {
-            if ch == '\n' {
-                self.row -= 1;
-                self.pos -= 1;
-                self.col = 0;
-                CursorMovement::InvalidColumn
-            } else {
-                self.pos -= 1;
-                if self.col == 0 {
-                    CursorMovement::InvalidColumn
-                } else {
-                    self.col -= 1;
-                    CursorMovement::Valid
-                }
-            }
-        }
+        pub fn set_pos(&mut self, pos: usize) { self.pos = pos; }
+        pub fn set_row(&mut self, row: usize) { self.row = row; }
+        pub fn set_col(&mut self, col: usize) { self.col = col; }
     }
 
 }

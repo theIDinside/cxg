@@ -9,7 +9,7 @@ pub struct RectRenderer {
     pub shader: RectShader,
     reserved_vertex_count: isize,
     reserved_index_count: isize,
-    color: RGBAColor
+    color: RGBAColor,
 }
 
 /// Public interface
