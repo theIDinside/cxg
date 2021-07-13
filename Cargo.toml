@@ -21,7 +21,7 @@ overflow-checks = false
 
 [profile.dev]
 debug = true
-opt-level = 1
+opt-level = 0
 incremental = true
 
 [profile.dev.package."*"]

@@ -2,15 +2,17 @@ use std::ops::Range;
 use std::ptr::copy as copyrange;
 use std::ops::Index;
 
+use crate::textbuffer::{metadata::MetaData};
 
-use super::BufferString;
+
+
+use super::super::{CharBuffer, SubstringClone};
 
 #[derive(Clone, Copy)]
 pub enum Cursor {
     Absolute(usize),
     Buffer
 }
-
 
 // TODO: implement into iterator for gap buffer
 // TODO: see above, then implement extend, so that we can do
@@ -20,21 +22,25 @@ pub enum Cursor {
 //      let mut s = String::from("hello ");
 //      s.extend(['w','o','r','l','d'].into_iter()); // s now -> "hello world"
 
-pub struct GapBuffer<T> {
+
+#[allow(unused)]
+pub struct GapBuffer<T> where T: Clone + Copy {
     data: Vec<T>,
-    gap: Range<usize>
+    gap: Range<usize>,
+    metadata: MetaData
 }
 
-impl <T> GapBuffer<T> {
+impl <T> GapBuffer<T> where T: Clone + Copy {
     pub fn new() -> GapBuffer<T> {
         GapBuffer {
             data: Vec::new(),
             gap: 0..0,
+            metadata: MetaData::new(None)
         }
     }
 
-    /// Returns pointer to begin, and element count up until gap.start, and pointer to where the gap ends in the buffer, and element count until end of buffer
-    fn data_pointers(&mut self) -> ((*mut T, usize), (*mut T, usize)) {
+        /// Returns pointer to begin, and element count up until gap.start, and pointer to where the gap ends in the buffer, and element count until end of buffer
+    fn data_pointers_mut(&mut self) -> ((*mut T, usize), (*mut T, usize)) {
         let res = unsafe {
         ((self.data.as_mut_ptr(), self.gap.start),
         (self.data.as_mut_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end))
@@ -42,11 +48,30 @@ impl <T> GapBuffer<T> {
         res
     }
 
-    /// Requires for us to *only* have one gap (which is currently the only feature of this gap buffer. Implementing a multi gap buffer, should probably 
-    /// be implemented as a buffer of multiple gap buffers instead, for simplicity, allocated in some form of arena for "cache" locality or at least memory locality in RAM 
-    /// (as to prevent page faults)
-    pub fn free_space_size(&self) -> usize { self.gap.len() }
+    fn data_pointers(&self)  -> ((*const T, usize), (*const T, usize)) {
+        let res = unsafe {
+        ((self.data.as_ptr(), self.gap.start),
+        (self.data.as_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end))
+        };
+        res
+    }
 
+    /// Slices is much easier for us to work with, from the "customer" perspective (i.e my program that uses this buffer)
+    pub fn data_slices_mut(&mut self) -> (&mut [T], &mut [T]) {
+        let ((a, alen), (b, blen)) = self.data_pointers_mut();
+        let a = unsafe { std::slice::from_raw_parts_mut(a, alen) };
+        let b = unsafe { std::slice::from_raw_parts_mut(b, blen) };
+        (a, b)
+    }
+
+    pub fn data_slices(&self) -> (&[T], &[T]) {
+        let ((a, alen), (b, blen)) = self.data_pointers();
+        let a = unsafe { std::slice::from_raw_parts(a, alen) };
+        let b = unsafe { std::slice::from_raw_parts(b, blen) };
+        (a, b)
+    }
+
+    
     pub fn capacity(&self) -> usize {
         self.data.capacity()
     }
@@ -54,6 +79,12 @@ impl <T> GapBuffer<T> {
     pub fn len(&self) -> usize {
         self.capacity() - self.gap.len()
     }
+
+
+    /// Requires for us to *only* have one gap (which is currently the only feature of this gap buffer. Implementing a multi gap buffer, should probably 
+    /// be implemented as a buffer of multiple gap buffers instead, for simplicity, allocated in some form of arena for "cache" locality or at least memory locality in RAM 
+    /// (as to prevent page faults)
+    pub fn free_space_size(&self) -> usize { self.gap.len() }
 
     pub fn get_pos(&self) -> usize {
         self.gap.start
@@ -109,7 +140,7 @@ impl <T> GapBuffer<T> {
     pub fn insert_slice(&mut self, slice: &[T]) {
         use std::ptr::copy_nonoverlapping as memcpy;
         if self.gap.len() <= slice.len() {
-            self.enlarge_gap_sized(slice.len());
+            self.enlarge_gap_sized(slice.len() * 3);
         }
         unsafe {
             memcpy(slice.as_ptr(), self.data.as_mut_ptr().offset(self.gap.start as isize), slice.len());
@@ -117,7 +148,7 @@ impl <T> GapBuffer<T> {
         self.gap.start += slice.len();
     }
 
-    pub fn insert_data(&mut self, data: &Vec<T>) {
+    pub fn insert_container_data(&mut self, data: &Vec<T>) {
         use std::ptr::copy_nonoverlapping as memcpy;
         if self.gap.len() <= data.len() {
             self.enlarge_gap_sized(data.len());
@@ -128,7 +159,18 @@ impl <T> GapBuffer<T> {
         self.gap.start += data.len();
     }
 
-    pub fn insert(&mut self, elem: T) {
+    pub fn insert_slice_data(&mut self, data: &[T]) {
+        use std::ptr::copy_nonoverlapping as memcpy;
+        if self.gap.len() <= data.len() {
+            self.enlarge_gap_sized(data.len());
+        }
+        unsafe {
+            memcpy(data.as_ptr(), self.data.as_mut_ptr().offset(self.gap.start as isize), data.len());
+        }
+        self.gap.start += data.len();
+    }
+
+    pub fn insert_item(&mut self, elem: T) {
         if self.gap.len() == 0 {
             self.enlarge_gap();
         }
@@ -140,9 +182,9 @@ impl <T> GapBuffer<T> {
         self.gap.start += 1;
     }
 
-    pub fn map_to<Iter>(&mut self, iterable: Iter) where Iter: IntoIterator<Item=T> {
+    pub fn map_into<Iter>(&mut self, iterable: Iter) where Iter: IntoIterator<Item=T> {
         for item in iterable {
-            self.insert(item);
+            self.insert_item(item);
         }
     }
 
@@ -204,7 +246,7 @@ impl <T> GapBuffer<T> {
     pub fn enlarge_gap_sized(&mut self, added_gap_size: usize) {
         use std::ptr::copy_nonoverlapping as memcpy;
         let mut newbuf: Vec<T> = Vec::with_capacity(self.capacity() + added_gap_size);
-        let ((src_a, elem_count_a), (src_b, elem_count_b)) = self.data_pointers();
+        let ((src_a, elem_count_a), (src_b, elem_count_b)) = self.data_pointers_mut();
         let newgap = self.gap.start .. newbuf.capacity() - elem_count_b;
         unsafe {            
             memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
@@ -256,13 +298,21 @@ impl <T> GapBuffer<T> {
     }
 }
 
-pub struct GapBufferIterator<'a, T> {
+impl GapBuffer<char> {
+
+    pub fn debug(&self) {
+        let (a, b) = self.data_slices();
+        println!("{}", a.iter().map(|v| *v).chain(self.gap.clone().map(|_| '-')).chain(b.iter().map(|v| *v)).collect::<String>());
+    }
+}
+
+pub struct GapBufferIterator<'a, T> where T: Clone + Copy {
     pos: usize,
     end: usize,
     buffer: &'a GapBuffer<T>
 }
 
-impl<'a, T> Iterator for GapBufferIterator<'a, T> {
+impl<'a, T> Iterator for GapBufferIterator<'a, T> where T: Clone + Copy {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -295,8 +345,7 @@ impl<'a, T> Iterator for GapBufferIterator<'a, T> {
     }
 }
 
-
-impl<'a, T> DoubleEndedIterator for GapBufferIterator<'a, T> {
+impl<'a, T> DoubleEndedIterator for GapBufferIterator<'a, T> where T: Clone + Copy {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.end >= self.pos {
             if let Some(c) = self.buffer.get(self.end) {
@@ -318,17 +367,70 @@ impl Index<usize> for GapBuffer<char> {
     }
 }
 
-impl<T> super::Buffer<T> for GapBuffer<T> {
-    fn insert(&mut self, data: T) {
-        self.insert(data);
+impl<'a> CharBuffer<'a> for GapBuffer<char> {
+    type ItemIterator = GapBufferIterator<'a, char>;
+
+    fn insert(&mut self, data: char) {
+        self.insert_item(data);
     }
 
-    fn remove(&mut self) {
-        self.delete();
+    fn insert_slice_fast(&mut self, slice: &[char]) {
+        if self.available_space() < slice.len() {
+            // todo(verify, optimize): I remember reading somewhere that increasing with 1.3 is actually the optimized factor, due to "crawl" in memory when reallocating...
+            // this is however just "from memory" (pun intended). I have no data to suggest this is true, but for now, let's just keep it like this
+            let new_cap = (self.capacity() as f32 * 1.5 + slice.len() as f32).ceil() as usize;
+            let new_gap_len = new_cap - self.len();
+            let gap = self.gap.start .. self.gap.start + new_gap_len;
+            let mut new_storage = Vec::<char>::with_capacity(new_cap);
+            let (sub_slice_a, sub_slice_b) = self.data_slices();
+            unsafe {
+                std::ptr::copy_nonoverlapping(sub_slice_a.as_ptr(), new_storage.as_mut_ptr(), sub_slice_a.len());
+                std::ptr::copy_nonoverlapping(slice.as_ptr(), new_storage.as_mut_ptr().offset(sub_slice_a.len() as _), slice.len());
+                std::ptr::copy_nonoverlapping(sub_slice_b.as_ptr(), new_storage.as_mut_ptr().offset(gap.end as _), sub_slice_b.len());
+                new_storage.set_len(42);
+            }
+            self.gap = gap;
+            self.gap.start += slice.len();
+            self.data = new_storage;
+        } else {
+            for item in slice {
+                self.insert_item(*item);
+            }
+        };        
     }
+
+    fn capacity(&self) -> usize {
+        self.data.capacity()
+    }
+
+    fn len(&self) -> usize {
+        self.capacity() - self.gap.len()
+    }
+
+    fn rebuild_metadata(&mut self) {
+        todo!("no metadata functionality exists yet for GapBuffer");
+    }
+
+    fn delete(&mut self, dir: crate::textbuffer::Movement) {
+        let _ = dir;
+        todo!()
+    }
+
+    fn meta_data(&self) -> &MetaData {
+        todo!("no metadata functionality exists yet for GapBuffer");
+    }
+
+    fn iter(&'a self) -> Self::ItemIterator {
+        GapBufferIterator {
+            pos: 0,
+            end: self.len(),
+            buffer: self
+        }
+    }
+
 }
 
-impl<T> Drop for GapBuffer<T> {
+impl<T> Drop for GapBuffer<T> where T: Clone + Copy {
     fn drop(&mut self) {
         unsafe {
             for i in 0 .. self.gap.start {
@@ -341,66 +443,8 @@ impl<T> Drop for GapBuffer<T> {
     }
 }
 
-impl BufferString for GapBuffer<char> {
+impl SubstringClone for GapBuffer<char> {
     fn read_string(&self, range: std::ops::Range<usize>) -> String {
-        let res = if range.len() < self.len() {
-            let mut tmpbuf = String::with_capacity(range.len());
-            for i in range {
-                match self.get(i) {
-                    Some(c) => {
-                        tmpbuf.push(*c);
-                    },
-                    _ => {
-
-                    }
-                }
-            }
-            tmpbuf
-        } else {
-            let mut tmpbuf = String::with_capacity(self.len());
-            for i in range {
-                match self.get(i) {
-                    Some(c) => tmpbuf.push(*c),
-                    _ => {}
-                }
-                if i == self.len() {
-                    return tmpbuf;
-                }
-            }
-            tmpbuf
-        };
-        return res;
-    }
-}
-
-impl BufferString for GapBuffer<u8> {
-    fn read_string(&self, range: std::ops::Range<usize>) -> String {
-        let res = if range.len() < self.len() {
-            let mut tmpbuf = String::with_capacity(range.len());
-            for i in range {
-                match self.get(i) {
-                    Some(c) => {
-                        tmpbuf.push(*c as char);
-                    },
-                    _ => {
-
-                    }
-                }
-            }
-            tmpbuf
-        } else {
-            let mut tmpbuf = String::with_capacity(self.len());
-            for i in range {
-                match self.get(i) {
-                    Some(c) => tmpbuf.push(*c as char),
-                    _ => {}
-                }
-                if i == self.len() {
-                    return tmpbuf;
-                }
-            }
-            tmpbuf
-        };
-        return res;
+        self.iter().skip(range.start).take(range.len()).collect()
     }
 }

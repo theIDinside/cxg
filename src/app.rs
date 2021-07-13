@@ -4,7 +4,7 @@ use std::sync::mpsc::Receiver;
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::shaders::{RectShader, TextShader};
 use crate::opengl::types::RGBAColor;
-use crate::textbuffer::simplebuffer::{Movement, TextKind};
+use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size};
 use crate::ui::panel::Panel;
 use crate::ui::statusbar::StatusBar;
@@ -24,7 +24,7 @@ enum ActiveInput {
     Application,
 }
 
-static TEST_DATA: &str = include_str!("./textbuffer/simplebuffer.rs");
+static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 pub struct Application<'app> {
     _title_bar: String,
@@ -288,7 +288,6 @@ impl<'app> Application<'app> {
             },
             Key::End => match modifier {
                 Modifiers::Control => {
-                    v.goto_buffer_end();
                     v.cursor_goto(crate::textbuffer::metadata::Index(v.buffer.len()))
                 }
                 _ => v.move_cursor(Movement::End(TextKind::Line)),
@@ -330,6 +329,7 @@ impl<'app> Application<'app> {
 
             Key::F1 => {
                 if modifier == Modifiers::Control {
+                    // v.insert_slice(&vec[..]);
                     v.insert_str(TEST_DATA);
                 } else {
                     self.debug = !self.debug;
@@ -346,7 +346,11 @@ impl<'app> Application<'app> {
 
                     v.debug_viewcursor();
                 }
-            }
+            },
+            Key::F2 => if modifier == Modifiers::Control {
+                    let vec: Vec<char> = TEST_DATA.chars().collect();
+                    v.insert_slice(&vec[..]);
+            },
             Key::P if modifier == Modifiers::Control => {
                 if let Some(p) = self.popup.as_mut() {
                     if p.visible {

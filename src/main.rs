@@ -6,63 +6,6 @@ extern crate freetype as ft;
 extern crate png;
 extern crate libc;
 
-pub enum DebuggerCatch {
-    Handle(String),
-    Panic(String)
-}
-
-#[cfg(debug_assertions)]
-macro_rules! debugger_catch {
-    ($assert_expr:expr, $message:literal) => {
-        if !$assert_expr {
-            println!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
-            unsafe { libc::raise(libc::SIGTRAP); }
-            println!("Reached stoppable debug statement");
-        }
-        
-    };
-
-    ($assert_expr:expr, $handleRequest:expr) => {
-        let (file, line, column) = (file!(), line!(), column!());
-        if !$assert_expr {
-            match $handleRequest {
-                DebuggerCatch::Handle(message) => {
-                    println!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
-                    unsafe { libc::raise(libc::SIGTRAP); }
-                    println!("Reached stoppable debug statement");
-                },
-                DebuggerCatch::Panic(message) => {
-                    panic!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
-                },
-            }
-        }
-    };
-}
-
-#[cfg(not(debug_assertions))]
-macro_rules! debugger_catch {
-    ($assert_expr:expr, $message:literal) => {};
-    ($assert_expr:expr, $handleRequest:expr) => {};
-}
-
-
-#[allow(unused)]
-macro_rules! Assert {
-    ($assert_expr:expr, $message:literal) => {
-        if !$assert_expr {
-            panic!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
-        }
-    };
-
-    ($assert_expr:expr, $message:expr) => {
-        let (file, line, column) = (file!(), line!(), column!());
-        if !$assert_expr {
-            panic!("Assert failed - {} @ {}:{}:{}", $message, file, line, column);
-        }
-    };
-}
-
-
 #[macro_use]
 pub mod opengl;
 pub mod datastructure;
@@ -70,8 +13,13 @@ pub mod app;
 pub mod ui;
 pub mod textbuffer;
 
+#[macro_use]
+pub mod utils;
+
 use opengl::glinit;
 use self::glfw::{Context};
+
+pub use utils::macros::*;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum MainInitError {

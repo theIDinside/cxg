@@ -1,8 +1,9 @@
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
-use crate::textbuffer::simplebuffer::{Movement, SimpleBuffer, TextKind};
-use crate::textbuffer::metadata::{Line, Index};
+use crate::textbuffer::simple::simplebuffer::SimpleBuffer;
+use crate::textbuffer::{CharBuffer, Movement, TextKind};
+use crate::textbuffer::metadata::{Index, Line};
 use crate::ui::font::Font;
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
@@ -129,8 +130,8 @@ impl<'a> View<'a>{
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             self.text_renderer.push_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);    
-            let rows_down: i32 = self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
-            let cols_in = self.buffer.cursor_col() as i32;
+            let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
+            let cols_in = *self.buffer.cursor_col() as i32;
             
             let g = self.text_renderer.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
             let cursor_width = g.map(|glyph| {
@@ -141,8 +142,8 @@ impl<'a> View<'a>{
                 }
             }).unwrap_or(self.cursor_width);
 
-            let nl_buf_idx = self.buffer.meta_data().get_line_buffer_index(self.buffer.cursor_row()).unwrap();
-            debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer");
+            let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+            crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer"));
             let line_contents = self.buffer.get_slice(nl_buf_idx .. (nl_buf_idx + cols_in as usize));
 
             let min_x = top_x + line_contents.iter().map(|& c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width)).sum::<i32>();
@@ -188,8 +189,8 @@ impl<'a> View<'a>{
     }
 
     pub fn insert_ch(&mut self, ch: char) {
-        self.buffer.insert_char(ch);
-        if self.buffer.cursor_row() >= (self.topmost_line_in_buffer + self.displayable_lines) as _ {
+        self.buffer.insert(ch);
+        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
             self.adjust_view_range();
         } else {
             self.buffer_in_view.end += 1;
@@ -199,45 +200,47 @@ impl<'a> View<'a>{
 
     pub fn adjust_view_range(&mut self) {
         let md = self.buffer.meta_data();
-        if self.buffer.cursor_row() >= (self.topmost_line_in_buffer + self.displayable_lines) as _ {
-            let diff = std::cmp::max((self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.displayable_lines) as i32, 1);
+        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _)  {
+            let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.displayable_lines) as i32, 1);
             self.topmost_line_in_buffer += diff;
-            if let (Some(a), end) = md.get_byte_indices_of_lines(self.topmost_line_in_buffer as _, (self.topmost_line_in_buffer + self.displayable_lines) as _ ) {
-                self.buffer_in_view = a .. end.unwrap_or(self.buffer.len());
+            if let (Some(a), end) = md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _ )) {
+                self.buffer_in_view = *a .. *end.unwrap_or(Index(self.buffer.len()));
             }
 
             self.view_changed = true;
-        } else if self.buffer.cursor_row() < self.topmost_line_in_buffer as _ {
-            self.topmost_line_in_buffer = self.buffer.cursor_row() as _;
-            if let (Some(a), end) = md.get_byte_indices_of_lines(self.topmost_line_in_buffer as _, (self.topmost_line_in_buffer + self.displayable_lines) as _ ) {
-                self.buffer_in_view = a .. end.unwrap_or(self.buffer.len());
+        } else if self.buffer.cursor_row() < Line(self.topmost_line_in_buffer as _) {
+            self.topmost_line_in_buffer = *self.buffer.cursor_row() as _;
+            if let (Some(a), end) = md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _ )) {
+                self.buffer_in_view = *a .. *end.unwrap_or(Index(self.buffer.len()));
             }
         } else {
-            if let (Some(a), end) = md.get_byte_indices_of_lines(self.topmost_line_in_buffer as _, (self.topmost_line_in_buffer + self.displayable_lines) as _ ) {
-                self.buffer_in_view = a .. end.unwrap_or(self.buffer.len());
+            if let (Some(a), end) = md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _ )) {
+                self.buffer_in_view = *a .. *end.unwrap_or(Index(self.buffer.len()));
             }
         }
         self.view_changed = true;
     }
 
+    pub fn insert_slice(&mut self, s: &[char]) {
+        self.buffer.insert_slice(s);
+        self.text_renderer.pristine = false;
+        self.validate_range();
+        self.adjust_view_range();
+    }
+
     pub fn insert_str(&mut self, s: &str) {
         self.buffer_in_view = 0 .. s.len();
         for c in s.chars() {
-            self.buffer.insert_char(c);
+            self.buffer.insert(c);
         }
         self.text_renderer.pristine = false;
+        self.adjust_view_range();
     }
 
     pub fn cursor_goto(&mut self, pos: Index) {
         self.buffer.cursor_goto(pos);
         self.adjust_view_range();
     }
-
-    pub fn goto_buffer_end(&mut self) {
-        let md = self.buffer.meta_data();
-        md.get(md.line_count().wrapping_sub(self.displayable_lines as _));
-    }
-
     pub fn move_cursor(&mut self, dir: Movement) {
         match dir {
             Movement::Forward(kind, count) => self.buffer.cursor_move_forward(kind, count),
@@ -247,7 +250,7 @@ impl<'a> View<'a>{
                     TextKind::Char => todo!(),
                     TextKind::Word => todo!(),
                     TextKind::Line => {
-                        if let Some(Line(start)) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
+                        if let Some(Index(start)) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
                             self.buffer.cursor_goto(Index(start));
                         }
                     },
@@ -259,7 +262,7 @@ impl<'a> View<'a>{
                     TextKind::Char => todo!(),
                     TextKind::Word => todo!(),
                     TextKind::Line => {
-                        if let Some(Index(end)) = self.buffer.meta_data().get(self.buffer.cursor_row()+1).map(|Line(start)| Index(start-1)) {
+                        if let Some(Index(end)) = self.buffer.meta_data().get(self.buffer.cursor_row() + Line(1)).map(|Index(start)| Index(start-1)) {
                             self.buffer.cursor_goto(Index(end));
                         }
                     },
@@ -302,8 +305,8 @@ impl<'a> View<'a>{
     pub fn debug_viewcursor(&self) {
         use crate::datastructure::generic::Vec2i;
         let Anchor(top_x, top_y) = self.anchor;
-        let rows_down: i32 = self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
-        let cols_in = self.buffer.cursor_col() as i32;
+        let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
+        let cols_in = *self.buffer.cursor_col() as i32;
 
         let g = self.text_renderer.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
         let cursor_width = g.map(|glyph| {
@@ -314,7 +317,7 @@ impl<'a> View<'a>{
             }
         }).unwrap_or(self.cursor_width);
         
-        let nl_buf_idx = self.buffer.meta_data().get_line_buffer_index(self.buffer.cursor_row()).unwrap();
+        let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
         let line_contents = self.buffer.get_slice(nl_buf_idx .. (nl_buf_idx + cols_in as usize));
 
         let min_x = top_x + line_contents.iter().map(|& c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width)).sum::<i32>();
