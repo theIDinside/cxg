@@ -132,7 +132,8 @@ impl<'app> Panel<'app> {
     pub fn add_view(&mut self, mut view: View<'app>) {
         if self.children.is_empty() {
             let adjusted_anchor = self.margin.and_then(|margin| Some(Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))).unwrap_or(self.anchor);
-            view.resize(self.width() - self.margin.unwrap_or(0) * 2, self.height() - self.margin.unwrap_or(0) * 2);
+            
+            view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
             self.children.push(view);
         } else {
@@ -140,21 +141,22 @@ impl<'app> Panel<'app> {
             let sub_space_count = self.children.len();
             let margin = self.margin.unwrap_or(0);
             let child_sizes = self.size.divide(sub_space_count as _, margin, self.layout);
+            println!("sizes: {:?}. Margin: {}", child_sizes, margin);
             match self.layout {
                 Layout::Vertical(space) => {
                     let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
-                    for (c, Size { width, height }) in self.children.iter_mut().zip(child_sizes.into_iter()) {
-                        c.resize(width as _, height as _);
+                    for (c, size) in self.children.iter_mut().zip(child_sizes.into_iter()) {
+                        c.resize(size);
                         c.set_anchor(anchor_iter);
-                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -height - *space as i32));
+                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -size.height - *space as i32));
                     }
                 }
                 Layout::Horizontal(space) => {
                     let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
-                    for (c, Size { width, height }) in self.children.iter_mut().zip(child_sizes.into_iter()) {
-                        c.resize(width as _, height as _);
+                    for (c, size) in self.children.iter_mut().zip(child_sizes.into_iter()) {
+                        c.resize(size);
                         c.set_anchor(anchor_iter);
-                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(width + *space as i32, 0));
+                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(size.width + *space as i32, 0));
                     }
                 }
             }
@@ -163,84 +165,7 @@ impl<'app> Panel<'app> {
             v.update();
         }
     }
-/*
-    pub fn resize_panel(&mut self, resize: Resize) {
-        let (ax, ay) = self.anchor.values_mut();
-        let (width, height) = self.size.values_mut();
-        match resize {
-            Resize::Left(new_width) => {
-                let diff_width = new_width - *width;
-                *ax -= diff_width;
-                *width = new_width;
-                if self.children.is_empty() { return; }
-                let views_width_changes = divide_scatter(diff_width, self.children.len());
-                let mut tot = 0;
-                for (added_width, view) in views_width_changes.iter().zip(self.children.iter_mut()) {
-                    let new_anchor = Anchor::vector_add(view.anchor, Vec2i::new(-diff_width + tot, 0));
-                    view.set_anchor(new_anchor);
-                    view.size = Size::vector_add(view.size, Vec2i { x: *added_width, y: 0 });
-                    if let Layout::Horizontal(_) = self.layout {
-                        tot += added_width;
-                    }
-                }
-            }
-            Resize::Right(new_width) => {
-                let diff_width = new_width - *width;
-                *width = new_width;
-                if self.children.is_empty() { return; }
-                let views_width_changes = divide_scatter(diff_width, self.children.len());
-                let mut anchor_x_shift = 0;
-                for (width_diff, view) in views_width_changes.into_iter().zip(self.children.iter_mut()) {
-                    let new_anchor = Anchor::vector_add(view.anchor, Vec2i::new(anchor_x_shift, 0));
-                    view.set_anchor(new_anchor);
-                    view.size = Size::vector_add(view.size, Vec2i::new(width_diff, 0));
-                    if let Layout::Horizontal(_) = self.layout {
-                        anchor_x_shift += width_diff;
-                    }
-                }
-            }
-            Resize::Top(new_height) => {
-                let diff_height = new_height - *height;
-                *ay += diff_height;
-                *height = new_height;
-                if self.children.is_empty() { return; }
-                let views_height_changes = divide_scatter(diff_height, self.children.len());
-                let mut tot = diff_height;
-                for (added_height, view) in views_height_changes.into_iter().zip(self.children.iter_mut()) {
-                    let new_anchor = Anchor::vector_add(view.anchor, Vec2i::new(0, diff_height + tot));
-                    view.set_anchor(new_anchor);
-                    view.size = Size::vector_add(view.size, Vec2i { x: 0, y: added_height });
-                    if let Layout::Vertical(_) = self.layout {
-                        tot += added_height;
-                    }
-                }
-            }
-            Resize::Bottom(new_height) => {
-                let diff_height = new_height - *height;
-                *ay += diff_height;
-                *height = new_height;
-                if self.children.is_empty() { return; }
-                let views_height_changes = divide_scatter(diff_height, self.children.len());
-                let mut anchor_y_shift = diff_height;
-                for (added_height, view) in views_height_changes.into_iter().zip(self.children.iter_mut()) {
-                    let new_anchor = Anchor::vector_add(view.anchor, Vec2i::new(0, anchor_y_shift));
-                    view.set_anchor(new_anchor);
-                    view.size = Size::vector_add(view.size, Vec2i { x: 0, y: added_height });
-                    if let Layout::Vertical(_) = self.layout {
-                        anchor_y_shift -= added_height;
-                    }
-                }
-            }
-        }
 
-        // the reason why we iterate twice over children, once in an arm and once here
-        // is so that we don't clutter our code the fuck up, with .update() calls to views
-        // yet we keep these calls centralized and thus easy to debug / reason about
-        for v in self.children.iter_mut() {
-            v.update();
-        }
-    }
-*/
     pub fn resize(&mut self, w: i32, h: i32) {
         self.size = Size::new(w, h);
     }
@@ -271,14 +196,16 @@ impl<'app> Panel<'app> {
         match self.layout {
             Layout::Vertical(spacing) => {
                 for (view, (_, dh)) in self.children.iter_mut().zip(views_width_changes.into_iter().zip(views_height_changes)) {
-                    view.resize(self.size.width - margin * 2, view.size.height + dh);
+                    let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
+                    view.resize(size);
                     view.set_anchor((edge_left, anchor_y_shift).into());
                     anchor_y_shift -= view.size.height + *spacing as i32;
                 }
             }
             Layout::Horizontal(spacing) => {
                 for (view, (dw, _)) in self.children.iter_mut().zip(views_width_changes.into_iter().zip(views_height_changes)) {
-                    view.resize(view.size.width + dw, self.size.height - margin * 2);
+                    let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
+                    view.resize(size);
                     view.set_anchor((anchor_x_shift, edge_top).into());
                     anchor_x_shift -= view.size.width + *spacing as i32;
                 }

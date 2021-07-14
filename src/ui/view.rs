@@ -47,7 +47,7 @@ pub struct View<'a> {
     pub topmost_line_in_buffer: i32,
     displayable_lines: i32,
     row_height: i32,
-    panel_id: Option<u32>,
+    pub panel_id: Option<u32>,
     pub buffer: SimpleBuffer,
     buffer_in_view: std::ops::Range<usize>,
     view_changed: bool,
@@ -84,7 +84,7 @@ impl<'a> View<'a>{
     pub fn new(name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32, row_height: i32) -> View<'a> {
         let cursor_width = text_renderer.get_cursor_width_size();
         let cursor_shader = window_renderer.shader.clone();
-        let mut cursor_renderer = RectRenderer::create(cursor_shader, 100).expect("failed to create rectangle renderer");
+        let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
         cursor_renderer.set_color(RGBAColor{ r: 0.5, g: 0.5, b: 0.5, a: 0.5});
         let mut v = View {
             name: name.to_string(),
@@ -106,6 +106,10 @@ impl<'a> View<'a>{
         };
         v.window_renderer.update_rectangle(v.anchor, v.size);
         v
+    }
+
+    pub fn set_manager_panel(&mut self, panel_id: u32) {
+        self.panel_id = Some(panel_id);
     }
 
     pub fn watch_buffer(&mut self, id: u32) {
@@ -173,11 +177,12 @@ impl<'a> View<'a>{
         self.anchor = anchor;
     }
 
-    pub fn resize(&mut self, width: i32, height: i32) {
-        self.size.width = width;
-        self.size.height = height;
+    pub fn resize(&mut self, size: Size) {
+        self.size = size;
         self.displayable_lines = self.size.height / self.row_height;
     }
+
+    
 
     pub fn calc_displayable_lines(&mut self, font: &Font) {
         self.row_height = font.row_height();
@@ -189,6 +194,9 @@ impl<'a> View<'a>{
     }
 
     pub fn insert_ch(&mut self, ch: char) {
+        if input_not_valid(ch) {
+            return;
+        }
         self.buffer.insert(ch);
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
             self.adjust_view_range();
@@ -250,8 +258,8 @@ impl<'a> View<'a>{
                     TextKind::Char => todo!(),
                     TextKind::Word => todo!(),
                     TextKind::Line => {
-                        if let Some(Index(start)) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
-                            self.buffer.cursor_goto(Index(start));
+                        if let Some(start) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
+                            self.buffer.cursor_goto(start);
                         }
                     },
                     TextKind::Block => todo!(),
@@ -262,8 +270,8 @@ impl<'a> View<'a>{
                     TextKind::Char => todo!(),
                     TextKind::Word => todo!(),
                     TextKind::Line => {
-                        if let Some(Index(end)) = self.buffer.meta_data().get(self.buffer.cursor_row() + Line(1)).map(|Index(start)| Index(start-1)) {
-                            self.buffer.cursor_goto(Index(end));
+                        if let Some(end) = self.buffer.meta_data().get(self.buffer.cursor_row() + Line(1)).map(|Index(start)| Index(start-1)) {
+                            self.buffer.cursor_goto(end);
                         }
                     },
                     TextKind::Block => todo!(),
@@ -334,4 +342,8 @@ impl<'a> View<'a>{
     pub fn debug_viewed_range(&self) {
         println!("Viewed data in buffer range {:?}: \n'{}'", self.buffer_in_view, &self.buffer.data[self.buffer_in_view.clone()].iter().map(|c| c).collect::<String>());
     }
+}
+
+fn input_not_valid(ch: char) -> bool {
+    ch == 'å' || ch == 'ä' || ch == 'ö'
 } 

@@ -14,7 +14,7 @@ pub struct RectRenderer {
 
 /// Public interface
 impl RectRenderer {
-    pub fn create(shader: RectShader, reserve_quads: isize) -> Result<RectRenderer, ()> {
+    pub fn create(shader: RectShader, reserve_quads: isize) -> RectRenderer {
         use std::mem::size_of;
         let stride = size_of::<RectVertex>() as gl::types::GLsizei;
         let reserve_primitive = Primitive::RegularQuad(reserve_quads);
@@ -44,7 +44,7 @@ impl RectRenderer {
         }
         let gl_handle = OpenGLHandle { vao, vbo, ebo };
 
-        Ok(RectRenderer {
+        RectRenderer {
             gl_handle,
             vtx_data: Vec::with_capacity(vertices_count.value()),
             indices,
@@ -52,7 +52,7 @@ impl RectRenderer {
             reserved_vertex_count: vertices_count.value() as _, 
             reserved_index_count: reserved_indices.value() as _,
             color: RGBAColor{r: 0.3, g: 0.34, b: 0.48, a: 1.0}
-        })
+        }
     }
 
     pub fn bind(&self) {
@@ -97,7 +97,6 @@ impl RectRenderer {
         self.shader.set_color(self.color);
         unsafe {
             gl::DrawElements(gl::TRIANGLES, self.indices.len() as _, gl::UNSIGNED_INT, std::ptr::null());
-            // gl::DrawArrays(gl::TRIANGLES, 0, self.vtx_data.len() as i32);
         }
     }
 }

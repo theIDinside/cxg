@@ -165,6 +165,12 @@ impl Size {
             },
         }
     }
+
+    pub fn shrink_by_margin(size: Size, margin: i32) -> Size {
+        let width = size.width - (margin * 2);
+        let height = size.height - (margin * 2);
+        Size { width, height }
+    }
 }
 
 impl Anchor {

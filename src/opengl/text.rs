@@ -59,7 +59,7 @@ pub fn create_char_rect_vertices(info: CharRectInfo) -> [TVertex; 4] {
 
 /// Public interface
 impl<'a> TextRenderer<'a> {
-    pub fn create(shader: super::shaders::TextShader, font: &Font, reserve_quads: usize) -> Result<TextRenderer, ()> {
+    pub fn create(shader: super::shaders::TextShader, font: &Font, reserve_quads: usize) -> TextRenderer {
         use std::mem::size_of;
         let stride = size_of::<TVertex>() as gl::types::GLsizei;
 
@@ -105,9 +105,7 @@ impl<'a> TextRenderer<'a> {
             indices, 
             reserved_vertex_count: vertices_count.value() as _, 
             reserved_index_count: reserved_indices.value() as _ };
-
-
-        Ok(tdb)
+        tdb
     }
 
     pub fn bind(&self) {

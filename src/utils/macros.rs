@@ -3,6 +3,9 @@ pub enum DebuggerCatch {
     Panic(String)
 }
 
+/// Usage: Pass a boolean expression as the first argument that must hold. If it does not
+/// This will raise a SIGTRAP signal, thus telling any connected debugger to set a breakpoint immediately
+/// and we get to analyze what's going on.
 #[macro_export]
 #[cfg(debug_assertions)]
 macro_rules! debugger_catch {
@@ -42,7 +45,8 @@ macro_rules! only_in_debug {
     }
 }
 
-
+/// Empty macro statement, so that our debugger_catch!() calls don't get compiled into the release binary. that would be completely
+/// unnecessary
 #[macro_export]
 #[cfg(not(debug_assertions))]
 macro_rules! debugger_catch {
@@ -85,6 +89,7 @@ macro_rules! IndexingType {
 
         impl std::ops::AddAssign for $safe_type {
             fn add_assign(&mut self, rhs: Self) {
+                #[cfg(debug_assertions)]
                 let copy = {
                     let $safe_type(copy) = self;
                     *copy
@@ -125,6 +130,5 @@ macro_rules! IndexingType {
                 *this -= that;
             }
         }
-
     };
 }
