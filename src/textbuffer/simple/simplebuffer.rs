@@ -181,26 +181,19 @@ impl SimpleBuffer {
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
+        use crate::utils::copy_slice_to;
         if slice.len() > 128 {
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
             unsafe {
                 let abs = *self.cursor.absolute() as isize;
-                std::ptr::copy_nonoverlapping(
-                    self.data.as_ptr(),
-                    v.as_mut_ptr(),
-                    *self.cursor.absolute(),
-                );
-                std::ptr::copy_nonoverlapping(
-                    slice.as_ptr(),
-                    v.as_mut_ptr().offset(abs),
-                    slice.len(),
-                );
-                std::ptr::copy_nonoverlapping(
-                    self.data.as_ptr().offset(abs),
-                    v.as_mut_ptr()
-                        .offset(abs + slice.len() as isize),
-                    self.len() - abs as usize,
-                );
+                let ptr = v.as_mut_ptr();
+                // std::ptr::copy_nonoverlapping(self.data.as_ptr(), v.as_mut_ptr(), *self.cursor.absolute());
+                copy_slice_to(ptr, self.data[.. abs as usize]);
+                // std::ptr::copy_nonoverlapping(slice.as_ptr(), v.as_mut_ptr().offset(abs), slice.len());
+                copy_slice_to(ptr.offset(abs), slice);
+                // std::ptr::copy_nonoverlapping(self.data.as_ptr().offset(abs),v.as_mut_ptr().offset(abs + slice.len() as isize), self.len() - abs as usize);
+                copy_slice_to(ptr.offset(abs + slice.len() as isize), self.data[(abs as usize) ..]);
+                
                 v.set_len(self.len() + slice.len());
                 let new_abs_cursor_pos = metadata::Index(abs as usize + slice.len());
                 self.size = v.len();

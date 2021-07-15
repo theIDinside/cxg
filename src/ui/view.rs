@@ -255,7 +255,7 @@ impl<'a> View<'a>{
             Movement::Backward(kind, count) => self.buffer.cursor_move_backward(kind, count),
             Movement::Begin(kind) => {
                 match kind {
-                    TextKind::Char => todo!(),
+                    TextKind::Char => self.buffer.cursor_move_backward(TextKind::Char, 1),
                     TextKind::Word => todo!(),
                     TextKind::Line => {
                         if let Some(start) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
