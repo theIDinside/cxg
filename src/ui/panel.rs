@@ -151,7 +151,7 @@ impl<'app> Panel<'app> {
                     let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
                     view.resize(size);
                     view.set_anchor((anchor_x_shift, edge_top).into());
-                    anchor_x_shift -= view.size.width + *spacing as i32;
+                    anchor_x_shift += view.size.width + *spacing as i32;
                 }
             }
         }
