@@ -21,19 +21,12 @@ use crate::{
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
-#[allow(unused)]
-enum ActiveInput {
-    TextFile(usize),
-    Application,
-}
-
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 pub struct Application<'app> {
     _title_bar: String,
     window_size: Size,
     panel_space_size: Size,
-    active_input: ActiveInput,
     fonts: &'app Vec<Font>,
     status_bar: StatusBar<'app>,
     font_shader: TextShader,
@@ -183,7 +176,6 @@ impl<'app> Application<'app> {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
             panel_space_size: Size::new(1024, 768 - sb_size.height),
-            active_input: ActiveInput::TextFile(0),
             fonts,
             status_bar,
             font_shader,
@@ -250,7 +242,6 @@ impl<'app> Application<'app> {
         unsafe { gl::Viewport(0, 0, width, height) }
     }
 
-    // NOTE: not the same version as in common.rs!
     pub fn process_events(
         &mut self,
         window: &mut Window,
