@@ -1,4 +1,3 @@
-
 use gl::types::GLfloat as glfloat;
 
 use crate::datastructure::generic::Vec2f;
@@ -11,7 +10,7 @@ pub struct UVCoordinates {
 pub struct RGBColor {
     pub r: glfloat,
     pub g: glfloat,
-    pub b: glfloat
+    pub b: glfloat,
 }
 
 #[derive(Copy, Clone)]
@@ -19,12 +18,12 @@ pub struct RGBAColor {
     pub r: glfloat,
     pub g: glfloat,
     pub b: glfloat,
-    pub a: glfloat
+    pub a: glfloat,
 }
 
 impl RGBAColor {
     pub fn new(r: glfloat, g: glfloat, b: glfloat, a: glfloat) -> RGBAColor {
-        RGBAColor { r,g,b,a }
+        RGBAColor { r, g, b, a }
     }
 }
 
@@ -34,10 +33,11 @@ pub struct RectVertex {
 
 impl RectVertex {
     pub fn new(x: i32, y: i32) -> RectVertex {
-        let coord = Vec2f { x: x as glfloat, y: y as glfloat };
-        RectVertex {
-            coord
-        }
+        let coord = Vec2f {
+            x: x as glfloat,
+            y: y as glfloat,
+        };
+        RectVertex { coord }
     }
 }
 
@@ -54,9 +54,15 @@ pub struct TextVertex {
 
 impl TextVertex {
     #[inline(always)]
-    pub fn new(x: glfloat,y: glfloat,u: glfloat,v: glfloat,r: glfloat,g: glfloat,b: glfloat) -> TextVertex {
+    pub fn new(x: glfloat, y: glfloat, u: glfloat, v: glfloat, r: glfloat, g: glfloat, b: glfloat) -> TextVertex {
         TextVertex {
-            x, y, u, v, r, g, b
+            x,
+            y,
+            u,
+            v,
+            r,
+            g,
+            b,
         }
     }
 
@@ -65,11 +71,15 @@ impl TextVertex {
         let UVCoordinates { u, v } = uv;
         let RGBColor { r, g, b } = color;
         TextVertex {
-            x, y, u, v, r, g, b
+            x,
+            y,
+            u,
+            v,
+            r,
+            g,
+            b,
         }
     }
-
-
 }
 
 pub struct Vec4f {
@@ -81,13 +91,12 @@ pub struct Vec4f {
 
 impl Vec4f {
     pub fn new(a: glfloat, b: glfloat, c: glfloat, d: glfloat) -> Vec4f {
-        Vec4f { a, b, c, d}
+        Vec4f { a, b, c, d }
     }
-
 }
 
 pub struct Matrix {
-    pub data: [Vec4f; 4]
+    pub data: [Vec4f; 4],
 }
 
 impl Matrix {

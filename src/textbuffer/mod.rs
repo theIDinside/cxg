@@ -1,20 +1,19 @@
-use self::metadata::{MetaData};
+use self::metadata::MetaData;
 
-pub mod metadata;
+pub mod cursor;
 pub mod gb;
+pub mod metadata;
 pub mod simple;
 pub mod textbuffer;
-pub mod cursor;
 
 // pub mod text_buffer;
-
 
 #[derive(Debug)]
 pub enum TextKind {
     Char,
     Word,
     Line,
-    Block
+    Block,
 }
 
 #[derive(Debug)]
@@ -22,18 +21,22 @@ pub enum Movement {
     Forward(TextKind, usize),
     Backward(TextKind, usize),
     Begin(TextKind),
-    End(TextKind)
+    End(TextKind),
 }
 
 pub trait CharBuffer<'a> {
-    type ItemIterator: Iterator<Item=&'a char>;
+    type ItemIterator: Iterator<Item = &'a char>;
     fn insert(&mut self, data: char);
     fn delete(&mut self, dir: Movement);
     fn insert_slice_fast(&mut self, slice: &[char]);
     fn capacity(&self) -> usize;
     fn len(&self) -> usize;
-    fn empty(&self) -> bool { self.len() == 0 }
-    fn available_space(&self) -> usize { self.capacity() - self.len() }
+    fn empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn available_space(&self) -> usize {
+        self.capacity() - self.len()
+    }
     fn rebuild_metadata(&mut self);
     fn meta_data(&self) -> &MetaData;
     fn iter(&'a self) -> Self::ItemIterator;
@@ -45,13 +48,11 @@ pub trait SubstringClone {
     fn read_string(&self, range: std::ops::Range<usize>) -> String;
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::gb::gap_buffer::GapBuffer as GB;
     // use super::Gap::GapBuffer as GB;
     use super::{CharBuffer, SubstringClone};
-
 
     #[test]
     fn test_iteration() {
@@ -63,18 +64,17 @@ mod tests {
 
     #[test]
     fn test_get_entire_content_but_provide_larger_range_parameter() {
-
         let mut gb = GB::new_with_capacity(13);
         let mfer: Vec<char> = " go fuck yourself biatch!".chars().collect();
         let assertion_ok = "hello go fuck yourself biatch! world";
         gb.map_into("hello world".chars());
         gb.set_gap_position(5);
         gb.insert_slice_fast(&mfer[..]);
-        println!("buffer contents: {:?}", gb.read_string(0 .. assertion_ok.len()));
+        println!("buffer contents: {:?}", gb.read_string(0..assertion_ok.len()));
         let two_times: Vec<_> = assertion_ok.chars().chain(assertion_ok.chars()).collect();
         gb.set_gap_position(0);
         gb.insert_slice_fast(&assertion_ok.chars().collect::<Vec<_>>()[..]);
-        let larger_range = 0 .. two_times.len() * 10;
+        let larger_range = 0..two_times.len() * 10;
         gb.debug();
         assert_eq!(gb.read_string(larger_range), two_times.iter().collect::<String>());
     }
@@ -87,13 +87,13 @@ mod tests {
         gb.map_into("hello world".chars());
         gb.set_gap_position(5);
         gb.insert_slice_fast(&mfer[..]);
-        println!("buffer contents: {:?}", gb.read_string(0 .. assertion_ok.len()));
-        assert_eq!(gb.read_string(0 .. assertion_ok.len()).len(), assertion_ok.len());
-        assert_eq!(gb.read_string(0 .. assertion_ok.len()), assertion_ok);
+        println!("buffer contents: {:?}", gb.read_string(0..assertion_ok.len()));
+        assert_eq!(gb.read_string(0..assertion_ok.len()).len(), assertion_ok.len());
+        assert_eq!(gb.read_string(0..assertion_ok.len()), assertion_ok);
         let two_times: Vec<_> = assertion_ok.chars().chain(assertion_ok.chars()).collect();
         gb.set_gap_position(0);
         gb.insert_slice_fast(&assertion_ok.chars().collect::<Vec<_>>()[..]);
-        assert_eq!(gb.read_string(0 .. two_times.len()), two_times.iter().collect::<String>());
+        assert_eq!(gb.read_string(0..two_times.len()), two_times.iter().collect::<String>());
     }
 
     #[test]
@@ -109,7 +109,6 @@ mod tests {
                 assert_eq!(gb_char, *subs_char, "characters were not equal");
             }
         }
-
     }
 
     #[test]
@@ -144,9 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_lines() {
-
-    }
+    fn test_insert_lines() {}
 
     #[test]
     fn test_remove_char() {

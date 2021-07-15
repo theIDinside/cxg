@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-
-use crate::datastructure::generic::Vec2i;     
+use crate::datastructure::generic::Vec2i;
 
 /// Contains the texture coordinates & related glyph info about size & dimension
 pub struct GlyphInfo {
@@ -13,7 +12,7 @@ pub struct GlyphInfo {
     pub advance: i32,
     pub offsets: Vec2i,
     pub size: Vec2i,
-    pub bearing: Vec2i
+    pub bearing: Vec2i,
 }
 
 impl GlyphInfo {
@@ -35,7 +34,7 @@ pub struct Font {
     glyph_cache: HashMap<char, GlyphInfo>,
     pixel_data: Vec<u8>,
     texture_id: gl::types::GLuint,
-    texture_dimensions: Vec2i
+    texture_dimensions: Vec2i,
 }
 
 const GLYPH_COUNT: f64 = 128.0;
@@ -54,7 +53,7 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
 
     let font_file_name = format!("{}_{}", font_path.file_stem().unwrap().to_str().unwrap(), pixel_size);
     let mut output_file = std::path::PathBuf::new();
-    
+
     output_file.push("./");
     output_file.push("debug");
     if !output_file.exists() {
@@ -85,7 +84,7 @@ impl Font {
         face.set_pixel_sizes(pixel_size as u32, pixel_size as u32)?;
         let max_dim = ((1 + face.size_metrics().unwrap().height >> 6) as f64 * GLYPH_COUNT.sqrt().ceil()) as i32;
 
-        let mut texture_dimension = Vec2i { x: 1, y: 1};
+        let mut texture_dimension = Vec2i { x: 1, y: 1 };
         while texture_dimension.x < max_dim {
             texture_dimension.x = texture_dimension.x << 1;
         }
@@ -100,7 +99,10 @@ impl Font {
         let mut glyph_cache: HashMap<char, GlyphInfo> = HashMap::new();
 
         for c in characters {
-            face.load_char(c as usize, ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT)?;
+            face.load_char(
+                c as usize,
+                ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT,
+            )?;
             let glyph = face.glyph();
             let bitmap = glyph.bitmap();
             max_glyph_dimensions.y = std::cmp::max(bitmap.rows(), max_glyph_dimensions.x);
@@ -111,8 +113,8 @@ impl Font {
                 pen_y += (face.size_metrics().unwrap().height >> 6) as i32 + 1;
             }
 
-            for row in 0 .. bitmap.rows() {
-                for col in 0 .. bitmap.width() {
+            for row in 0..bitmap.rows() {
+                for col in 0..bitmap.width() {
                     let x = pen_x + col;
                     let y = pen_y + row;
                     let pixel_index = (y * texture_dimension.x + x) as usize;
@@ -127,40 +129,46 @@ impl Font {
                 y0: pen_y,
                 y1: pen_y + bitmap.rows(),
                 advance: glyph.advance().x as i32 >> 6,
-                offsets: Vec2i { x: glyph.bitmap_left(), y: glyph.bitmap_top() },
-                size: Vec2i { 
-                    x: bitmap.width(),
-                    y: bitmap.rows()
+                offsets: Vec2i {
+                    x: glyph.bitmap_left(),
+                    y: glyph.bitmap_top(),
                 },
-                bearing: Vec2i { x: glyph.bitmap_left(), y: glyph.bitmap_top() }
+                size: Vec2i {
+                    x: bitmap.width(),
+                    y: bitmap.rows(),
+                },
+                bearing: Vec2i {
+                    x: glyph.bitmap_left(),
+                    y: glyph.bitmap_top(),
+                },
             };
-            max_bearing_size_diff = std::cmp::max(
-                (glyph_info.size.y - glyph_info.bearing.y).abs(), max_bearing_size_diff
-            );
+            max_bearing_size_diff = std::cmp::max((glyph_info.size.y - glyph_info.bearing.y).abs(), max_bearing_size_diff);
             glyph_cache.insert(c, glyph_info);
             pen_x += bitmap.width() + 1;
         }
         let max_adv_y = max_glyph_dimensions.y + 5;
         let row_advance = max_adv_y;
 
-        let texture_id = unsafe {
-            Font::upload_texture(&pixels, texture_dimension.x, texture_dimension.y)
-        };
+        let texture_id = unsafe { Font::upload_texture(&pixels, texture_dimension.x, texture_dimension.y) };
 
-        debug_write_font_texture_to_file(font_path, &pixels, pixel_size, texture_dimension.x as u32, texture_dimension.y as u32);
+        debug_write_font_texture_to_file(
+            font_path,
+            &pixels,
+            pixel_size,
+            texture_dimension.x as u32,
+            texture_dimension.y as u32,
+        );
 
-        Ok(
-            Font {
-                pixel_size,
-                row_height: row_advance,
-                max_glyph_dimensions,
-                max_bearing_size_diff,
-                pixel_data: pixels,
-                texture_id,
-                glyph_cache,
-                texture_dimensions: texture_dimension
-            }
-        )
+        Ok(Font {
+            pixel_size,
+            row_height: row_advance,
+            max_glyph_dimensions,
+            max_bearing_size_diff,
+            pixel_data: pixels,
+            texture_id,
+            glyph_cache,
+            texture_dimensions: texture_dimension,
+        })
     }
 
     unsafe fn upload_texture(data: &Vec<u8>, width: i32, height: i32) -> gl::types::GLuint {
@@ -168,7 +176,17 @@ impl Font {
         gl::GenTextures(1, &mut id);
         gl::BindTexture(gl::TEXTURE_2D, id);
         gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as i32, width, height, 0, gl::RED, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            gl::RED as i32,
+            width,
+            height,
+            0,
+            gl::RED,
+            gl::UNSIGNED_BYTE,
+            data.as_ptr() as *const _,
+        );
         gl::GenerateMipmap(gl::TEXTURE_2D);
         id
     }
@@ -182,8 +200,6 @@ impl Font {
     pub fn get_glyph(&self, character: char) -> Option<&GlyphInfo> {
         self.glyph_cache.get(&character)
     }
-
-    
 
     pub fn texture_width(&self) -> i32 {
         self.texture_dimensions.x

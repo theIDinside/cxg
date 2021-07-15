@@ -1,8 +1,8 @@
-use super::coordinate::{Anchor, Layout, Size, PointArithmetic, Coordinate};
+use super::coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size};
 use super::view::{View, ViewId};
-use crate::ui::{Vec2i};
+use crate::ui::Vec2i;
 
-use std::fmt::{Formatter};
+use std::fmt::Formatter;
 
 /// A panel is a top container, that contains children of Views. Views are essentially panels where
 /// text can be rendered
@@ -18,7 +18,8 @@ pub struct Panel<'app> {
 
 impl<'app> std::fmt::Debug for Panel<'app> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Panel").field("id", &self.id)
+        f.debug_struct("Panel")
+            .field("id", &self.id)
             .field("size", &self.size)
             .field("anchor", &self.anchor)
             .field("layout", &self.layout)
@@ -52,7 +53,8 @@ pub fn divide_scatter(number: i32, spread_count: usize) -> Vec<i32> {
 }
 
 impl<'app> Panel<'app> {
-    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor
+    pub fn new(
+        id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor,
     ) -> Panel<'app> {
         Panel {
             id: id,
@@ -65,17 +67,23 @@ impl<'app> Panel<'app> {
         }
     }
 
-    pub fn width(&self) -> i32 { self.size.x() }
-    pub fn height(&self) -> i32 { self.size.y() }
-
+    pub fn width(&self) -> i32 {
+        self.size.x()
+    }
+    pub fn height(&self) -> i32 {
+        self.size.y()
+    }
     pub fn set_anchor(&mut self, x: i32, y: i32) {
         self.anchor = Anchor(x, y);
     }
 
     pub fn add_view(&mut self, mut view: View<'app>) {
         if self.children.is_empty() {
-            let adjusted_anchor = self.margin.and_then(|margin| Some(Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))).unwrap_or(self.anchor);
-            
+            let adjusted_anchor = self
+                .margin
+                .map(|margin| Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))
+                .unwrap_or(self.anchor);
+
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
             self.children.push(view);
@@ -139,7 +147,11 @@ impl<'app> Panel<'app> {
 
         match self.layout {
             Layout::Vertical(spacing) => {
-                for (view, (_, dh)) in self.children.iter_mut().zip(views_width_changes.into_iter().zip(views_height_changes)) {
+                for (view, (_, dh)) in self
+                    .children
+                    .iter_mut()
+                    .zip(views_width_changes.into_iter().zip(views_height_changes))
+                {
                     let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
                     view.resize(size);
                     view.set_anchor((edge_left, anchor_y_shift).into());
@@ -147,7 +159,11 @@ impl<'app> Panel<'app> {
                 }
             }
             Layout::Horizontal(spacing) => {
-                for (view, (dw, _)) in self.children.iter_mut().zip(views_width_changes.into_iter().zip(views_height_changes)) {
+                for (view, (dw, _)) in self
+                    .children
+                    .iter_mut()
+                    .zip(views_width_changes.into_iter().zip(views_height_changes))
+                {
                     let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
                     view.resize(size);
                     view.set_anchor((anchor_x_shift, edge_top).into());

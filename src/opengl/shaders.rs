@@ -1,5 +1,4 @@
-use super::types::{RGBAColor};
-
+use super::types::RGBAColor;
 
 /// Default shader sources, compiled into the binary
 pub mod source {
@@ -28,10 +27,13 @@ impl TextShader {
             let uniform_name = std::ffi::CString::new("projection").expect("Failed to create CString");
             gl::GetUniformLocation(font_program, uniform_name.as_ptr())
         };
-        
+
         println!("uniform location of projection: {}", projection_uniform);
         assert_ne!(projection_uniform, -1);
-        TextShader { id: font_program, projection_uniform }
+        TextShader {
+            id: font_program,
+            projection_uniform,
+        }
     }
 
     pub fn bind(&self) {
@@ -53,7 +55,7 @@ impl TextShader {
 pub struct RectShader {
     id: gl::types::GLuint,
     projection_uniform: gl::types::GLint,
-    color_uniform: gl::types::GLint
+    color_uniform: gl::types::GLint,
 }
 
 impl RectShader {
@@ -68,13 +70,19 @@ impl RectShader {
         let (projection_uniform, color_uniform) = unsafe {
             let projection_uniform_name = std::ffi::CString::new("projection").expect("Failed to create CString");
             let color_uniform_name = std::ffi::CString::new("fillcolor").expect("Failed to create CString");
-            (gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
-            gl::GetUniformLocation(font_program, color_uniform_name.as_ptr()))
+            (
+                gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
+                gl::GetUniformLocation(font_program, color_uniform_name.as_ptr()),
+            )
         };
-        
+
         println!("uniform location of projection: {}", projection_uniform);
         assert_ne!(projection_uniform, -1);
-        RectShader { id: font_program, projection_uniform, color_uniform }
+        RectShader {
+            id: font_program,
+            projection_uniform,
+            color_uniform,
+        }
     }
 
     pub fn bind(&self) {
@@ -96,5 +104,4 @@ impl RectShader {
             gl::Uniform4fv(self.color_uniform, 1, &color.r as _);
         }
     }
-
 }

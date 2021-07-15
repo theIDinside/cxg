@@ -1,6 +1,6 @@
 pub enum DebuggerCatch {
     Handle(String),
-    Panic(String)
+    Panic(String),
 }
 
 /// Usage: Pass a boolean expression as the first argument that must hold. If it does not
@@ -15,7 +15,6 @@ macro_rules! debugger_catch {
             unsafe { libc::raise(libc::SIGTRAP); }
             println!("Reached stoppable debug statement");
         }
-        
     };
 
     ($assert_expr:expr, $handleRequest:expr) => {
@@ -37,12 +36,12 @@ macro_rules! debugger_catch {
 
 #[macro_export]
 macro_rules! only_in_debug {
-    ($e: expr) => {
+    ($e:expr) => {
         #[cfg(debug_assertions)]
         {
             $e
         }
-    }
+    };
 }
 
 /// Empty macro statement, so that our debugger_catch!() calls don't get compiled into the release binary. that would be completely
@@ -76,7 +75,7 @@ macro_rules! Assert {
 /// that takes these usize numbers. Now the compiler will tell me I'm a fucking moron when trying to use the wrong parameters.
 #[macro_export]
 macro_rules! IndexingType {
-    ($(#[$attr:meta])*, $safe_type: ident, $wrapped_type: ty) => {
+    ($(#[$attr:meta])*, $safe_type:ident, $wrapped_type:ty) => {
         #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd)]
         $(#[$attr])*
         pub struct $safe_type(pub $wrapped_type);
@@ -103,7 +102,7 @@ macro_rules! IndexingType {
                 #[cfg(debug_assertions)] {
                     let $safe_type(this) = self;
                     debug_assert!(copy != *this, "value must change!!");
-                }                
+                }
             }
         }
 

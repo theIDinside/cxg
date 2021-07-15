@@ -1,19 +1,23 @@
+use super::metadata::{Column, Index, Line};
 use std::cmp::Ordering;
-use super::metadata::{Line, Column, Index};
 
 #[derive(Default, Debug, Copy, Clone)]
 pub struct BufferCursor {
     /// Absolute index into buffer
-    pub pos: Index, 
+    pub pos: Index,
     pub row: Line,
-    pub col: Column
+    pub col: Column,
 }
 
 impl Into<BufferCursor> for (usize, usize, usize) {
     #[inline(always)]
     fn into(self) -> BufferCursor {
         let (pos, row, col) = self;
-        BufferCursor { pos: Index(pos), row: Line(row), col: Column(col) }
+        BufferCursor {
+            pos: Index(pos),
+            row: Line(row),
+            col: Column(col),
+        }
     }
 }
 
@@ -43,12 +47,20 @@ impl PartialOrd for BufferCursor {
 
 pub enum CursorMovement {
     Valid,
-    InvalidColumn
+    InvalidColumn,
 }
 
 impl BufferCursor {
-    pub fn absolute(&self) -> Index { self.pos }
-    pub fn set_pos(&mut self, pos: Index) { self.pos = pos; }
-    pub fn set_row(&mut self, row: Line) { self.row = row; }
-    pub fn set_col(&mut self, col: Column) { self.col = col; }
+    pub fn absolute(&self) -> Index {
+        self.pos
+    }
+    pub fn set_pos(&mut self, pos: Index) {
+        self.pos = pos;
+    }
+    pub fn set_row(&mut self, row: Line) {
+        self.row = row;
+    }
+    pub fn set_col(&mut self, col: Column) {
+        self.col = col;
+    }
 }

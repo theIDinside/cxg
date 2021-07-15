@@ -62,11 +62,10 @@ impl SimpleBuffer {
                 self.len()
             ))
         );
-        &self.data.get(range.clone()).expect(&format!(
-            "Range out of length: {:?} - buf size: {}",
-            range,
-            self.len()
-        ))
+        &self
+            .data
+            .get(range.clone())
+            .expect(&format!("Range out of length: {:?} - buf size: {}", range, self.len()))
     }
 
     pub fn from_file(id: u32, path: &Path) -> std::io::Result<SimpleBuffer> {
@@ -106,9 +105,7 @@ impl SimpleBuffer {
             .line_begin_indices
             .windows(2)
             .enumerate()
-            .filter(|(index, _)| {
-                *index < 2 || *index > (self.meta_data.line_begin_indices.len() - 3)
-            })
+            .filter(|(index, _)| *index < 2 || *index > (self.meta_data.line_begin_indices.len() - 3))
             .map(|(index, slice)| {
                 let (a, b) = (slice[0], slice[1]);
                 format!(
@@ -142,10 +139,7 @@ impl SimpleBuffer {
             "#{:0line_pad$}:{:0idx_pad$} - '{}'",
             self.meta_data.line_count() - 1,
             *a,
-            &self.data[*a..self.len()]
-                .iter()
-                .map(|c| c)
-                .collect::<String>(),
+            &self.data[*a..self.len()].iter().map(|c| c).collect::<String>(),
             line_pad = digits,
             idx_pad = idx_digits
         );
@@ -181,19 +175,18 @@ impl SimpleBuffer {
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
-        use crate::utils::copy_slice_to;
         if slice.len() > 128 {
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
             unsafe {
                 let abs = *self.cursor.absolute() as isize;
                 let ptr = v.as_mut_ptr();
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr(), v.as_mut_ptr(), *self.cursor.absolute());
-                copy_slice_to(ptr, &self.data[.. abs as usize]);
+                copy_slice_to(ptr, &self.data[..abs as usize]);
                 // std::ptr::copy_nonoverlapping(slice.as_ptr(), v.as_mut_ptr().offset(abs), slice.len());
                 copy_slice_to(ptr.offset(abs), slice);
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr().offset(abs),v.as_mut_ptr().offset(abs + slice.len() as isize), self.len() - abs as usize);
-                copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize) ..]);
-                
+                copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize)..]);
+
                 v.set_len(self.len() + slice.len());
                 let new_abs_cursor_pos = metadata::Index(abs as usize + slice.len());
                 self.size = v.len();
@@ -264,29 +257,27 @@ impl SimpleBuffer {
                 if count == 1 {
                     if let Some(&c) = self.get(self.cursor.absolute()) {
                         if c.is_alphanumeric() {
-                            self.cursor =
-                                self.find_next(|c| c.is_whitespace())
-                                    .unwrap_or(BufferCursor {
-                                        pos: metadata::Index(self.len()),
-                                        row: metadata::Line(self.meta_data.line_count() - 1),
-                                        col: metadata::Column(self
-                                            .meta_data
-                                            .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
-                                            .map(|v| self.len() - *v)
-                                            .unwrap()),
-                                    });
+                            self.cursor = self.find_next(|c| c.is_whitespace()).unwrap_or(BufferCursor {
+                                pos: metadata::Index(self.len()),
+                                row: metadata::Line(self.meta_data.line_count() - 1),
+                                col: metadata::Column(
+                                    self.meta_data
+                                        .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
+                                        .map(|v| self.len() - *v)
+                                        .unwrap(),
+                                ),
+                            });
                         } else if c.is_whitespace() {
-                            self.cursor =
-                                self.find_next(|c| c.is_alphanumeric())
-                                    .unwrap_or(BufferCursor {
-                                        pos: metadata::Index(self.len()),
-                                        row: metadata::Line(self.meta_data.line_count() - 1),
-                                        col: metadata::Column(self
-                                            .meta_data
-                                            .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
-                                            .map(|v| self.len() - *v)
-                                            .unwrap()),
-                                    });
+                            self.cursor = self.find_next(|c| c.is_alphanumeric()).unwrap_or(BufferCursor {
+                                pos: metadata::Index(self.len()),
+                                row: metadata::Line(self.meta_data.line_count() - 1),
+                                col: metadata::Column(
+                                    self.meta_data
+                                        .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
+                                        .map(|v| self.len() - *v)
+                                        .unwrap(),
+                                ),
+                            });
                         }
                     }
                 } else {
@@ -322,7 +313,10 @@ impl SimpleBuffer {
                         self.cursor.pos -= metadata::Index(1);
                         if let Some('\n') = self.get(self.cursor.absolute()) {
                             self.cursor.row -= metadata::Line(1);
-                            self.cursor.col = metadata::Column(*(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))) )
+                            self.cursor.col = metadata::Column(
+                                *(self.cursor.absolute()
+                                    - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
+                            )
                         } else {
                             self.cursor.col -= metadata::Column(1);
                         }
@@ -388,14 +382,11 @@ impl SimpleBuffer {
     /// They explicitly only deal with absolute positions/indices, and before returning, calls this function
     /// to return an Option of a well formed BufferCursor
     fn cursor_from_metadata(&self, absolute_position: metadata::Index) -> Option<BufferCursor> {
-        use metadata::Line as Line;
         use metadata::Column as Col;
         use metadata::Index as Idx;
+        use metadata::Line;
         let absolute_position = *absolute_position;
-        debugger_catch!(
-            absolute_position <= self.len(),
-            "absolute position is outside of the buffer"
-        );
+        debugger_catch!(absolute_position <= self.len(), "absolute position is outside of the buffer");
         if absolute_position == self.len() {
             Some(BufferCursor {
                 pos: Idx(absolute_position),
@@ -413,9 +404,7 @@ impl SimpleBuffer {
                 .and_then(|line| {
                     self.meta_data
                         .get_line_start_index(Line(line))
-                        .map(|line_begin| {
-                            (absolute_position, line, absolute_position - *line_begin).into()
-                        })
+                        .map(|line_begin| (absolute_position, line, absolute_position - *line_begin).into())
                 })
         }
     }
@@ -445,8 +434,7 @@ impl SimpleBuffer {
             self.meta_data.line_begin_indices.last().map(|v| *v)
         } else {
             let reversed_abs_position = self.data.len() - abs_pos;
-            self
-                .iter()
+            self.iter()
                 .rev()
                 .skip(reversed_abs_position)
                 .position(|c| *c == '\n')
@@ -478,19 +466,16 @@ impl SimpleBuffer {
         // This is all the lines up until the 3rd to last - normal behavior, 2nd to last means we are moving into the last, other behavior applies in the else branch
 
         let next_line_index = self.cursor_row() + metadata::Line(1);
-        let new_cursor =
-            self.line_length(next_line_index)
-                .and_then(|next_line_length| {
-                    let metadata::Index(line_begin) =
-                        self.meta_data.get(self.cursor.row + metadata::Line(1)).unwrap();
-                    let new_buffer_index: usize = line_begin
-                        + if *self.cursor_col() <= *next_line_length - 1 {
-                            *self.cursor_col()
-                        } else {
-                            *next_line_length - 1
-                        };
-                    Some(self.cursor_from_metadata(metadata::Index(new_buffer_index)).unwrap())
-                });
+        let new_cursor = self.line_length(next_line_index).and_then(|next_line_length| {
+            let metadata::Index(line_begin) = self.meta_data.get(self.cursor.row + metadata::Line(1)).unwrap();
+            let new_buffer_index: usize = line_begin
+                + if *self.cursor_col() <= *next_line_length - 1 {
+                    *self.cursor_col()
+                } else {
+                    *next_line_length - 1
+                };
+            Some(self.cursor_from_metadata(metadata::Index(new_buffer_index)).unwrap())
+        });
         self.cursor = new_cursor.unwrap_or(self.cursor);
     }
 
@@ -509,7 +494,7 @@ impl std::ops::Index<usize> for SimpleBuffer {
     }
 }
 
-impl std::ops::IndexMut<usize>  for SimpleBuffer {
+impl std::ops::IndexMut<usize> for SimpleBuffer {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         unsafe { self.data.get_unchecked_mut(index) }
     }
@@ -517,9 +502,9 @@ impl std::ops::IndexMut<usize>  for SimpleBuffer {
 
 impl<'a> CharBuffer<'a> for SimpleBuffer {
     type ItemIterator = std::slice::Iter<'a, char>;
-    
+
     fn insert(&mut self, ch: char) {
-        use metadata::{Index, Line, Column as Col};
+        use metadata::{Column as Col, Index, Line};
         debug_assert!(
             self.cursor.absolute() <= Index(self.len()),
             "You can't insert something outside of the range of [0..len()]"
@@ -529,16 +514,13 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             self.cursor.pos += Index(1);
             self.cursor.col = Col(0);
             self.cursor.row += Line(1);
-            self.meta_data
-                .insert_line_begin(self.cursor.absolute(), self.cursor.row);
-            self.meta_data
-                .update_line_metadata_after_line(self.cursor.row, 1);
+            self.meta_data.insert_line_begin(self.cursor.absolute(), self.cursor.row);
+            self.meta_data.update_line_metadata_after_line(self.cursor.row, 1);
         } else {
             self.data.insert(*self.cursor.absolute(), ch);
             self.cursor.pos += Index(1);
             self.cursor.col += Col(1);
-            self.meta_data
-                .update_line_metadata_after_line(self.cursor.row, 1);
+            self.meta_data.update_line_metadata_after_line(self.cursor.row, 1);
         }
         self.size += 1;
         self.meta_data.set_buffer_size(self.size);
@@ -570,8 +552,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                                 self.data.drain(*self.cursor_abs()..p);
                             }
                         } else if c.is_alphanumeric() {
-                            if let Some(Index(p)) = self.find_next(|c| !c.is_alphanumeric()).map(|c| c.pos)
-                            {
+                            if let Some(Index(p)) = self.find_next(|c| !c.is_alphanumeric()).map(|c| c.pos) {
                                 self.data.drain(*self.cursor_abs()..p);
                             }
                         } else {
@@ -579,13 +560,12 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                             self.data.remove(*self.cursor_abs());
                         }
                     }
-                },
+                }
                 TextKind::Line => {
                     if let Some(pos) = self.meta_data.get(self.cursor_row()) {
                         let metadata::Index(p) = pos;
-
                     }
-                },
+                }
                 TextKind::Block => todo!(),
             },
 
@@ -667,5 +647,4 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn iter(&'a self) -> Self::ItemIterator {
         self.data.iter()
     }
-
 }

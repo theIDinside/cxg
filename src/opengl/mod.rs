@@ -1,12 +1,10 @@
-
 pub mod shaders;
 pub mod types;
 
-
+/// Rect renderer module. Renders simple rectangles, such as windows/borders and cursors
+pub mod rect;
 /// Text renderer module. Renders text, using Views
 pub mod text;
-/// Rect renderer module. Renders simple rectangles, such as windows/borders and cursors 
-pub mod rect;
 #[macro_use]
 pub mod glinit;
 
@@ -18,14 +16,20 @@ pub enum Primitive {
     /// used when dealing with TextVertex data quads
     CharacterQuad(isize),
     /// used when dealing with RectVertex data quads
-    RegularQuad(isize)
+    RegularQuad(isize),
 }
 
 impl Primitive {
     pub fn request_reserve(&self) -> (GPUDataType, GPUDataType) {
         match *self {
-            Primitive::CharacterQuad(count) => (GPUDataType::TextVertex(4 * count as usize), GPUDataType::Index(6 * count as usize)),
-            Primitive::RegularQuad(count) => (GPUDataType::RectVertex(4 * count as usize), GPUDataType::Index(6 * count as usize)),
+            Primitive::CharacterQuad(count) => (
+                GPUDataType::TextVertex(4 * count as usize),
+                GPUDataType::Index(6 * count as usize),
+            ),
+            Primitive::RegularQuad(count) => (
+                GPUDataType::RectVertex(4 * count as usize),
+                GPUDataType::Index(6 * count as usize),
+            ),
         }
     }
 }

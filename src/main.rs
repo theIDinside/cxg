@@ -1,5 +1,5 @@
 #![feature(core_intrinsics)]
-
+#[rustfmt::skip::macros(debugger_catch)]
 extern crate freetype as ft;
 extern crate gl;
 extern crate glfw;
@@ -64,16 +64,9 @@ fn main() -> Main {
     foo();
 
     glfw_handle.window_hint(glfw::WindowHint::ContextVersion(4, 3));
-    glfw_handle.window_hint(glfw::WindowHint::OpenGlProfile(
-        glfw::OpenGlProfileHint::Core,
-    ));
+    glfw_handle.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
     let (mut window, events) = glfw_handle
-        .create_window(
-            width,
-            height,
-            "Testing GLFW on Rust",
-            glfw::WindowMode::Windowed,
-        )
+        .create_window(width, height, "Testing GLFW on Rust", glfw::WindowMode::Windowed)
         .expect("Failed to create GLFW Window");
 
     window.make_current();
@@ -101,17 +94,16 @@ fn main() -> Main {
     let _last_update = glfw_handle.get_time();
     let mut _frame_counter = 0.0;
 
-    let _updatefps =
-        |last_update: &mut f64, glfw_handle: &mut glfw::Glfw, frame_counter: &mut f64| {
-            if *frame_counter > 20000.0 {
-                let now_time = glfw_handle.get_time();
-                let diff_time = now_time - *last_update;
-                *last_update = now_time;
-                println!("FPS: {}", *frame_counter / diff_time);
-                *frame_counter = 0.0;
-            }
-            *frame_counter += 1.0;
-        };
+    let _updatefps = |last_update: &mut f64, glfw_handle: &mut glfw::Glfw, frame_counter: &mut f64| {
+        if *frame_counter > 20000.0 {
+            let now_time = glfw_handle.get_time();
+            let diff_time = now_time - *last_update;
+            *last_update = now_time;
+            println!("FPS: {}", *frame_counter / diff_time);
+            *frame_counter = 0.0;
+        }
+        *frame_counter += 1.0;
+    };
 
     while !window.should_close() {
         // updatefps(&mut last_update, &mut glfw_handle, &mut window, &mut frame_counter);

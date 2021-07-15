@@ -1,6 +1,6 @@
-use std::ops::{Deref};
-use std::fmt::{Debug, Formatter};
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 
 use crate::datastructure::generic::{Vec2d, Vec2i};
 
@@ -19,7 +19,7 @@ pub trait PointArithmetic: Copy + Clone + Coordinate {
     }
 
     fn vector_multiply(v: Self, vec: Vec2d) -> Self {
-        Coordinate::new(((v.x() as f64 * vec.x).round()) as i32,(v.y() as f64 * vec.y).round() as i32)
+        Coordinate::new(((v.x() as f64 * vec.x).round()) as i32, (v.y() as f64 * vec.y).round() as i32)
     }
 }
 
@@ -33,7 +33,6 @@ impl Deref for Spacing {
         x
     }
 }
-
 
 #[derive(Clone, Copy)]
 pub struct Anchor(pub i32, pub i32);
@@ -97,7 +96,7 @@ impl Coordinate for Size {
     fn new(a: i32, b: i32) -> Self {
         Size {
             width: a,
-            height: b
+            height: b,
         }
     }
 }
@@ -105,7 +104,7 @@ impl Coordinate for Size {
 #[derive(Clone, Copy)]
 pub struct Size {
     pub width: i32,
-    pub height: i32
+    pub height: i32,
 }
 
 impl std::ops::Div<Size> for Size {
@@ -124,7 +123,6 @@ impl Debug for Size {
 impl PointArithmetic for Size {}
 
 impl Size {
-
     pub fn change_factor(lhs: &Size, rhs: &Size) -> Vec2d {
         let x = lhs.x() as f64 / rhs.x() as f64;
         let y = lhs.y() as f64 / rhs.y() as f64;
@@ -137,32 +135,50 @@ impl Size {
         let divisor = divisor as i32;
         match layout {
             Layout::Horizontal(Spacing(space)) => {
-                let total_width = self.width - (margin * 2) - space as i32 * (divisor-1);
-                assert!(total_width > 0, "Margin & spacing taking up more space than dimension can handle");
+                let total_width = self.width - (margin * 2) - space as i32 * (divisor - 1);
+                assert!(
+                    total_width > 0,
+                    "Margin & spacing taking up more space than dimension can handle"
+                );
                 let element_width = total_width / divisor;
                 // we're dealing with integers... so we need all elements to actually cover, so one element might get a bit larger
                 let diff_width = total_width - (divisor * element_width);
                 let mut result = vec![];
-                for _ in 0..(divisor-1) {
-                    result.push(Size { width: element_width, height: self.height })
+                for _ in 0..(divisor - 1) {
+                    result.push(Size {
+                        width: element_width,
+                        height: self.height,
+                    })
                 }
-                result.push(Size { width: element_width + diff_width, height: self.height });
+                result.push(Size {
+                    width: element_width + diff_width,
+                    height: self.height,
+                });
                 result
-            },
+            }
             Layout::Vertical(Spacing(space)) => {
                 let width = self.width - (margin * 2);
-                let total_height = self.height - (margin * 2) - space as i32 * (divisor-1);
-                assert!(total_height > 0, "Margin & spacing taking up more space than dimension can handle");
+                let total_height = self.height - (margin * 2) - space as i32 * (divisor - 1);
+                assert!(
+                    total_height > 0,
+                    "Margin & spacing taking up more space than dimension can handle"
+                );
                 let element_height = total_height / divisor;
                 // we're dealing with integers... so we need all elements to actually cover, so one element might get a bit larger
                 let diff_height = total_height - (divisor * element_height);
                 let mut result = vec![];
-                for _ in 0..(divisor-1) {
-                    result.push(Size { width, height: element_height })
+                for _ in 0..(divisor - 1) {
+                    result.push(Size {
+                        width,
+                        height: element_height,
+                    })
                 }
-                result.push(Size { width, height: element_height + diff_height });
+                result.push(Size {
+                    width,
+                    height: element_height + diff_height,
+                });
                 result
-            },
+            }
         }
     }
 
@@ -191,10 +207,9 @@ impl std::ops::Add<(i32, i32)> for &Anchor {
     fn add(self, rhs: (i32, i32)) -> Self::Output {
         let Anchor(x, y) = &self;
         let (dx, dy) = rhs;
-        Anchor(x+dx, y+dy)
+        Anchor(x + dx, y + dy)
     }
 }
-
 
 impl Into<Spacing> for i16 {
     fn into(self) -> Spacing {
@@ -202,23 +217,19 @@ impl Into<Spacing> for i16 {
     }
 }
 
-/// Layout of panels inside a panel. 
+/// Layout of panels inside a panel.
 /// u16 value is spacing in pixels between laid out child items
 #[derive(Clone, Copy)]
 pub enum Layout {
-    Vertical(Spacing), 
-    Horizontal(Spacing)
+    Vertical(Spacing),
+    Horizontal(Spacing),
 }
 
 impl std::fmt::Debug for Layout {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let (style, space) = match self {
-            Layout::Vertical(Spacing(s)) => {
-                ("Vertical", s)
-            }
-            Layout::Horizontal(Spacing(s)) => {
-                ("Horizontal", s)
-            }
+            Layout::Vertical(Spacing(s)) => ("Vertical", s),
+            Layout::Horizontal(Spacing(s)) => ("Horizontal", s),
         };
 
         f.write_fmt(format_args!("{} {}px", style, space))

@@ -2,7 +2,6 @@ use crate::opengl::{rect::RectRenderer, text::TextRenderer};
 
 use super::coordinate::{Anchor, Size};
 
-
 pub struct StatusBar<'app> {
     pub text_renderer: TextRenderer<'app>,
     pub window_renderer: RectRenderer,
@@ -10,7 +9,6 @@ pub struct StatusBar<'app> {
     pub anchor: Anchor,
     pub display_data: Vec<char>,
 }
-
 
 impl<'app> StatusBar<'app> {
     pub fn new(text_renderer: TextRenderer<'app>, window_renderer: RectRenderer, anchor: Anchor, size: Size) -> StatusBar<'app> {

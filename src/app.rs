@@ -42,12 +42,7 @@ pub struct Application<'app> {
 
 impl<'app> Application<'app> {
     /// Creates a text view and makes that the focused UI element
-    pub fn open_text_view(
-        &mut self,
-        parent_panel: u32,
-        view_name: Option<String>,
-        view_size: Size,
-    ) {
+    pub fn open_text_view(&mut self, parent_panel: u32, view_name: Option<String>, view_size: Size) {
         let view_id = self
             .panels
             .iter()
@@ -55,17 +50,10 @@ impl<'app> Application<'app> {
             .max()
             .unwrap_or(0)
             + 1;
-        if let Some(p) = self
-            .panels
-            .iter_mut()
-            .find(|panel| panel.id == parent_panel)
-        {
+        if let Some(p) = self.panels.iter_mut().find(|panel| panel.id == parent_panel) {
             let font = &self.fonts[0];
             let Size { width, height } = view_size;
-            let view_name = view_name
-                .as_ref()
-                .map(|name| name.as_ref())
-                .unwrap_or("unnamed view");
+            let view_name = view_name.as_ref().map(|name| name.as_ref()).unwrap_or("unnamed view");
             let view = View::new(
                 view_name,
                 view_id.into(),
@@ -104,9 +92,7 @@ impl<'app> Application<'app> {
     }
 
     pub fn create(
-        fonts: &'app Vec<Font>,
-        font_shader: super::opengl::shaders::TextShader,
-        rect_shader: RectShader,
+        fonts: &'app Vec<Font>, font_shader: super::opengl::shaders::TextShader, rect_shader: RectShader,
     ) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
@@ -217,10 +203,7 @@ impl<'app> Application<'app> {
     }
 
     fn handle_resize_event(&mut self, width: i32, height: i32) {
-        println!(
-            "App window {:?} ===> {}x{}",
-            self.window_size, width, height
-        );
+        println!("App window {:?} ===> {}x{}", self.window_size, width, height);
         let new_panel_space_size = Size::new(width, height - self.status_bar.size.height);
         let size_change_factor = new_panel_space_size / self.panel_space_size;
 
@@ -242,11 +225,7 @@ impl<'app> Application<'app> {
         unsafe { gl::Viewport(0, 0, width, height) }
     }
 
-    pub fn process_events(
-        &mut self,
-        window: &mut Window,
-        events: &Receiver<(f64, glfw::WindowEvent)>,
-    ) {
+    pub fn process_events(&mut self, window: &mut Window, events: &Receiver<(f64, glfw::WindowEvent)>) {
         for (_, event) in glfw::flush_messages(events) {
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
@@ -265,13 +244,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_key_event(
-        &mut self,
-        window: &mut Window,
-        key: glfw::Key,
-        action: glfw::Action,
-        modifier: glfw::Modifiers,
-    ) {
+    pub fn handle_key_event(&mut self, window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         let v = unsafe { self.active_view.as_mut().unwrap() };
 
         match key {
@@ -280,9 +253,7 @@ impl<'app> Application<'app> {
                 _ => v.move_cursor(Movement::Begin(TextKind::Line)),
             },
             Key::End => match modifier {
-                Modifiers::Control => {
-                    v.cursor_goto(crate::textbuffer::metadata::Index(v.buffer.len()))
-                }
+                Modifiers::Control => v.cursor_goto(crate::textbuffer::metadata::Index(v.buffer.len())),
                 _ => v.move_cursor(Movement::End(TextKind::Line)),
             },
             Key::Right if action == Action::Repeat || action == Action::Press => {
@@ -418,13 +389,7 @@ impl<'app> Application<'app> {
 
     pub fn add_view(&mut self, panel_id: u32, mut view: View<'app>) {
         debugger_catch!(
-            panel_id
-                == self
-                    .panels
-                    .iter()
-                    .find(|p| p.id == panel_id)
-                    .map(|p| p.id)
-                    .unwrap_or(std::u32::MAX),
+            panel_id == self.panels.iter().find(|p| p.id == panel_id).map(|p| p.id).unwrap_or(std::u32::MAX),
             DebuggerCatch::Handle(format!("Could not find panel with id {}", panel_id))
         );
         if let Some(panel) = self.panels.iter_mut().find(|p| p.id == panel_id) {
@@ -432,53 +397,32 @@ impl<'app> Application<'app> {
             if panel.children.is_empty() {
                 let adjusted_anchor = panel
                     .margin
-                    .and_then(|margin| {
-                        Some(Anchor::vector_add(
-                            panel.anchor,
-                            Vec2i::new(margin, -margin),
-                        ))
-                    })
+                    .and_then(|margin| Some(Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin))))
                     .unwrap_or(panel.anchor);
-                view.resize(
-                    Size::shrink_by_margin(panel.size, panel.margin.unwrap_or(0))
-                );
+                view.resize(Size::shrink_by_margin(panel.size, panel.margin.unwrap_or(0)));
                 view.set_anchor(adjusted_anchor);
                 panel.children.push(view);
             } else {
                 panel.children.push(view);
                 let sub_space_count = panel.children.len();
                 let margin = panel.margin.unwrap_or(0);
-                let child_sizes = panel
-                    .size
-                    .divide(sub_space_count as _, margin, panel.layout);
+                let child_sizes = panel.size.divide(sub_space_count as _, margin, panel.layout);
                 println!("sizes: {:?}. Margin: {}", child_sizes, margin);
                 match panel.layout {
                     Layout::Vertical(space) => {
-                        let mut anchor_iter =
-                            Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
-                        for (c, size) in
-                            panel.children.iter_mut().zip(child_sizes.into_iter())
-                        {
+                        let mut anchor_iter = Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
+                        for (c, size) in panel.children.iter_mut().zip(child_sizes.into_iter()) {
                             c.resize(size);
                             c.set_anchor(anchor_iter);
-                            anchor_iter = Anchor::vector_add(
-                                anchor_iter,
-                                Vec2i::new(0, -size.height - *space as i32),
-                            );
+                            anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -size.height - *space as i32));
                         }
                     }
                     Layout::Horizontal(space) => {
-                        let mut anchor_iter =
-                            Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
-                        for (c, size) in
-                            panel.children.iter_mut().zip(child_sizes.into_iter())
-                        {
+                        let mut anchor_iter = Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
+                        for (c, size) in panel.children.iter_mut().zip(child_sizes.into_iter()) {
                             c.resize(size);
                             c.set_anchor(anchor_iter);
-                            anchor_iter = Anchor::vector_add(
-                                anchor_iter,
-                                Vec2i::new(size.width + *space as i32, 0),
-                            );
+                            anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(size.width + *space as i32, 0));
                         }
                     }
                 }
