@@ -85,7 +85,7 @@ fn main() -> Main {
 
     font_program.bind();
     let char_range = (0..0x00f6u8).map(|x| x as char).collect();
-    let font = ui::font::Font::new(font_path, 12, char_range).expect("Failed to create font");
+    let font = ui::font::Font::new(font_path, 18, char_range).expect("Failed to create font");
     let fonts = vec![font];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");

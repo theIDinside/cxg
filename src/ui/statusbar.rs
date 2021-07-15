@@ -1,4 +1,4 @@
-use crate::opengl::{rect::RectRenderer, text::TextRenderer};
+use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 
 use super::coordinate::{Anchor, Size};
 
@@ -8,16 +8,18 @@ pub struct StatusBar<'app> {
     pub size: Size,
     pub anchor: Anchor,
     pub display_data: Vec<char>,
+    pub bg_color: RGBAColor
 }
 
 impl<'app> StatusBar<'app> {
-    pub fn new(text_renderer: TextRenderer<'app>, window_renderer: RectRenderer, anchor: Anchor, size: Size) -> StatusBar<'app> {
+    pub fn new(text_renderer: TextRenderer<'app>, window_renderer: RectRenderer, anchor: Anchor, size: Size, bg_color: RGBAColor) -> StatusBar<'app> {
         StatusBar {
             text_renderer,
             window_renderer,
             size,
             anchor,
             display_data: vec![],
+            bg_color
         }
     }
 
@@ -28,7 +30,7 @@ impl<'app> StatusBar<'app> {
 
     pub fn update(&mut self) {
         let Anchor(x, y) = self.anchor;
-        self.window_renderer.update_rectangle(self.anchor, self.size);
+        self.window_renderer.update_rectangle(self.anchor, self.size, self.bg_color);
         self.text_renderer.push_data(&self.display_data, x, y);
         self.text_renderer.draw();
     }

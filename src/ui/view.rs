@@ -52,6 +52,7 @@ pub struct View<'a> {
     buffer_in_view: std::ops::Range<usize>,
     view_changed: bool,
     cursor_width: i32,
+    pub bg_color: RGBAColor
 }
 
 pub struct Popup<'a> {
@@ -80,10 +81,7 @@ impl<'a> std::fmt::Debug for View<'a> {
 }
 
 impl<'a> View<'a> {
-    pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32,
-        height: i32, row_height: i32,
-    ) -> View<'a> {
+    pub fn new(name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32, row_height: i32, bg_color: RGBAColor) -> View<'a> {
         let cursor_width = text_renderer.get_cursor_width_size();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
@@ -110,8 +108,9 @@ impl<'a> View<'a> {
             buffer: SimpleBuffer::new(*view_id, 1000),
             buffer_in_view: 0..0,
             view_changed: true,
+            bg_color
         };
-        v.window_renderer.update_rectangle(v.anchor, v.size);
+        v.window_renderer.update_rectangle(v.anchor, v.size, bg_color);
         v
     }
 
@@ -124,7 +123,7 @@ impl<'a> View<'a> {
     }
 
     pub fn update(&mut self) {
-        self.window_renderer.update_rectangle(self.anchor, self.size);
+        self.window_renderer.update_rectangle(self.anchor, self.size, self.bg_color);
         self.view_changed = true;
     }
 
@@ -167,16 +166,24 @@ impl<'a> View<'a> {
             let min_x = top_x
                 + line_contents
                     .iter()
-                    .map(|&c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
+                    .map(|&c| self.text_renderer.get_glyph(c).map(|g| g.advance).unwrap_or(cursor_width))
                     .sum::<i32>();
 
             use crate::datastructure::generic::Vec2i;
 
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
-            let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.row_height));
+            let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
 
-            let bb = BoundingBox::new(min, max);
-            self.cursor_renderer.set_rect(bb);
+            let mut cursor_bound_box = BoundingBox::new(min, max);
+            let mut line_bounding_box = cursor_bound_box.clone();
+            line_bounding_box.min.x = top_x;
+            line_bounding_box.max.x = top_x + self.size.width;
+            line_bounding_box.min.y -= 6;
+            cursor_bound_box.min.y  -= 6;
+
+            self.cursor_renderer.clear_data();
+            self.cursor_renderer.push_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
+            self.cursor_renderer.push_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
             self.view_changed = false;
         }
 

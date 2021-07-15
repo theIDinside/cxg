@@ -20,7 +20,6 @@ pub enum MouseButton {
     Middle,
     Custom(i32),
 }
-
 pub enum UIAction {
     MouseMove(Vec2i),
     MouseClick(MouseButton, Vec2i),

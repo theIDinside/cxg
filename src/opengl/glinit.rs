@@ -3,7 +3,6 @@ use crate::MainInitError;
 
 use gl::{CompileShader, CreateProgram, GetProgramInfoLog, GetProgramiv, GetShaderInfoLog, GetShaderiv, ShaderSource};
 use std::ffi::CString;
-
 pub struct OpenGLHandle {
     pub vao: gl::types::GLuint,
     pub vbo: gl::types::GLuint,

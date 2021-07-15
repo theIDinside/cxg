@@ -101,7 +101,7 @@ impl RectShader {
 
     pub fn set_color(&self, color: RGBAColor) {
         unsafe {
-            gl::Uniform4fv(self.color_uniform, 1, &color.r as _);
+            gl::Uniform4fv(self.color_uniform, 1, &color as *const _ as _);
         }
     }
 }

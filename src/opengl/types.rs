@@ -29,15 +29,16 @@ impl RGBAColor {
 
 pub struct RectVertex {
     pub coord: Vec2f,
+    pub color: RGBAColor
 }
 
 impl RectVertex {
-    pub fn new(x: i32, y: i32) -> RectVertex {
+    pub fn new(x: i32, y: i32, color: RGBAColor) -> RectVertex {
         let coord = Vec2f {
             x: x as glfloat,
             y: y as glfloat,
         };
-        RectVertex { coord }
+        RectVertex { coord, color }
     }
 }
 

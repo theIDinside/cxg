@@ -43,6 +43,9 @@ impl RectRenderer {
             gl::EnableVertexAttribArray(0);
             // Unbind this buffer
 
+            gl::VertexAttribPointer(1, 4, gl::FLOAT, gl::FALSE, stride, 8 as _);
+            gl::EnableVertexAttribArray(1);
+
             gl::GenBuffers(1, &mut ebo);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
             gl::BufferData(
@@ -56,7 +59,7 @@ impl RectRenderer {
             gl::BindVertexArray(0);
         }
         let gl_handle = OpenGLHandle { vao, vbo, ebo };
-
+        
         RectRenderer {
             gl_handle,
             vtx_data: Vec::with_capacity(vertices_count.value()),
@@ -64,12 +67,8 @@ impl RectRenderer {
             shader,
             reserved_vertex_count: vertices_count.value() as _,
             reserved_index_count: reserved_indices.value() as _,
-            color: RGBAColor {
-                r: 0.3,
-                g: 0.34,
-                b: 0.48,
-                a: 1.0,
-            },
+            // color: RGBAColor {r: 0.3,g: 0.34,b: 0.48,a: 1.0,},
+            color: RGBAColor { r: 0.21, g: 0.52, b: 0.742123, a: 1.0 },
         }
     }
 
@@ -78,23 +77,23 @@ impl RectRenderer {
         self.shader.bind();
     }
 
-    pub fn update_rectangle(&mut self, anchor: Anchor, size: Size) {
+    pub fn update_rectangle(&mut self, anchor: Anchor, size: Size, color: RGBAColor) {
         self.bind();
         self.clear_data();
-        self.push_rect(BoundingBox::from((anchor, size)));
+        self.push_rect(BoundingBox::from((anchor, size)), color);
         self.reserve_gpu_memory_if_needed();
         self.upload_cpu_data();
     }
 
-    pub fn push_rect(&mut self, rect: BoundingBox) {
+    pub fn push_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
         self.bind();
         let BoundingBox { min, max } = &rect;
 
         let vtx_index = self.vtx_data.len() as u32;
-        self.vtx_data.push(RectVertex::new(min.x, max.y));
-        self.vtx_data.push(RectVertex::new(min.x, min.y));
-        self.vtx_data.push(RectVertex::new(max.x, min.y));
-        self.vtx_data.push(RectVertex::new(max.x, max.y));
+        self.vtx_data.push(RectVertex::new(min.x, max.y, color));
+        self.vtx_data.push(RectVertex::new(min.x, min.y, color));
+        self.vtx_data.push(RectVertex::new(max.x, min.y, color));
+        self.vtx_data.push(RectVertex::new(max.x, max.y, color));
         self.indices.extend_from_slice(&[
             vtx_index,
             vtx_index + 1,
@@ -108,9 +107,9 @@ impl RectRenderer {
         self.upload_cpu_data();
     }
 
-    pub fn set_rect(&mut self, rect: BoundingBox) {
+    pub fn set_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
         self.clear_data();
-        self.push_rect(rect);
+        self.push_rect(rect, color);
     }
 
     pub fn set_color(&mut self, color: RGBAColor) {
@@ -145,7 +144,7 @@ impl RectRenderer {
         }
     }
 
-    fn clear_data(&mut self) {
+    pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
     }

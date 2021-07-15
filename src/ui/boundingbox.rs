@@ -1,7 +1,7 @@
 use super::coordinate::{Anchor, Size};
 use crate::datastructure::generic::Vec2i;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoundingBox {
     /// Bottom left corner
     pub min: Vec2i,

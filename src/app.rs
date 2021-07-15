@@ -1,3 +1,4 @@
+use crate::opengl::shaders;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
@@ -10,18 +11,24 @@ use crate::ui::{
 use crate::{
     datastructure::generic::Vec2i,
     debugger_catch,
-    opengl::{
-        rect::RectRenderer,
-        shaders::{RectShader, TextShader},
-        text::TextRenderer,
-        types::RGBAColor,
-    },
+    opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor},
     DebuggerCatch,
 };
+
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
+
+static VIEW_BACKGROUND: RGBAColor = RGBAColor {
+    r: 0.21, g: 0.52, b: 0.742123, a: 1.0
+};
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor {
+    r: 0.51,
+    g: 0.59,
+    b: 0.83,
+    a: 1.0,
+};
 
 pub struct Application<'app> {
     _title_bar: String,
@@ -29,8 +36,8 @@ pub struct Application<'app> {
     panel_space_size: Size,
     fonts: &'app Vec<Font>,
     status_bar: StatusBar<'app>,
-    font_shader: TextShader,
-    rect_shader: RectShader,
+    font_shader: shaders::TextShader,
+    rect_shader: shaders::RectShader,
     panels: Vec<Panel<'app>>,
     popup: Option<Popup<'app>>,
     active_ui_element: UID,
@@ -63,6 +70,7 @@ impl<'app> Application<'app> {
                 width,
                 height,
                 font.row_height(),
+                ACTIVE_VIEW_BACKGROUND
             );
             self.active_ui_element = UID::View(*view.id);
 
@@ -75,7 +83,10 @@ impl<'app> Application<'app> {
     }
 
     pub fn cycle_focus(&mut self) {
-        assert_eq!(self.active_views.len(), 2);
+        
+        unsafe {
+            (*self.active_view).window_renderer.set_color(VIEW_BACKGROUND);
+        }
         let find_pos = |&v: &*mut View| unsafe { (*v).id == (*self.active_view).id };
 
         if let Some(idx) = self.active_views.iter().position(find_pos) {
@@ -87,13 +98,14 @@ impl<'app> Application<'app> {
         } else {
             self.active_view = self.active_views.first().map(|v| *v).unwrap();
         }
+        unsafe {
+            (*self.active_view).window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+        }
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
     }
 
-    pub fn create(
-        fonts: &'app Vec<Font>, font_shader: super::opengl::shaders::TextShader, rect_shader: RectShader,
-    ) -> Application<'app> {
+    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -107,7 +119,7 @@ impl<'app> Application<'app> {
         sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
         let sb_anchor = Anchor(0, 768);
-        let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size);
+        let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         status_bar.update();
 
         let panel = Panel::new(
@@ -130,6 +142,7 @@ impl<'app> Application<'app> {
             1024,
             768,
             fonts[0].row_height(),
+            ACTIVE_VIEW_BACKGROUND
         );
         panels[0].add_view(view);
 
@@ -142,6 +155,7 @@ impl<'app> Application<'app> {
             524,
             518,
             fonts[0].row_height(),
+            ACTIVE_VIEW_BACKGROUND
         );
 
         popup.set_anchor((250, 768 - 250).into());
