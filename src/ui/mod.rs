@@ -1,6 +1,5 @@
 use crate::datastructure::generic::Vec2i;
 use glfw::{Action, Key, Modifiers};
-
 pub mod boundingbox;
 pub mod coordinate;
 pub mod font;

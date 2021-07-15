@@ -91,22 +91,28 @@ fn main() -> Main {
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
     let mut app = app::Application::create(&fonts, font_program, rectangle_program);
 
-    let _last_update = glfw_handle.get_time();
-    let mut _frame_counter = 0.0;
+    let mut last_update = glfw_handle.get_time();
+    let mut frame_counter = 0.0;
 
-    let _updatefps = |last_update: &mut f64, glfw_handle: &mut glfw::Glfw, frame_counter: &mut f64| {
-        if *frame_counter > 20000.0 {
+    let mut updatefps = move |glfw_handle: &mut glfw::Glfw| -> Option<f64> {
+        if frame_counter > 10000.0 {
             let now_time = glfw_handle.get_time();
-            let diff_time = now_time - *last_update;
-            *last_update = now_time;
-            println!("FPS: {}", *frame_counter / diff_time);
-            *frame_counter = 0.0;
+            let diff_time = now_time - last_update;
+            last_update = now_time;
+            let res = frame_counter / diff_time;
+            frame_counter = 0.0;
+            Some(res)
+        } else {
+            frame_counter += 1.0;
+            None
         }
-        *frame_counter += 1.0;
+
     };
 
     while !window.should_close() {
-        // updatefps(&mut last_update, &mut glfw_handle, &mut window, &mut frame_counter);
+        if let Some(fps) = updatefps(&mut glfw_handle) {
+            app.update_status_bar(format!("FPS: {:.2}/s, SPF: {:.8}", fps, 1.0 / fps));
+        }
         app.process_events(&mut window, &events);
         app.update_window();
         window.swap_buffers();

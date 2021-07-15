@@ -4,10 +4,27 @@ use crate::ui::Vec2i;
 
 use std::fmt::Formatter;
 
+#[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct PanelId(pub u32);
+
+impl std::ops::Deref for PanelId {
+    type Target = u32;
+
+    fn deref<'a>(&'a self) -> &'a u32 {
+        &self.0
+    }
+}
+
+impl Into<PanelId> for u32 {
+    fn into(self) -> PanelId {
+        PanelId(self)
+    }
+}
+
 /// A panel is a top container, that contains children of Views. Views are essentially panels where
 /// text can be rendered
 pub struct Panel<'app> {
-    pub id: u32,
+    pub id: PanelId,
     pub layout: Layout,
     pub margin: Option<i32>,
     pub border: Option<i32>,
@@ -53,11 +70,9 @@ pub fn divide_scatter(number: i32, spread_count: usize) -> Vec<i32> {
 }
 
 impl<'app> Panel<'app> {
-    pub fn new(
-        id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor,
-    ) -> Panel<'app> {
+    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor) -> Panel<'app> {
         Panel {
-            id: id,
+            id: id.into(),
             layout: layout,
             margin: margin,
             border: border,
@@ -86,8 +101,10 @@ impl<'app> Panel<'app> {
 
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
+            view.set_manager_panel(self.id);
             self.children.push(view);
         } else {
+            view.set_manager_panel(self.id);
             self.children.push(view);
             let sub_space_count = self.children.len();
             let margin = self.margin.unwrap_or(0);

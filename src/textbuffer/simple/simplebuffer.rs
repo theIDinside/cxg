@@ -561,11 +561,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         }
                     }
                 }
-                TextKind::Line => {
-                    if let Some(pos) = self.meta_data.get(self.cursor_row()) {
-                        let metadata::Index(p) = pos;
-                    }
-                }
+                TextKind::Line => todo!(),
                 TextKind::Block => todo!(),
             },
 

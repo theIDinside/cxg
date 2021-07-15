@@ -1,5 +1,7 @@
 use crate::opengl::shaders;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
+use crate::ui::panel::PanelId;
+use crate::ui::view::ViewId;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
     font::Font,
@@ -21,12 +23,15 @@ use std::sync::mpsc::Receiver;
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 static VIEW_BACKGROUND: RGBAColor = RGBAColor {
-    r: 0.21, g: 0.52, b: 0.742123, a: 1.0
+    r: 0.781,
+    g: 0.52,
+    b: 0.742123,
+    a: 1.0,
 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor {
     r: 0.51,
     g: 0.59,
-    b: 0.83,
+    b: 0.13,
     a: 1.0,
 };
 
@@ -43,13 +48,16 @@ pub struct Application<'app> {
     active_ui_element: UID,
     debug: bool,
     active_view: *mut View<'app>,
-    active_panel: *mut Panel<'app>,
-    active_views: Vec<*mut View<'app>>,
+    // TODO: Remove the pointer logic around these. As soon as we create enough panels, this pointer *will* dangle, since a Vec will realloc and the memory will be gone
+    //  instead, use pure index and unique identifiers. Not as fast, but 1000000000000000 x times safer.
+    active_panel: PanelId,
+    active_views: Vec<ViewId>,
 }
 
 impl<'app> Application<'app> {
     /// Creates a text view and makes that the focused UI element
-    pub fn open_text_view(&mut self, parent_panel: u32, view_name: Option<String>, view_size: Size) {
+    pub fn open_text_view(&mut self, parent_panel: PanelId, view_name: Option<String>, view_size: Size) {
+        let parent_panel = parent_panel.into();
         let view_id = self
             .panels
             .iter()
@@ -70,39 +78,52 @@ impl<'app> Application<'app> {
                 width,
                 height,
                 font.row_height(),
-                ACTIVE_VIEW_BACKGROUND
+                ACTIVE_VIEW_BACKGROUND,
             );
             self.active_ui_element = UID::View(*view.id);
-
             p.add_view(view);
+            unsafe {
+                (*self.active_view).bg_color = VIEW_BACKGROUND;
+                (*self.active_view).window_renderer.set_color(VIEW_BACKGROUND);
+                (*self.active_view).update();
+            }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
-            self.active_views.push(self.active_view);
+            self.active_views.push(view_id.into());
         } else {
-            panic!("panel with id {} was not found", parent_panel);
+            panic!("panel with id {} was not found", *parent_panel);
         }
     }
 
     pub fn cycle_focus(&mut self) {
-        
         unsafe {
+            (*self.active_view).bg_color = VIEW_BACKGROUND;
+            (*self.active_view).set_need_redraw();
             (*self.active_view).window_renderer.set_color(VIEW_BACKGROUND);
         }
-        let find_pos = |&v: &*mut View| unsafe { (*v).id == (*self.active_view).id };
+        let find_pos = |view_id: &ViewId| *view_id == unsafe { (*self.active_view).id };
 
         if let Some(idx) = self.active_views.iter().position(find_pos) {
-            self.active_view = self
-                .active_views
-                .get(idx + 1)
-                .map(|&v| v)
-                .unwrap_or(self.active_views.first().map(|&v| v).unwrap());
-        } else {
-            self.active_view = self.active_views.first().map(|v| *v).unwrap();
+            let next_id = self.active_views.get(idx + 1).unwrap_or(self.active_views.first().unwrap());
+            if let Some(view) = self
+                .panels
+                .iter_mut()
+                .flat_map(|p| p.children.iter_mut())
+                .find(|v| v.id == *next_id)
+            {
+                self.active_view = view as *mut _;
+            }
         }
         unsafe {
+            (*self.active_view).bg_color = ACTIVE_VIEW_BACKGROUND;
             (*self.active_view).window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+            (*self.active_view).set_need_redraw();
         }
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
+    }
+
+    pub fn update_status_bar(&mut self, text: String) {
+        self.status_bar.update_string_contents(&text);
     }
 
     pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
@@ -120,7 +141,9 @@ impl<'app> Application<'app> {
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
         let sb_anchor = Anchor(0, 768);
         let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
+        status_bar.update_string_contents("foobar");
         status_bar.update();
+        
 
         let panel = Panel::new(
             0,
@@ -142,7 +165,7 @@ impl<'app> Application<'app> {
             1024,
             768,
             fonts[0].row_height(),
-            ACTIVE_VIEW_BACKGROUND
+            ACTIVE_VIEW_BACKGROUND,
         );
         panels[0].add_view(view);
 
@@ -155,7 +178,7 @@ impl<'app> Application<'app> {
             524,
             518,
             fonts[0].row_height(),
-            ACTIVE_VIEW_BACKGROUND
+            ACTIVE_VIEW_BACKGROUND,
         );
 
         popup.set_anchor((250, 768 - 250).into());
@@ -172,6 +195,8 @@ impl<'app> Application<'app> {
             view: popup,
         });
 
+        let active_panel = panels.first().unwrap().id;
+
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -184,7 +209,7 @@ impl<'app> Application<'app> {
             popup,
             active_ui_element: UID::View(active_view_id),
             debug: false,
-            active_panel: std::ptr::null_mut(),
+            active_panel,
             active_view: std::ptr::null_mut(),
             active_views: vec![],
         };
@@ -193,16 +218,16 @@ impl<'app> Application<'app> {
     }
 
     pub fn init<'b>(&'b mut self) {
-        self.active_panel = self.panels.last_mut().unwrap() as *mut _;
+        self.active_panel = self.panels.first().unwrap().id;
 
         match self.active_ui_element {
             UID::View(id) => {
                 if let Some(v) = self.panels.last_mut().unwrap().get_view(id.into()) {
                     self.active_view = v;
                 }
-                self.active_views.push(self.active_view);
+                self.active_views.push(unsafe { self.active_view.as_ref().unwrap().id });
                 for v in self.active_views.iter() {
-                    println!("View: {:?}", unsafe { &(**v) });
+                    println!("View: {:?}", v );
                 }
             }
             UID::Panel(_id) => todo!(),
@@ -335,21 +360,20 @@ impl<'app> Application<'app> {
                 if action == Action::Press {
                     if let Some(p) = self.popup.as_mut() {
                         if p.visible {
-                            if let Some(v) = self.active_views.pop() {
-                                self.active_view = v;
+                            if let Some(_v) = self.active_views.pop() {
+                                // self.active_view = v;
                             }
                         } else {
-                            self.active_views.push(self.active_view);
-                            self.active_view = &mut p.view as _;
+                            // self.active_views.push(self.active_view);
+                            // self.active_view = &mut p.view as _;
                         }
                         p.visible = !p.visible;
                     }
                 }
             }
             Key::N if modifier == Modifiers::Control && action == Action::Press => {
-                let p_id = { unsafe { &*self.active_panel }.id };
                 let size = self.window_size;
-                self.open_text_view(p_id, Some("new view".into()), size);
+                self.open_text_view(self.active_panel, Some("new view".into()), size);
             }
             Key::Tab if modifier == Modifiers::Control && action == Action::Press => {
                 self.cycle_focus();
@@ -398,13 +422,13 @@ impl<'app> Application<'app> {
                 v.view.draw();
             }
         }
-        self.status_bar.draw();
+        self.status_bar.update();
     }
 
-    pub fn add_view(&mut self, panel_id: u32, mut view: View<'app>) {
+    pub fn add_view(&mut self, panel_id: PanelId, mut view: View<'app>) {
         debugger_catch!(
-            panel_id == self.panels.iter().find(|p| p.id == panel_id).map(|p| p.id).unwrap_or(std::u32::MAX),
-            DebuggerCatch::Handle(format!("Could not find panel with id {}", panel_id))
+            panel_id == self.panels.iter().find(|p| p.id == panel_id).map(|p| p.id).unwrap_or(std::u32::MAX.into()),
+            DebuggerCatch::Handle(format!("Could not find panel with id {}", *panel_id))
         );
         if let Some(panel) = self.panels.iter_mut().find(|p| p.id == panel_id) {
             view.set_manager_panel(panel_id);

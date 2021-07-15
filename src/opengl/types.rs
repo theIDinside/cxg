@@ -13,7 +13,7 @@ pub struct RGBColor {
     pub b: glfloat,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct RGBAColor {
     pub r: glfloat,
     pub g: glfloat,
@@ -51,6 +51,7 @@ pub struct TextVertex {
     pub r: glfloat,
     pub g: glfloat,
     pub b: glfloat,
+    _padding: glfloat
 }
 
 impl TextVertex {
@@ -64,6 +65,7 @@ impl TextVertex {
             r,
             g,
             b,
+            _padding: 0.0
         }
     }
 
@@ -79,6 +81,7 @@ impl TextVertex {
             r,
             g,
             b,
+            _padding: 0.0
         }
     }
 }

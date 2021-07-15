@@ -1,5 +1,13 @@
 use super::{types::TextVertex as TVertex, Primitive};
-use crate::ui::font::{Font, GlyphInfo};
+use crate::{
+    datastructure::generic::Vec2i,
+    debugger_catch,
+    ui::{
+        coordinate::{PointArithmetic, Size},
+        font::{Font, GlyphInfo},
+    },
+    DaebuggerCatch,
+};
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct RendererId(pub u32);
@@ -61,42 +69,10 @@ pub fn create_char_rect_vertices(info: CharRectInfo) -> [TVertex; 4] {
     let h = g.height();
 
     [
-        TVertex {
-            x: xpos,
-            y: ypos + h,
-            u: x0,
-            v: y0,
-            r: red,
-            g: green,
-            b: blue,
-        },
-        TVertex {
-            x: xpos,
-            y: ypos,
-            u: x0,
-            v: y1,
-            r: red,
-            g: green,
-            b: blue,
-        },
-        TVertex {
-            x: xpos + w,
-            y: ypos + h,
-            u: x1,
-            v: y0,
-            r: red,
-            g: green,
-            b: blue,
-        },
-        TVertex {
-            x: xpos + w,
-            y: ypos + h,
-            u: x1,
-            v: y0,
-            r: red,
-            g: green,
-            b: blue,
-        },
+        TVertex::new(xpos, ypos + h, x0, y0, red, green, blue),
+        TVertex::new(xpos, ypos, x0, y1, red, green, blue),
+        TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue),
+        TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue),
     ]
 }
 
@@ -206,42 +182,12 @@ impl<'a> TextRenderer<'a> {
                 let h = g.height();
 
                 let vtx_index = self.vtx_data.len() as u32;
-                self.vtx_data.push(TVertex {
-                    x: xpos,
-                    y: ypos + h,
-                    u: x0,
-                    v: y0,
-                    r: red,
-                    g: green,
-                    b: blue,
-                });
-                self.vtx_data.push(TVertex {
-                    x: xpos,
-                    y: ypos,
-                    u: x0,
-                    v: y1,
-                    r: red,
-                    g: green,
-                    b: blue,
-                });
-                self.vtx_data.push(TVertex {
-                    x: xpos + w,
-                    y: ypos,
-                    u: x1,
-                    v: y1,
-                    r: red,
-                    g: green,
-                    b: blue,
-                });
-                self.vtx_data.push(TVertex {
-                    x: xpos + w,
-                    y: ypos + h,
-                    u: x1,
-                    v: y0,
-                    r: red,
-                    g: green,
-                    b: blue,
-                });
+                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
+
+                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
 
                 self.indices.extend_from_slice(&[
                     vtx_index,
@@ -267,6 +213,23 @@ impl<'a> TextRenderer<'a> {
 
     pub fn get_glyph(&self, ch: char) -> Option<&GlyphInfo> {
         self.font.get_glyph(ch)
+    }
+
+    pub fn calculate_text_line_dimensions(&self, text: &[char]) -> Size {
+        // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
+        debugger_catch!(
+            !text.contains(&'\n'),
+            DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
+        );
+        text.iter()
+            .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
+            .fold(
+                Size {
+                    width: 0i32,
+                    height: self.font.row_height(),
+                },
+                |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }),
+            )
     }
 }
 

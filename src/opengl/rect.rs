@@ -18,6 +18,7 @@ pub struct RectRenderer {
     reserved_vertex_count: isize,
     reserved_index_count: isize,
     color: RGBAColor,
+    pub needs_update: bool
 }
 
 /// Public interface
@@ -69,6 +70,7 @@ impl RectRenderer {
             reserved_index_count: reserved_indices.value() as _,
             // color: RGBAColor {r: 0.3,g: 0.34,b: 0.48,a: 1.0,},
             color: RGBAColor { r: 0.21, g: 0.52, b: 0.742123, a: 1.0 },
+            needs_update: true
         }
     }
 
@@ -111,14 +113,21 @@ impl RectRenderer {
         self.clear_data();
         self.push_rect(rect, color);
     }
-
+   
     pub fn set_color(&mut self, color: RGBAColor) {
         self.color = color;
+        for v in self.vtx_data.iter_mut() {
+            v.color = color;
+        }
+        self.needs_update = true;
     }
 
     pub fn draw(&self) {
         self.bind();
         self.shader.set_color(self.color);
+        if self.needs_update {
+            self.upload_cpu_data();
+        }
         unsafe {
             gl::DrawElements(gl::TRIANGLES, self.indices.len() as _, gl::UNSIGNED_INT, std::ptr::null());
         }

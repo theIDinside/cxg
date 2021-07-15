@@ -1,5 +1,7 @@
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
+use super::panel::PanelId;
+use crate::datastructure::generic::Vec2i;
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
@@ -47,7 +49,7 @@ pub struct View<'a> {
     pub topmost_line_in_buffer: i32,
     displayable_lines: i32,
     row_height: i32,
-    pub panel_id: Option<u32>,
+    pub panel_id: Option<PanelId>,
     pub buffer: SimpleBuffer,
     buffer_in_view: std::ops::Range<usize>,
     view_changed: bool,
@@ -114,12 +116,16 @@ impl<'a> View<'a> {
         v
     }
 
-    pub fn set_manager_panel(&mut self, panel_id: u32) {
+    pub fn set_manager_panel(&mut self, panel_id: PanelId) {
         self.panel_id = Some(panel_id);
     }
 
     pub fn watch_buffer(&mut self, id: u32) {
         self.buffer_id = id;
+    }
+
+    pub fn set_need_redraw(&mut self) {
+        self.view_changed = true;
     }
 
     pub fn update(&mut self) {
@@ -135,7 +141,7 @@ impl<'a> View<'a> {
         }
         if self.view_changed {
             unsafe {
-                gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+                gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             self.text_renderer
@@ -143,33 +149,14 @@ impl<'a> View<'a> {
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
 
-            let g = self
-                .text_renderer
-                .get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
-            let cursor_width = g
-                .map(|glyph| {
-                    if glyph.width() == 0 as _ {
-                        glyph.advance
-                    } else {
-                        glyph.width() as _
-                    }
-                })
-                .unwrap_or(self.cursor_width);
-
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-            crate::only_in_debug!(crate::debugger_catch!(
-                nl_buf_idx + (cols_in as usize) <= self.buffer.len(),
-                "range is outside of buffer"
-            ));
+            crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer" ));
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
 
-            let min_x = top_x
-                + line_contents
-                    .iter()
-                    .map(|&c| self.text_renderer.get_glyph(c).map(|g| g.advance).unwrap_or(cursor_width))
-                    .sum::<i32>();
+            let min_x = top_x + 
+                self.text_renderer.calculate_text_line_dimensions(line_contents).x();
 
-            use crate::datastructure::generic::Vec2i;
+            
 
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
             let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
@@ -188,6 +175,8 @@ impl<'a> View<'a> {
         }
 
         self.window_renderer.draw();
+        self.window_renderer.needs_update = false;
+        
         self.text_renderer.bind();
         self.text_renderer.draw();
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
@@ -346,7 +335,6 @@ impl<'a> View<'a> {
     }
 
     pub fn debug_viewcursor(&self) {
-        use crate::datastructure::generic::Vec2i;
         let Anchor(top_x, top_y) = self.anchor;
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
