@@ -188,11 +188,11 @@ impl SimpleBuffer {
                 let abs = *self.cursor.absolute() as isize;
                 let ptr = v.as_mut_ptr();
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr(), v.as_mut_ptr(), *self.cursor.absolute());
-                copy_slice_to(ptr, self.data[.. abs as usize]);
+                copy_slice_to(ptr, &self.data[.. abs as usize]);
                 // std::ptr::copy_nonoverlapping(slice.as_ptr(), v.as_mut_ptr().offset(abs), slice.len());
                 copy_slice_to(ptr.offset(abs), slice);
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr().offset(abs),v.as_mut_ptr().offset(abs + slice.len() as isize), self.len() - abs as usize);
-                copy_slice_to(ptr.offset(abs + slice.len() as isize), self.data[(abs as usize) ..]);
+                copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize) ..]);
                 
                 v.set_len(self.len() + slice.len());
                 let new_abs_cursor_pos = metadata::Index(abs as usize + slice.len());
