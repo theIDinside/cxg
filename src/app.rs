@@ -233,13 +233,10 @@ impl<'app> Application<'app> {
         let size_change_factor = new_panel_space_size / self.panel_space_size;
 
         for p in self.panels.iter_mut() {
-            let old_size = p.size;
-            let new_size = Size::vector_multiply(p.size, size_change_factor);
-            p.resize(new_size.width, new_size.height);
             let Anchor(x, y) = Anchor::vector_multiply(p.anchor, size_change_factor);
+            let new_size = Size::vector_multiply(p.size, size_change_factor);
             p.set_anchor(x, y);
-            p.size_changed(old_size);
-
+            p.resize(new_size.width, new_size.height);
             for v in p.children.iter_mut() {
                 v.update();
             }
