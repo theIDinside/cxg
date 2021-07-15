@@ -32,21 +32,6 @@ impl<'app> std::fmt::Debug for Panel<'app> {
     }
 }
 
-/// Resize direction, when a panel, view, or window gets resized, describes in what direction the increased width or height goes
-#[derive(Debug, Clone, Copy)]
-pub enum Resize {
-    Left(i32),
-    Right(i32),
-    Top(i32),
-    Bottom(i32),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum SizeChange {
-    Shrink(u32, u32),
-    Expand(u32, u32),
-}
-
 /// Takes a number and divides it with spread_count and creates a vector of elements
 /// with the value of result. If the divided value multiplied by spread_count doesn't equal
 /// number, the first element of the resulting vector, will get the added difference,
@@ -101,34 +86,6 @@ impl<'app> Panel<'app> {
         self.anchor = Anchor(x, y);
     }
 
-    pub fn corner(&self, corner: PanelCorner) -> Anchor {
-        let Anchor(x, y) = self.anchor;
-        match corner {
-            PanelCorner::TopLeft => {
-                Anchor(x, y)
-            }
-            PanelCorner::TopRight => {
-                Anchor(x + self.size.width, y)
-            }
-            PanelCorner::BottomLeft => {
-                Anchor(x, y - self.size.height)
-            }
-            PanelCorner::BottomRight => {
-                Anchor(x + self.size.width, y - self.size.height)
-            }
-        }
-    }
-
-    pub fn edge(&self, edge: Edge) -> i32 {
-        let Anchor(x, y) = self.anchor;
-        match edge {
-            Edge::Left => x,
-            Edge::Right => x + self.size.width,
-            Edge::Top => y,
-            Edge::Bottom => y - self.size.height
-        }
-    }
-
     pub fn add_view(&mut self, mut view: View<'app>) {
         if self.children.is_empty() {
             let adjusted_anchor = self.margin.and_then(|margin| Some(Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))).unwrap_or(self.anchor);
@@ -167,7 +124,9 @@ impl<'app> Panel<'app> {
     }
 
     pub fn resize(&mut self, w: i32, h: i32) {
+        let old_size = self.size;
         self.size = Size::new(w, h);
+        self.size_changed(old_size);
     }
 
     pub fn get_view(&mut self, view_id: ViewId) -> Option<*mut View<'app>> {
@@ -179,7 +138,7 @@ impl<'app> Panel<'app> {
         None
     }
 
-    pub fn size_changed(&mut self, old_size: Size) {
+    fn size_changed(&mut self, old_size: Size) {
         let Anchor(ax, ay) = self.anchor;
         let diff_width = self.size.width - old_size.width;
         let diff_height = self.size.height - old_size.height;
@@ -190,8 +149,7 @@ impl<'app> Panel<'app> {
         let mut anchor_y_shift = ay - margin;
         let mut anchor_x_shift = ax + margin;
 
-        let edge_left = self.edge(Edge::Left) + margin;
-        let edge_top = self.edge(Edge::Top) - margin;
+        let (edge_left, edge_top) = (ax + margin, ay - margin);
 
         match self.layout {
             Layout::Vertical(spacing) => {
