@@ -51,20 +51,6 @@ pub fn divide_scatter(number: i32, spread_count: usize) -> Vec<i32> {
     r
 }
 
-pub enum PanelCorner {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-pub enum Edge {
-    Left,
-    Right,
-    Top,
-    Bottom,
-}
-
 impl<'app> Panel<'app> {
     pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor
     ) -> Panel<'app> {
