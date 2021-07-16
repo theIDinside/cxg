@@ -24,6 +24,10 @@ impl BoundingBox {
     pub fn get_anchor(&self) -> Anchor {
         Anchor(self.min.x, self.max.y)
     }
+
+    pub fn from_info(anchor: Anchor, size: Size) -> BoundingBox {
+        BoundingBox::from((anchor, size))
+    }
 }
 
 impl From<(Anchor, Size)> for BoundingBox {

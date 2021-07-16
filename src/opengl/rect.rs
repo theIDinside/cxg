@@ -79,18 +79,13 @@ impl RectRenderer {
         self.shader.bind();
     }
 
-    pub fn update_rectangle(&mut self, anchor: Anchor, size: Size, color: RGBAColor) {
-        self.bind();
-        self.clear_data();
-        self.push_rect(BoundingBox::from((anchor, size)), color);
-        self.reserve_gpu_memory_if_needed();
-        self.upload_cpu_data();
+    pub fn clear_data(&mut self) {
+        self.vtx_data.clear();
+        self.indices.clear();
     }
-
-    pub fn push_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
-        self.bind();
-        let BoundingBox { min, max } = &rect;
-
+    
+    pub fn add_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
+        let BoundingBox { min, max} = rect;
         let vtx_index = self.vtx_data.len() as u32;
         self.vtx_data.push(RectVertex::new(min.x, max.y, color));
         self.vtx_data.push(RectVertex::new(min.x, min.y, color));
@@ -104,14 +99,12 @@ impl RectRenderer {
             vtx_index + 2,
             vtx_index + 3,
         ]);
-
-        self.reserve_gpu_memory_if_needed();
-        self.upload_cpu_data();
+        self.needs_update = true;
     }
 
     pub fn set_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
         self.clear_data();
-        self.push_rect(rect, color);
+        self.add_rect(rect, color);
     }
    
     pub fn set_color(&mut self, color: RGBAColor) {
@@ -122,11 +115,13 @@ impl RectRenderer {
         self.needs_update = true;
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&mut self) {
         self.bind();
         self.shader.set_color(self.color);
         if self.needs_update {
+            self.reserve_gpu_memory_if_needed();
             self.upload_cpu_data();
+            self.needs_update = false;
         }
         unsafe {
             gl::DrawElements(gl::TRIANGLES, self.indices.len() as _, gl::UNSIGNED_INT, std::ptr::null());
@@ -136,7 +131,7 @@ impl RectRenderer {
 
 /// Private interface
 impl RectRenderer {
-    fn upload_cpu_data(&self) {
+    fn upload_cpu_data(&mut self) {
         unsafe {
             gl::BufferSubData(
                 gl::ARRAY_BUFFER,
@@ -151,6 +146,7 @@ impl RectRenderer {
                 self.indices.as_ptr() as _,
             );
         }
+        self.needs_update = false;
     }
 
     pub fn clear_data(&mut self) {

@@ -139,8 +139,13 @@ impl<'a> TextRenderer<'a> {
         self.font.bind();
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&mut self) {
         self.bind();
+        if !self.pristine {
+            self.reserve_gpu_memory_if_needed();
+            self.upload_cpu_data();
+            self.pristine = true;
+        }
         unsafe {
             gl::DrawElements(gl::TRIANGLES, self.indices.len() as _, gl::UNSIGNED_INT, std::ptr::null());
             // gl::DrawArrays(gl::TRIANGLES, 0, self.vtx_data.len() as i32);
@@ -204,6 +209,62 @@ impl<'a> TextRenderer<'a> {
         }
         self.reserve_gpu_memory_if_needed();
         self.upload_cpu_data();
+        self.pristine = false;
+    }
+
+    pub fn prepare_data(&mut self, text: &[char], x: i32, y: i32) {
+        let color = super::types::RGBColor {
+            r: 1.0f32,
+            g: 0.0,
+            b: 0.3,
+        };
+        let mut current_x = x;
+        let mut current_y = y - self.font.row_height();
+        self.clear_data();
+        for c in text {
+            let c = *c;
+            if c == '\n' {
+                current_x = x;
+                current_y -= self.font.row_height();
+                continue;
+            }
+            if let Some(g) = self.font.get_glyph(c) {
+                let super::types::RGBColor {
+                    r: red,
+                    g: green,
+                    b: blue,
+                } = color;
+                let xpos = current_x as f32 + g.bearing.x as f32;
+                let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
+                let x0 = g.x0 as f32 / self.font.texture_width() as f32;
+                let x1 = g.x1 as f32 / self.font.texture_width() as f32;
+                let y0 = g.y0 as f32 / self.font.texture_height() as f32;
+                let y1 = g.y1 as f32 / self.font.texture_height() as f32;
+
+                let w = g.width();
+                let h = g.height();
+
+                let vtx_index = self.vtx_data.len() as u32;
+                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
+
+                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
+
+                self.indices.extend_from_slice(&[
+                    vtx_index,
+                    vtx_index + 1,
+                    vtx_index + 2,
+                    vtx_index,
+                    vtx_index + 2,
+                    vtx_index + 3,
+                ]);
+                current_x += g.advance;
+            } else {
+                panic!("Could not find glyph for {}", c);
+            }
+        }
         self.pristine = false;
     }
 

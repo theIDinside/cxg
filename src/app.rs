@@ -411,10 +411,9 @@ impl<'app> Application<'app> {
             gl::Viewport(0, 0, self.width() as _, self.height() as _);
         }
 
-        for p in self.panels.iter_mut() {
-            for v in p.children.iter_mut() {
-                v.draw();
-            }
+        // TODO: when z-indexing will become a thing, sort these first by that said z-index, back to front, before drawing
+        for v in self.panels.iter_mut().flat_map(|p| p.children.iter_mut()) {
+            v.draw();
         }
 
         if let Some(v) = self.popup.as_mut() {
@@ -422,7 +421,7 @@ impl<'app> Application<'app> {
                 v.view.draw();
             }
         }
-        self.status_bar.update();
+        self.status_bar.draw();
     }
 
     pub fn add_view(&mut self, panel_id: PanelId, mut view: View<'app>) {
@@ -445,7 +444,6 @@ impl<'app> Application<'app> {
                 let sub_space_count = panel.children.len();
                 let margin = panel.margin.unwrap_or(0);
                 let child_sizes = panel.size.divide(sub_space_count as _, margin, panel.layout);
-                println!("sizes: {:?}. Margin: {}", child_sizes, margin);
                 match panel.layout {
                     Layout::Vertical(space) => {
                         let mut anchor_iter = Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));

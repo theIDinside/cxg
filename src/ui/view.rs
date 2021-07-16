@@ -10,13 +10,12 @@ use crate::textbuffer::simple::simplebuffer::SimpleBuffer;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::font::Font;
 
-use crate::opengl::Renderable;
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
 
 pub trait Viewable {
     fn set_anchor(&mut self, anchor: Anchor);
-    fn resize(&mut self, width: i32, height: i32);
+    fn resize(&mut self, size: Size);
     fn update(&mut self, renderable: Box<dyn Renderable>);
 }
 
@@ -112,7 +111,7 @@ impl<'a> View<'a> {
             view_changed: true,
             bg_color
         };
-        v.window_renderer.update_rectangle(v.anchor, v.size, bg_color);
+        v.window_renderer.add_rect(BoundingBox::from_info(v.anchor, v.size), bg_color);
         v
     }
 
@@ -128,9 +127,10 @@ impl<'a> View<'a> {
         self.view_changed = true;
     }
 
+    /// Prepares the renderable data, so that upon next draw() call, it renders the new content
     pub fn update(&mut self) {
-        self.window_renderer.update_rectangle(self.anchor, self.size, self.bg_color);
-        self.view_changed = true;
+        self.window_renderer.set_rect(BoundingBox::from_info(self.anchor, self.size), self.bg_color);
+        self.set_need_redraw()
     }
 
     pub fn draw(&mut self) {
@@ -145,7 +145,7 @@ impl<'a> View<'a> {
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             self.text_renderer
-                .push_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);
+                .prepare_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
 
@@ -153,37 +153,27 @@ impl<'a> View<'a> {
             crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer" ));
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
 
-            let min_x = top_x + 
-                self.text_renderer.calculate_text_line_dimensions(line_contents).x();
-
-            
-
-            let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
+            let min_x = top_x + self.text_renderer.calculate_text_line_dimensions(line_contents).x();
+            let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
             let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
 
             let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
             line_bounding_box.min.x = top_x;
             line_bounding_box.max.x = top_x + self.size.width;
-            line_bounding_box.min.y -= 6;
-            cursor_bound_box.min.y  -= 6;
 
             self.cursor_renderer.clear_data();
-            self.cursor_renderer.push_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
-            self.cursor_renderer.push_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
+            self.cursor_renderer.add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
+            self.cursor_renderer.add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
             self.view_changed = false;
         }
 
-        self.window_renderer.draw();
-        self.window_renderer.needs_update = false;
-        
-        self.text_renderer.bind();
-        self.text_renderer.draw();
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
+        self.window_renderer.draw();
+        self.text_renderer.draw();
         self.cursor_renderer.draw();
-        unsafe {
-            gl::Disable(gl::SCISSOR_TEST);
-        }
+
+        unsafe { gl::Disable(gl::SCISSOR_TEST); }
     }
 
     pub fn set_anchor(&mut self, anchor: Anchor) {

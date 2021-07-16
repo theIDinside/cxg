@@ -8,9 +8,6 @@ pub mod text;
 #[macro_use]
 pub mod glinit;
 
-pub trait Renderable {
-    fn render(&mut self);
-}
 
 pub enum Primitive {
     /// used when dealing with TextVertex data quads

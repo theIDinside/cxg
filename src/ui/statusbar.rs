@@ -30,12 +30,12 @@ impl<'app> StatusBar<'app> {
 
     pub fn update(&mut self) {
         let Anchor(x, y) = self.anchor;
-        self.window_renderer.update_rectangle(self.anchor, self.size, self.bg_color);
-        self.text_renderer.push_data(&self.display_data, x, y);
-        self.text_renderer.draw();
+        self.window_renderer.clear_data();
+        self.window_renderer.add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
+        self.text_renderer.prepare_data(&self.display_data, x, y);
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&mut self) {
         self.window_renderer.draw();
         self.text_renderer.draw();
     }

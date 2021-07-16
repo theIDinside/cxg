@@ -98,7 +98,6 @@ impl<'app> Panel<'app> {
                 .margin
                 .map(|margin| Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))
                 .unwrap_or(self.anchor);
-
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
             view.set_manager_panel(self.id);
@@ -109,7 +108,6 @@ impl<'app> Panel<'app> {
             let sub_space_count = self.children.len();
             let margin = self.margin.unwrap_or(0);
             let child_sizes = self.size.divide(sub_space_count as _, margin, self.layout);
-            println!("sizes: {:?}. Margin: {}", child_sizes, margin);
             match self.layout {
                 Layout::Vertical(space) => {
                     let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
@@ -169,8 +167,9 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
-                    view.resize(size);
+                    //let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
+                    let size = Size::new(self.size.width, view.size.height + dh);
+                    view.resize(Size::shrink_by_margin(size, margin));
                     view.set_anchor((edge_left, anchor_y_shift).into());
                     anchor_y_shift -= view.size.height + *spacing as i32;
                 }
@@ -181,8 +180,9 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
-                    view.resize(size);
+                    // let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
+                    let size = Size::new(view.size.width + dw, self.size.height);
+                    view.resize(Size::shrink_by_margin(size, margin));
                     view.set_anchor((anchor_x_shift, edge_top).into());
                     anchor_x_shift += view.size.width + *spacing as i32;
                 }
