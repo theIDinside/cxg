@@ -37,45 +37,6 @@ pub struct TextRenderer<'a> {
     reserved_index_count: isize,
 }
 
-pub struct CharRectInfo<'a> {
-    g: &'a crate::ui::font::GlyphInfo,
-    font: &'a Font,
-    pos: crate::datastructure::generic::Vec2f,
-    color: &'a super::types::RGBColor,
-}
-
-pub fn create_char_rect_vertices(info: CharRectInfo) -> [TVertex; 4] {
-    use crate::datastructure::generic::Vec2f;
-    let CharRectInfo {
-        g,
-        font,
-        pos,
-        color,
-    } = info;
-    let &super::types::RGBColor {
-        r: red,
-        g: green,
-        b: blue,
-    } = color;
-    let Vec2f { x, y } = pos;
-    let xpos = x;
-    let ypos = y;
-    let x0 = g.x0 as f32 / font.texture_width() as f32;
-    let x1 = g.x1 as f32 / font.texture_width() as f32;
-    let y0 = g.y0 as f32 / font.texture_height() as f32;
-    let y1 = g.y1 as f32 / font.texture_height() as f32;
-
-    let w = g.width();
-    let h = g.height();
-
-    [
-        TVertex::new(xpos, ypos + h, x0, y0, red, green, blue),
-        TVertex::new(xpos, ypos, x0, y1, red, green, blue),
-        TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue),
-        TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue),
-    ]
-}
-
 /// Public interface
 impl<'a> TextRenderer<'a> {
     pub fn create(shader: super::shaders::TextShader, font: &Font, reserve_quads: usize) -> TextRenderer {
@@ -152,15 +113,18 @@ impl<'a> TextRenderer<'a> {
         }
     }
 
-    pub fn prepare_data(&mut self, text: &[char], x: i32, y: i32) {
+    pub fn prepare_data_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
         let color = super::types::RGBColor {
             r: 1.0f32,
             g: 1.0,
             b: 1.3,
         };
+        self.clear_data();
+        self.vtx_data.reserve(crate::utils::difference(self.vtx_data.capacity(), text.len()));
+
         let mut current_x = x;
         let mut current_y = y - self.font.row_height();
-        self.clear_data();
+
         for c in text {
             let c = *c;
             if c == '\n' {

@@ -45,6 +45,14 @@ impl MetaData {
         self.line_begin_indices.len()
     }
 
+    pub fn line_length(&self, line: Line) -> Option<Length> {
+        self.get(line).and_then(|a| {
+            self.get(line.offset(1))
+                .map(|b| Some(Length(*b - *a)))
+                .unwrap_or(Some(Length(self.buffer_size - *a)))
+        })
+    }
+
     pub fn get_line_length_of(&self, line_index: Line) -> Option<Length> {
         debugger_catch!(
             *line_index <= self.line_begin_indices.len(),

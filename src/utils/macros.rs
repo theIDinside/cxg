@@ -129,5 +129,20 @@ macro_rules! IndexingType {
                 *this -= that;
             }
         }
+
+        impl $safe_type {
+            /// Takes the Index and adds the offset provided as parameter. If the result is negative
+            /// the returned Index is Index(0). Thus, this type is always safe to add an offset to.
+            pub fn offset(&self, offset: isize) -> Self {
+                let Self(value) = self;
+                let value = *value as isize;
+                let result = value + offset;
+                if result < 0 {
+                    Self(0)
+                } else {
+                    Self(result as usize)
+                }
+            }
+        }
     };
 }

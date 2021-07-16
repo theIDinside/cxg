@@ -32,7 +32,7 @@ impl<'app> StatusBar<'app> {
         let Anchor(x, y) = self.anchor;
         self.window_renderer.clear_data();
         self.window_renderer.add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
-        self.text_renderer.prepare_data(&self.display_data, x, y);
+        self.text_renderer.prepare_data_iter(self.display_data.iter(), x, y);
     }
 
     pub fn draw(&mut self) {

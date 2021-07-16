@@ -55,6 +55,10 @@ pub struct Application<'app> {
     active_view: *mut View<'app>,
     /// The active/displayed views in the window
     active_views: Vec<ViewId>,
+    /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as, 
+    /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state, 
+    /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
+    close_requested: bool
 }
 
 impl<'app> Application<'app> {
@@ -102,6 +106,10 @@ impl<'app> Application<'app> {
         unsafe {
             (*self.active_view).panel_id.unwrap()
         }
+    }
+
+    pub fn keep_running(&self) -> bool {
+        !self.close_requested
     }
 
     pub fn cycle_focus(&mut self) {
@@ -218,6 +226,7 @@ impl<'app> Application<'app> {
             debug: false,
             active_view: std::ptr::null_mut(),
             active_views: vec![],
+            close_requested: false
         };
         res.init();
         res
@@ -287,7 +296,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_key_event(&mut self, window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+    pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         let v = unsafe { self.active_view.as_mut().unwrap() };
 
         match key {
@@ -301,14 +310,16 @@ impl<'app> Application<'app> {
             },
             Key::Right if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    v.move_cursor(Movement::Forward(TextKind::Word, 1));
+                    // v.move_cursor(Movement::Forward(TextKind::Word, 1));
+                    v.move_cursor(Movement::End(TextKind::Word));
                 } else {
                     v.move_cursor(Movement::Forward(TextKind::Char, 1));
                 }
             }
             Key::Left if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    v.move_cursor(Movement::Backward(TextKind::Word, 1));
+                    // v.move_cursor(Movement::Backward(TextKind::Word, 1));
+                    v.move_cursor(Movement::Begin(TextKind::Word));
                 } else {
                     v.move_cursor(Movement::Backward(TextKind::Char, 1));
                 }
@@ -345,12 +356,6 @@ impl<'app> Application<'app> {
                     for p in self.panels.iter() {
                         println!("{:?}", p);
                     }
-
-                    #[cfg(debug_assertions)]
-                    {
-                        v.buffer.debug_metadata();
-                    }
-
                     v.debug_viewcursor();
                 }
             }
@@ -383,7 +388,7 @@ impl<'app> Application<'app> {
                 self.cycle_focus();
             }
             Key::Q if modifier == Modifiers::Control => {
-                window.set_should_close(true);
+                self.close_requested = true;
             }
             Key::Enter if action == Action::Press || action == Action::Repeat => {
                 v.insert_ch('\n');

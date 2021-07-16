@@ -1,11 +1,9 @@
-use std::{cmp::min, io::Read, path::Path};
+use std::{
+    cmp::min,
+};
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
-use crate::{
-    debugger_catch,
-    textbuffer::{metadata, TextKind},
-    utils::copy_slice_to,
-};
+use crate::{debugger_catch, textbuffer::{TextKind, metadata::{self}}, utils::copy_slice_to};
 
 #[cfg(debug_assertions)]
 use crate::DebuggerCatch;
@@ -16,26 +14,6 @@ pub struct SimpleBuffer {
     cursor: BufferCursor,
     size: usize,
     meta_data: metadata::MetaData,
-}
-
-pub trait CountDigits {
-    fn digits(&self) -> usize;
-}
-
-impl CountDigits for usize {
-    fn digits(&self) -> usize {
-        let mut value = *self;
-        let mut digits = 1;
-        if value < 10 {
-            digits
-        } else {
-            while value >= 10 {
-                value /= 10;
-                digits += 1;
-            }
-            digits
-        }
-    }
 }
 
 impl SimpleBuffer {
@@ -53,6 +31,10 @@ impl SimpleBuffer {
         self.data.get(*idx)
     }
 
+    pub fn get_unchecked(&self, idx: metadata::Index) -> &char {
+        unsafe { self.data.get_unchecked(*idx) }
+    }
+
     pub fn get_slice(&self, range: std::ops::Range<usize>) -> &[char] {
         debugger_catch!(
             range.start <= self.len() && range.end <= self.len(),
@@ -68,21 +50,6 @@ impl SimpleBuffer {
             .expect(&format!("Range out of length: {:?} - buf size: {}", range, self.len()))
     }
 
-    pub fn from_file(id: u32, path: &Path) -> std::io::Result<SimpleBuffer> {
-        let mut file = std::fs::OpenOptions::new().open(path)?;
-        let file_length = file.metadata()?.len();
-        let mut s = String::with_capacity(file_length as usize);
-        file.read(unsafe { s.as_bytes_mut() })?;
-
-        Ok(SimpleBuffer {
-            _id: id,
-            data: s.chars().collect(),
-            cursor: BufferCursor::default(),
-            size: file_length as usize,
-            meta_data: metadata::MetaData::new(Some(path)),
-        })
-    }
-
     pub fn line_length(&self, line: metadata::Line) -> Option<metadata::Length> {
         use metadata::Length as L;
         self.meta_data.get(line).and_then(|a| {
@@ -93,85 +60,8 @@ impl SimpleBuffer {
         })
     }
 
-    #[cfg(debug_assertions)]
-    pub fn debug_metadata(&self) {
-        println!("#Line index:Buffer Index Pos - [line contents, newlines represented as /]");
-        println!("-----------------------------");
-        let digits = self.meta_data.line_begin_indices.len().digits();
-        let idx_digits = self.len().digits();
-
-        let mut strs: Vec<String> = self
-            .meta_data
-            .line_begin_indices
-            .windows(2)
-            .enumerate()
-            .filter(|(index, _)| *index < 2 || *index > (self.meta_data.line_begin_indices.len() - 3))
-            .map(|(index, slice)| {
-                let (a, b) = (slice[0], slice[1]);
-                format!(
-                    "#{:0line_pad$}:{:0idx_pad$} - '{}'",
-                    index,
-                    *a,
-                    &self.data[*a..*b]
-                        .iter()
-                        .map(|c| {
-                            if *c == '\n' {
-                                &'/'
-                            } else {
-                                c
-                            }
-                        })
-                        .collect::<String>(),
-                    line_pad = digits,
-                    idx_pad = idx_digits
-                )
-            })
-            .collect();
-        strs.insert(2, "........".into());
-        for s in strs {
-            println!("{}", s);
-        }
-        let a = self
-            .meta_data
-            .get(metadata::Line(self.meta_data.line_begin_indices.len() - 1))
-            .unwrap_or(metadata::Index(0));
-        println!(
-            "#{:0line_pad$}:{:0idx_pad$} - '{}'",
-            self.meta_data.line_count() - 1,
-            *a,
-            &self.data[*a..self.len()].iter().map(|c| c).collect::<String>(),
-            line_pad = digits,
-            idx_pad = idx_digits
-        );
-        println!("{}", self.meta_data);
-        self.debug_cursor();
-    }
-
     pub fn get_cursor(&self) -> &BufferCursor {
         &self.cursor
-    }
-
-    pub fn debug_cursor(&self) {
-        println!(
-            "Buffer cursor: {:?} - current element: {}",
-            self.cursor,
-            self.data
-                .get(*self.cursor.absolute())
-                .map(|&c| {
-                    if c == '\n' {
-                        "NEWLINE".into()
-                    } else {
-                        let mut s = String::new();
-                        s.push(c);
-                        s
-                    }
-                })
-                .unwrap_or("EOF".into())
-        );
-    }
-
-    pub fn str_view(&self, range: &std::ops::Range<usize>) -> &[char] {
-        &self.data[range.clone()]
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
@@ -201,7 +91,6 @@ impl SimpleBuffer {
             }
         }
     }
-
     /// Erases one character at the index of the cursor position
     pub fn remove(&mut self) {
         let idx = *self.cursor.absolute();
@@ -209,50 +98,25 @@ impl SimpleBuffer {
             self.data.remove(idx);
         }
     }
-
     /// Returns an iterator iterating over contents in character buffer
     #[inline(always)]
     pub fn iter(&self) -> std::slice::Iter<'_, char> {
         self.data.iter()
     }
-
     /// Returns an iterator iterating over contents in character buffer
     #[inline(always)]
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, char> {
         self.data.iter_mut()
     }
-
     /// Utility function calling self.iter().skip(count)
     #[inline(always)]
     pub fn iter_skip(&self, skip: usize) -> std::iter::Skip<std::slice::Iter<'_, char>> {
         self.data.iter().skip(skip)
     }
-
+    /// Moves cursor forward, in the fashion specified by TextKind
     pub fn cursor_move_forward(&mut self, kind: TextKind, count: usize) {
         match kind {
-            TextKind::Char => {
-                if *self.cursor.absolute() + count <= self.data.len() {
-                    for _ in 0..count {
-                        if let Some('\n') = self.get(self.cursor.absolute()) {
-                            self.cursor.row += metadata::Line(1);
-                            self.cursor.col = metadata::Column(0);
-                        } else {
-                            self.cursor.col += metadata::Column(1);
-                        }
-                        self.cursor.pos += metadata::Index(1);
-                    }
-                } else {
-                    for _ in *self.cursor.absolute()..self.data.len() {
-                        if let Some('\n') = self.get(self.cursor.absolute()) {
-                            self.cursor.row += metadata::Line(1);
-                            self.cursor.col = metadata::Column(0);
-                        } else {
-                            self.cursor.col += metadata::Column(1);
-                        }
-                        self.cursor.pos += metadata::Index(1);
-                    }
-                }
-            }
+            TextKind::Char => self.cursor_step_forward(count),
             TextKind::Word => {
                 if count == 1 {
                     if let Some(&c) = self.get(self.cursor.absolute()) {
@@ -304,7 +168,7 @@ impl SimpleBuffer {
             );
         }
     }
-
+    /// Moves cursor backward, in the fashion specified by TextKind
     pub fn cursor_move_backward(&mut self, kind: TextKind, count: usize) {
         match kind {
             TextKind::Char => {
@@ -314,8 +178,7 @@ impl SimpleBuffer {
                         if let Some('\n') = self.get(self.cursor.absolute()) {
                             self.cursor.row -= metadata::Line(1);
                             self.cursor.col = metadata::Column(
-                                *(self.cursor.absolute()
-                                    - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
+                                *(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
                             )
                         } else {
                             self.cursor.col -= metadata::Column(1);
@@ -352,26 +215,7 @@ impl SimpleBuffer {
             TextKind::Block => todo!(),
         }
     }
-    pub fn cursor_goto(&mut self, buffer_index: metadata::Index) {
-        if self.is_valid_index(buffer_index) {
-            self.cursor = self.cursor_from_metadata(buffer_index).unwrap();
-        }
-    }
 
-    #[inline(always)]
-    pub fn cursor_row(&self) -> metadata::Line {
-        self.cursor.row
-    }
-
-    #[inline(always)]
-    pub fn cursor_col(&self) -> metadata::Column {
-        self.cursor.col
-    }
-
-    #[inline(always)]
-    pub fn cursor_abs(&self) -> metadata::Index {
-        self.cursor.pos
-    }
 }
 
 /// Private interface implementation
@@ -381,32 +225,20 @@ impl SimpleBuffer {
     /// Instead of having each function individually updating the cursor and keeping track of rows and columns
     /// They explicitly only deal with absolute positions/indices, and before returning, calls this function
     /// to return an Option of a well formed BufferCursor
-    fn cursor_from_metadata(&self, absolute_position: metadata::Index) -> Option<BufferCursor> {
-        use metadata::Column as Col;
-        use metadata::Index as Idx;
-        use metadata::Line;
-        let absolute_position = *absolute_position;
-        debugger_catch!(absolute_position <= self.len(), "absolute position is outside of the buffer");
-        if absolute_position == self.len() {
-            Some(BufferCursor {
-                pos: Idx(absolute_position),
-                row: Line(self.meta_data.line_count() - 1),
-                col: Col(self
-                    .meta_data
-                    .line_begin_indices
-                    .last()
-                    .map(|v| absolute_position - **v as usize)
-                    .unwrap()),
-            })
-        } else {
-            self.meta_data
-                .get_line_number_of_buffer_index(Idx(absolute_position))
-                .and_then(|line| {
-                    self.meta_data
-                        .get_line_start_index(Line(line))
-                        .map(|line_begin| (absolute_position, line, absolute_position - *line_begin).into())
-                })
-        }
+    
+    fn find_index_of_prev_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
+        self.data[0..=*start_position]
+            .into_iter()
+            .rev()
+            .position(|c| f(*c))
+            .map(|len_from_pos| metadata::Index(*start_position - len_from_pos))
+    }
+
+    fn find_index_of_next_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
+        self.iter()
+            .skip(*start_position)
+            .position(|&ch| f(ch))
+            .map(|len_from_pos| start_position.offset(len_from_pos as _))
     }
 
     fn find_next(&self, f: fn(char) -> bool) -> Option<BufferCursor> {
@@ -423,9 +255,7 @@ impl SimpleBuffer {
             .iter()
             .rev()
             .position(|&c| f(c))
-            .and_then(|char_index_predicate_true_for| {
-                self.cursor_from_metadata(metadata::Index(cursor_pos - char_index_predicate_true_for - 1))
-            })
+            .and_then(|char_index_predicate_true_for| self.cursor_from_metadata(metadata::Index(cursor_pos - char_index_predicate_true_for - 1)))
     }
 
     fn find_prev_newline_pos_from(&self, abs_pos: metadata::Index) -> Option<metadata::Index> {
@@ -442,10 +272,50 @@ impl SimpleBuffer {
         }
     }
 
-    fn cursor_move_up(&mut self) {
-        if self.cursor_row() == metadata::Line(0) {
-            return;
+    fn cursor_step_forward(&mut self, count: usize) {
+        if *self.cursor.absolute() + 1 <= self.data.len() {
+            for _ in 0..count {
+                if let Some('\n') = self.get(self.cursor.absolute()) {
+                    self.cursor.row += metadata::Line(1);
+                    self.cursor.col = metadata::Column(0);
+                } else {
+                    self.cursor.col += metadata::Column(1);
+                }
+                self.cursor.pos += metadata::Index(1);
+            }
+        } else {
+            for _ in *self.cursor.absolute()..self.data.len() {
+                if let Some('\n') = self.get(self.cursor.absolute()) {
+                    self.cursor.row += metadata::Line(1);
+                    self.cursor.col = metadata::Column(0);
+                } else {
+                    self.cursor.col += metadata::Column(1);
+                }
+                self.cursor.pos += metadata::Index(1);
+            }
         }
+    }
+
+    fn cursor_step_backward(&mut self, count: usize) {
+        if *self.cursor.absolute() as i64 - count as i64 > 0 {
+            for _ in 0..count {
+                self.cursor.pos -= metadata::Index(1);
+                if let Some('\n') = self.get(self.cursor.absolute()) {
+                    self.cursor.row -= metadata::Line(1);
+                    self.cursor.col = metadata::Column(
+                        *(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
+                    )
+                } else {
+                    self.cursor.col -= metadata::Column(1);
+                }
+            }
+        } else {
+            self.cursor = BufferCursor::default();
+        }
+    } 
+
+    fn cursor_move_up(&mut self) {
+        if self.cursor_row() == metadata::Line(0) { return; }
         let prior_line = self.cursor_row() - metadata::Line(1);
         self.cursor = self
             .meta_data
@@ -464,23 +334,18 @@ impl SimpleBuffer {
 
     fn cursor_move_down(&mut self) {
         // This is all the lines up until the 3rd to last - normal behavior, 2nd to last means we are moving into the last, other behavior applies in the else branch
+        let next_line_index = self.cursor_row().offset(1);
 
-        let next_line_index = self.cursor_row() + metadata::Line(1);
+        let a = self.line_length(next_line_index);
+        let b = self.meta_data.line_length(next_line_index);
+        debugger_catch!(a == b, DebuggerCatch::Handle(format!("Line length operation failed")));
+
         let new_cursor = self.line_length(next_line_index).and_then(|next_line_length| {
-            let metadata::Index(line_begin) = self.meta_data.get(self.cursor.row + metadata::Line(1)).unwrap();
-            let new_buffer_index: usize = line_begin
-                + if *self.cursor_col() <= *next_line_length - 1 {
-                    *self.cursor_col()
-                } else {
-                    *next_line_length - 1
-                };
+            let metadata::Index(line_begin) = self.meta_data.get(self.cursor.row.offset(1)).unwrap();
+            let new_buffer_index: usize = line_begin + if *self.cursor_col() <= *next_line_length - 1 { *self.cursor_col() } else { *next_line_length - 1 };
             Some(self.cursor_from_metadata(metadata::Index(new_buffer_index)).unwrap())
         });
-        self.cursor = new_cursor.unwrap_or(self.cursor);
-    }
-
-    fn is_valid_index(&self, index: metadata::Index) -> bool {
-        self.len() >= *index
+        self.set_cursor(new_cursor.unwrap_or(self.cursor));
     }
 }
 
@@ -502,6 +367,21 @@ impl std::ops::IndexMut<usize> for SimpleBuffer {
 
 impl<'a> CharBuffer<'a> for SimpleBuffer {
     type ItemIterator = std::slice::Iter<'a, char>;
+
+    #[inline(always)]
+    fn cursor_row(&self) -> metadata::Line {
+        self.cursor.row
+    }
+
+    #[inline(always)]
+    fn cursor_col(&self) -> metadata::Column {
+        self.cursor.col
+    }
+
+    #[inline(always)]
+    fn cursor_abs(&self) -> metadata::Index {
+        self.cursor.pos
+    }
 
     fn insert(&mut self, ch: char) {
         use metadata::{Column as Col, Index, Line};
@@ -567,11 +447,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
             Movement::Backward(kind, count) if self.cursor.absolute() != Index(0) => match kind {
                 TextKind::Char => {
-                    let count = if *self.cursor.absolute() as i64 - count as i64 >= 0 {
-                        count
-                    } else {
-                        *self.cursor.absolute()
-                    };
+                    let count = if *self.cursor.absolute() as i64 - count as i64 >= 0 { count } else { *self.cursor.absolute() };
                     self.cursor_move_backward(TextKind::Char, count);
                     for _ in 0..count {
                         self.remove();
@@ -579,11 +455,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 }
                 TextKind::Word => {
                     if let Some(ch) = self.get(Index(self.cursor_abs().wrapping_sub(1))) {
-                        let pred = if ch.is_whitespace() {
-                            |c: &char| c.is_alphanumeric()
-                        } else {
-                            |c: &char| c.is_whitespace()
-                        };
+                        let pred = if ch.is_whitespace() { |c: &char| c.is_alphanumeric() } else { |c: &char| c.is_whitespace() };
                         let to_index = self.iter().rev().position(pred).unwrap_or(self.len());
                         self.cursor_move_backward(TextKind::Char, to_index);
                         for _ in 0..to_index {
@@ -601,20 +473,8 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     }
 
     fn insert_slice_fast(&mut self, slice: &[char]) {
-        if self.data.capacity() - self.data.len() > slice.len() {
-            unsafe {
-                let ptr = self.data.as_mut_ptr();
-                self.data.set_len(self.data.len() + slice.len());
-                std::ptr::copy_nonoverlapping(
-                    ptr.offset(*self.cursor_abs() as _),
-                    ptr.offset(*self.cursor_abs() as isize + slice.len() as isize),
-                    self.len() - *self.cursor_abs(),
-                );
-                copy_slice_to(ptr.offset(*self.cursor_abs() as _), slice);
-            }
-        } else {
-        }
-        todo!()
+        self.insert_slice(slice);
+        self.meta_data.set_buffer_size(self.size);
     }
 
     fn capacity(&self) -> usize {
@@ -643,4 +503,108 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn iter(&'a self) -> Self::ItemIterator {
         self.data.iter()
     }
+
+    #[allow(non_snake_case)]
+    fn move_cursor(&mut self, dir: Movement) {
+        use super::super::metadata::{Index, Line};
+
+        match dir {
+            Movement::Forward(kind, count) => {
+                self.cursor_move_forward(kind, count);
+            }
+            Movement::Backward(kind, count) => {
+                self.cursor_move_backward(kind, count);
+            }
+            Movement::Begin(kind) => match kind {
+                TextKind::Char => self.cursor_step_backward(1),
+                TextKind::Word => {
+                    if let Some(c) = self.get(self.cursor.pos) {
+                        if c.is_whitespace() {
+                            self.cursor = self
+                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |c| c.is_alphanumeric() || c.is_ascii_punctuation())
+                                .and_then(|i| {
+                                    let c = self.get_unchecked(i);
+                                    // predicate P generator
+                                    let P = if c.is_alphanumeric() {
+                                        |c: char| !c.is_alphanumeric()
+                                    } else {
+                                        |c: char| !c.is_ascii_punctuation()
+                                    };
+                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
+                                })
+                                .and_then(|i| self.cursor_from_metadata(i))
+                                .unwrap_or(BufferCursor::default());
+                        } else if c.is_alphanumeric() {
+                            self.cursor = self
+                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |ch| !ch.is_alphanumeric())
+                                .and_then(|i| {
+                                    let _c = self.get_unchecked(i);
+                                    // predicate P generator
+                                    let P = if _c.is_ascii_punctuation() {
+                                        |c: char| !c.is_ascii_punctuation()
+                                    } else {
+                                        |c: char| c.is_ascii_punctuation()
+                                    };
+                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
+                                })
+                                .and_then(|i| self.cursor_from_metadata(i))
+                                .unwrap_or(BufferCursor::default())
+                        } else {
+                            // means we is_ascii_punctuation is true
+                            self.cursor = self
+                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |ch| !ch.is_ascii_punctuation())
+                                .and_then(|i| {
+                                    let _c = self.get_unchecked(i);
+                                    let P = if _c.is_alphanumeric() { |c: char| !c.is_alphanumeric() } else { |c: char| !c.is_whitespace() };
+                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
+                                })
+                                .and_then(|i| self.cursor_from_metadata(i))
+                                .unwrap_or(BufferCursor::default())
+                        }
+                    }
+                }
+                TextKind::Line => {
+                    if let Some(start) = self.meta_data.get(self.cursor_row()) {
+                        self.cursor_goto(start);
+                    }
+                }
+                TextKind::Block => todo!(),
+            },
+            Movement::End(kind) => match kind {
+                TextKind::Char => self.cursor_step_forward(1),
+                TextKind::Word => {
+                    if let Some(c) = self.get(self.cursor.pos) {
+                        let start = self.cursor.pos.offset(1);
+                        let new_pos = if c.is_whitespace() {
+                            self.find_index_of_next_from(start, |c| !c.is_whitespace())
+                                .and_then(|i| self.cursor_from_metadata(i))
+                        } else if c.is_alphanumeric() {
+                            self.find_index_of_next_from(start, |c| !c.is_alphanumeric())
+                                .and_then(|i| self.cursor_from_metadata(i))
+                        } else {
+                            self.find_index_of_next_from(start, |c| !c.is_ascii_punctuation())
+                                .and_then(|i| self.cursor_from_metadata(i))
+                        };
+
+                        self.cursor = new_pos.unwrap_or(self.cursor_from_metadata(Index(self.len())).unwrap());
+                    }
+                }
+                TextKind::Line => {
+                    if let Some(end) = self.meta_data.get(self.cursor_row() + Line(1)).map(|Index(start)| Index(start - 1)) {
+                        self.cursor_goto(end);
+                    }
+                }
+                TextKind::Block => todo!(),
+            },
+        }
+    }
+
+    fn str_view(&'a self, range: std::ops::Range<usize>) -> std::iter::Take<std::iter::Skip<Self::ItemIterator>> {
+        self.iter_skip(range.start).take(range.len())
+    }
+
+    fn set_cursor(&mut self, cursor: BufferCursor) {
+        self.cursor = cursor;
+    }
+
 }

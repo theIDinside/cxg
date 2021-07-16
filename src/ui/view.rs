@@ -143,8 +143,10 @@ impl<'a> View<'a> {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
-            self.text_renderer
-                .prepare_data(self.buffer.str_view(&self.buffer_in_view), top_x, top_y);
+            // either way of these two works
+            self.text_renderer.prepare_data_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
+            // self.text_renderer.prepare_data_iter(self.buffer.iter().skip(self.buffer_in_view.start).take(self.buffer_in_view.len()), top_x, top_y);
+
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
 
@@ -263,35 +265,7 @@ impl<'a> View<'a> {
         self.adjust_view_range();
     }
     pub fn move_cursor(&mut self, dir: Movement) {
-        match dir {
-            Movement::Forward(kind, count) => self.buffer.cursor_move_forward(kind, count),
-            Movement::Backward(kind, count) => self.buffer.cursor_move_backward(kind, count),
-            Movement::Begin(kind) => match kind {
-                TextKind::Char => self.buffer.cursor_move_backward(TextKind::Char, 1),
-                TextKind::Word => todo!(),
-                TextKind::Line => {
-                    if let Some(start) = self.buffer.meta_data().get(self.buffer.cursor_row()) {
-                        self.buffer.cursor_goto(start);
-                    }
-                }
-                TextKind::Block => todo!(),
-            },
-            Movement::End(kind) => match kind {
-                TextKind::Char => todo!(),
-                TextKind::Word => todo!(),
-                TextKind::Line => {
-                    if let Some(end) = self
-                        .buffer
-                        .meta_data()
-                        .get(self.buffer.cursor_row() + Line(1))
-                        .map(|Index(start)| Index(start - 1))
-                    {
-                        self.buffer.cursor_goto(end);
-                    }
-                }
-                TextKind::Block => todo!(),
-            },
-        }
+        self.buffer.move_cursor(dir);
         self.adjust_view_range();
     }
 

@@ -1,3 +1,5 @@
+use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
+
 use self::metadata::MetaData;
 
 pub mod cursor;
@@ -5,8 +7,6 @@ pub mod gb;
 pub mod metadata;
 pub mod simple;
 pub mod textbuffer;
-
-// pub mod text_buffer;
 
 #[derive(Debug)]
 pub enum TextKind {
@@ -26,20 +26,88 @@ pub enum Movement {
 
 pub trait CharBuffer<'a> {
     type ItemIterator: Iterator<Item = &'a char>;
+    // todo(feature): Add support for multiple cursors, whether they be implemented as multi-cursors or just as macros pretending to be multiple cursors is utterly irrelevant
+    /// Inserts character att current cursor position
     fn insert(&mut self, data: char);
+    /// Deletes a TextKind at given Movement direction. Deleting a character forward, requires a parameter of Movement::Forward(TextKind::Char, 1)
+    /// Deleting a line is very similar; Movement::Forward(TextKind::Line, 1);
     fn delete(&mut self, dir: Movement);
+    /// Copies a slice into the buffer, using memcpy. If there's not enough space, the buffer will have to re-allocate it's data first
     fn insert_slice_fast(&mut self, slice: &[char]);
+    /// Moves the cursor in the buffer
+    fn move_cursor(&mut self, dir: Movement);
+    /// Capacity of the buffer
     fn capacity(&self) -> usize;
+    /// Size of the used space in the buffer
     fn len(&self) -> usize;
+    /// Check if the buffer is empty
     fn empty(&self) -> bool {
         self.len() == 0
     }
+    /// Available free space in the buffer
     fn available_space(&self) -> usize {
         self.capacity() - self.len()
     }
+    /// Rebuilds the buffer meta data, containing new line indices in the buffer.
     fn rebuild_metadata(&mut self);
+
+    /// Constructs a BufferCursor, from an absolute index position into the buffer, using the metadata
+    fn cursor_from_metadata(&self, absolute_position: metadata::Index) -> Option<BufferCursor> {
+        use metadata::Column as Col;
+        use metadata::Index as Idx;
+        use metadata::Line;
+        let absolute_position = *absolute_position;
+        debugger_catch!(absolute_position <= self.len(), "absolute position is outside of the buffer");
+        if absolute_position == self.len() {
+            Some(BufferCursor {
+                pos: Idx(absolute_position),
+                row: Line(self.meta_data().line_count() - 1),
+                col: Col(self
+                    .meta_data()
+                    .line_begin_indices
+                    .last()
+                    .map(|v| absolute_position - **v as usize)
+                    .unwrap()),
+            })
+        } else {
+            self.meta_data()
+                .get_line_number_of_buffer_index(Idx(absolute_position))
+                .and_then(|line| {
+                    self.meta_data()
+                        .get_line_start_index(Line(line))
+                        .map(|line_begin| (absolute_position, line, absolute_position - *line_begin).into())
+                })
+        }
+    }
+    
+    /// Get a reference to the MetaData sturcture
     fn meta_data(&self) -> &MetaData;
+    /// Get an iterator to the data of this buffer
     fn iter(&'a self) -> Self::ItemIterator;
+    /// A function where range _must_ be satifies to be within the buffer. If this goes kablooey - you have been warned dumbass.
+    fn str_view(&'a self, range: std::ops::Range<usize>) -> std::iter::Take<std::iter::Skip<Self::ItemIterator>>;
+
+    /// Get current cursor line position
+    fn cursor_row(&self) -> metadata::Line;
+    /// Get current cursor column position
+    fn cursor_col(&self) -> metadata::Column;
+    /// Get absolute position in buffer
+    fn cursor_abs(&self) -> metadata::Index;
+
+    /// Moves cursor to absolute buffer index
+    fn cursor_goto(&mut self, buffer_index: metadata::Index) {
+        if self.is_valid_index(buffer_index) {
+            self.set_cursor(self.cursor_from_metadata(buffer_index).unwrap());
+        }
+    }
+
+    /// Overwrite cursor. This is an inherently unsafe function, if you overwrite the cursor with bad data (such as an index outside of the buffer) that's on you
+    fn set_cursor(&mut self, cursor: BufferCursor);
+
+    /// Checks if the index is a valid buffer index
+    fn is_valid_index(&self, index: metadata::Index) -> bool {
+        self.len() >= *index
+    }
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.
@@ -52,7 +120,7 @@ pub trait SubstringClone {
 mod tests {
     use super::gb::gap_buffer::GapBuffer as GB;
     // use super::Gap::GapBuffer as GB;
-    use super::{CharBuffer, SubstringClone};
+    use super::{SubstringClone};
 
     #[test]
     fn test_iteration() {
@@ -69,11 +137,11 @@ mod tests {
         let assertion_ok = "hello go fuck yourself biatch! world";
         gb.map_into("hello world".chars());
         gb.set_gap_position(5);
-        gb.insert_slice_fast(&mfer[..]);
+        gb.insert_slice(&mfer[..]);
         println!("buffer contents: {:?}", gb.read_string(0..assertion_ok.len()));
         let two_times: Vec<_> = assertion_ok.chars().chain(assertion_ok.chars()).collect();
         gb.set_gap_position(0);
-        gb.insert_slice_fast(&assertion_ok.chars().collect::<Vec<_>>()[..]);
+        gb.insert_slice(&assertion_ok.chars().collect::<Vec<_>>()[..]);
         let larger_range = 0..two_times.len() * 10;
         gb.debug();
         assert_eq!(gb.read_string(larger_range), two_times.iter().collect::<String>());
@@ -86,13 +154,13 @@ mod tests {
         let assertion_ok = "hello go fuck yourself biatch! world";
         gb.map_into("hello world".chars());
         gb.set_gap_position(5);
-        gb.insert_slice_fast(&mfer[..]);
+        gb.insert_slice(&mfer[..]);
         println!("buffer contents: {:?}", gb.read_string(0..assertion_ok.len()));
         assert_eq!(gb.read_string(0..assertion_ok.len()).len(), assertion_ok.len());
         assert_eq!(gb.read_string(0..assertion_ok.len()), assertion_ok);
         let two_times: Vec<_> = assertion_ok.chars().chain(assertion_ok.chars()).collect();
         gb.set_gap_position(0);
-        gb.insert_slice_fast(&assertion_ok.chars().collect::<Vec<_>>()[..]);
+        gb.insert_slice(&assertion_ok.chars().collect::<Vec<_>>()[..]);
         assert_eq!(gb.read_string(0..two_times.len()), two_times.iter().collect::<String>());
     }
 
@@ -187,22 +255,4 @@ mod tests {
         assert_eq!("hello Simon", gb.read_string(0..25));
     }
 
-    #[test]
-    fn test_insert_slice() {
-        /*
-        let mut gb = GB::new();
-        let foo = String::from("fucker");
-
-        gb.insert_item('h' as u8);
-        gb.insert_item('e' as u8);
-        gb.insert_item('l' as u8);
-        gb.insert_item('l' as u8);
-        gb.insert_item('o' as u8);
-        gb.insert_item(' ' as u8);
-        gb.insert_slice("world! ".as_bytes());
-        assert_eq!(gb.read_string(0..gb.len()), "hello world! ");
-        gb.insert_slice(foo.as_bytes());
-        assert_eq!(gb.read_string(0..gb.len()), "hello world! fucker");
-         */
-    }
 }

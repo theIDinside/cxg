@@ -1,10 +1,9 @@
+use crate::utils::copy_slice_to;
 use std::ops::Index;
 use std::ops::Range;
 use std::ptr::copy as copyrange;
 
-use crate::textbuffer::metadata::MetaData;
-
-use super::super::{CharBuffer, SubstringClone};
+use super::super::SubstringClone;
 
 #[derive(Clone, Copy)]
 pub enum Cursor {
@@ -27,7 +26,6 @@ where
 {
     data: Vec<T>,
     gap: Range<usize>,
-    metadata: MetaData,
 }
 
 impl<T> GapBuffer<T>
@@ -38,10 +36,8 @@ where
         GapBuffer {
             data: Vec::new(),
             gap: 0..0,
-            metadata: MetaData::new(None),
         }
     }
-
     /// Returns pointer to begin, and element count up until gap.start, and pointer to where the gap ends in the buffer, and element count until end of buffer
     fn data_pointers_mut(&mut self) -> ((*mut T, usize), (*mut T, usize)) {
         let res = unsafe {
@@ -87,6 +83,10 @@ where
 
     pub fn len(&self) -> usize {
         self.capacity() - self.gap.len()
+    }
+
+    pub fn gap(&self) -> std::ops::Range<usize> {
+        self.gap.clone()
     }
 
     /// Requires for us to *only* have one gap (which is currently the only feature of this gap buffer. Implementing a multi gap buffer, should probably
@@ -146,48 +146,14 @@ where
     }
 
     pub fn insert_slice(&mut self, slice: &[T]) {
-        use std::ptr::copy_nonoverlapping as memcpy;
         if self.gap.len() <= slice.len() {
             self.enlarge_gap_sized(slice.len() * 3);
         }
         unsafe {
-            memcpy(
-                slice.as_ptr(),
-                self.data.as_mut_ptr().offset(self.gap.start as isize),
-                slice.len(),
-            );
+            let destination = self.data.as_mut_ptr().offset(self.gap.start as isize);
+            copy_slice_to(destination, slice);
         }
         self.gap.start += slice.len();
-    }
-
-    pub fn insert_container_data(&mut self, data: &Vec<T>) {
-        use std::ptr::copy_nonoverlapping as memcpy;
-        if self.gap.len() <= data.len() {
-            self.enlarge_gap_sized(data.len());
-        }
-        unsafe {
-            memcpy(
-                data.as_ptr(),
-                self.data.as_mut_ptr().offset(self.gap.start as isize),
-                data.len(),
-            );
-        }
-        self.gap.start += data.len();
-    }
-
-    pub fn insert_slice_data(&mut self, data: &[T]) {
-        use std::ptr::copy_nonoverlapping as memcpy;
-        if self.gap.len() <= data.len() {
-            self.enlarge_gap_sized(data.len());
-        }
-        unsafe {
-            memcpy(
-                data.as_ptr(),
-                self.data.as_mut_ptr().offset(self.gap.start as isize),
-                data.len(),
-            );
-        }
-        self.gap.start += data.len();
     }
 
     pub fn insert_item(&mut self, elem: T) {
@@ -226,7 +192,10 @@ where
     /// Erases data in the range text_range.start .. end, in text representational terms
     ///  
     pub fn erase(&mut self, text_range: std::ops::Range<usize>) {
-        debug_assert!(text_range.end <= self.len(), "you can't erase data not contained by this buffer");
+        debug_assert!(
+            text_range.end <= self.len(),
+            "you can't erase data not contained by this buffer"
+        );
         let len = text_range.len();
         self.set_gap_position(text_range.start);
         self.gap.end += len;
@@ -246,10 +215,11 @@ where
 
     fn enlarge_gap(&mut self) {
         use std::ptr::copy_nonoverlapping as copyNoOverlap;
-        let mut newcap = self.capacity() * 2;
+        // a growth factor of < 1.5 is preferable to prevent "memory crawl" and being able to re-use previously freed space
+        let mut newcap = (self.capacity() as f32 * 1.40).round() as usize;
         if newcap == 0 {
             // existing vector data is empty.. choosing 16 bytes = 128 bit gap. Perhaps this will optimize string copies using AVX? We'll see.
-            newcap = 16;
+            newcap = 512;
         }
 
         let mut newbuf = Vec::with_capacity(newcap);
@@ -272,14 +242,24 @@ where
     ///     copy everything from self.data[gap.end .. capacity()] to new_buffer[gap.end + added_size .. new_buffer.capacity()]
     ///     we have now a new buffer, with a gap len of gap.len() + added_size and all the contents of the old buffer copied
     pub fn enlarge_gap_sized(&mut self, added_gap_size: usize) {
-        use std::ptr::copy_nonoverlapping as memcpy;
         let mut newbuf: Vec<T> = Vec::with_capacity(self.capacity() + added_gap_size);
-        let ((src_a, elem_count_a), (src_b, elem_count_b)) = self.data_pointers_mut();
-        let newgap = self.gap.start..newbuf.capacity() - elem_count_b;
+        // let ((src_a, elem_count_a), (src_b, elem_count_b)) = self.data_pointers_mut();
+        let tmp = self.gap.clone();
+        let (ssrc_a, ssrc_b) = self.data_slices_mut();
+        let newgap = tmp.start..(tmp.end + added_gap_size);
+        // self.gap.start..newbuf.capacity() - ssrc_b.len() was how we previously calculated new gap. it should be identical
+        assert_eq!(
+            tmp.start..newbuf.capacity() - ssrc_b.len(),
+            newgap,
+            "calculation of new gap error"
+        );
+
         unsafe {
-            memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
+            // memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
+            copy_slice_to(newbuf.as_mut_ptr(), ssrc_a);
             let newgap_end = newbuf.as_mut_ptr().offset(newgap.end as isize);
-            memcpy(src_b, newgap_end, elem_count_b);
+            // memcpy(src_b, newgap_end, elem_count_b);
+            copy_slice_to(newgap_end, ssrc_b);
         }
         self.data = newbuf;
         self.gap = newgap;
@@ -349,11 +329,27 @@ where
     buffer: &'a GapBuffer<T>,
 }
 
+impl<'a, T> ExactSizeIterator for GapBufferIterator<'a, T> where T: Clone + Copy {
+    fn len(&self) -> usize {
+        let (lower, upper) = self.size_hint();
+        // Note: This assertion is overly defensive, but it checks the invariant
+        // guaranteed by the trait. If this trait were rust-internal,
+        // we could use debug_assert!; assert_eq! will check all Rust user
+        // implementations too.
+        assert_eq!(upper, Some(lower));
+        lower
+    }
+}
+
 impl<'a, T> Iterator for GapBufferIterator<'a, T>
 where
     T: Clone + Copy,
 {
     type Item = &'a T;
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.pos, Some(self.end - self.pos))
+    }
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos < self.buffer.len() {
@@ -413,122 +409,6 @@ impl Index<usize> for GapBuffer<char> {
     type Output = char;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).unwrap()
-    }
-}
-
-impl<'a> CharBuffer<'a> for GapBuffer<char> {
-    type ItemIterator = GapBufferIterator<'a, char>;
-
-    fn insert(&mut self, data: char) {
-        self.insert_item(data);
-    }
-
-    fn insert_slice_fast(&mut self, slice: &[char]) {
-        if self.available_space() < slice.len() {
-            // todo(verify, optimize): I remember reading somewhere that increasing with 1.3 is actually the optimized factor, due to "crawl" in memory when reallocating...
-            // this is however just "from memory" (pun intended). I have no data to suggest this is true, but for now, let's just keep it like this
-            let new_cap = (self.capacity() as f32 * 1.5 + slice.len() as f32).ceil() as usize;
-            let new_gap_len = new_cap - self.len();
-            let gap = self.gap.start..self.gap.start + new_gap_len;
-            let mut new_storage = Vec::<char>::with_capacity(new_cap);
-            let (sub_slice_a, sub_slice_b) = self.data_slices();
-            unsafe {
-                std::ptr::copy_nonoverlapping(sub_slice_a.as_ptr(), new_storage.as_mut_ptr(), sub_slice_a.len());
-                std::ptr::copy_nonoverlapping(
-                    slice.as_ptr(),
-                    new_storage.as_mut_ptr().offset(sub_slice_a.len() as _),
-                    slice.len(),
-                );
-                std::ptr::copy_nonoverlapping(
-                    sub_slice_b.as_ptr(),
-                    new_storage.as_mut_ptr().offset(gap.end as _),
-                    sub_slice_b.len(),
-                );
-                new_storage.set_len(42);
-            }
-            self.gap = gap;
-            self.gap.start += slice.len();
-            self.data = new_storage;
-        } else {
-            for item in slice {
-                self.insert_item(*item);
-            }
-        };
-    }
-
-    fn capacity(&self) -> usize {
-        self.data.capacity()
-    }
-
-    fn len(&self) -> usize {
-        self.capacity() - self.gap.len()
-    }
-
-    fn rebuild_metadata(&mut self) {
-        todo!("no metadata functionality exists yet for GapBuffer");
-    }
-
-    #[allow(unused)]
-    fn delete(&mut self, dir: crate::textbuffer::Movement) {
-        match dir {
-            crate::textbuffer::Movement::Forward(kind, count) => {
-                match kind {
-                    crate::textbuffer::TextKind::Char => {
-                        for _ in 0 .. count {
-                            todo!("not yet implemented");
-                        }
-                    },
-                    crate::textbuffer::TextKind::Word => {
-                        if let Some(c) = self.get(self.get_pos()) {
-                            if c.is_whitespace() {
-                                let mut length_to_delete = 0usize;
-                                for c in self.iter().skip(self.get_pos()) {
-                                    if c.is_alphanumeric() {
-                                        if length_to_delete > 1 {
-
-                                        } else {
-                                            
-                                        }
-                                    }
-                                    length_to_delete += 1;
-                                }
-                            } else if c.is_alphanumeric() {
-
-                            }
-                        }
-                    }
-                    crate::textbuffer::TextKind::Line => {
-
-                    }
-                    crate::textbuffer::TextKind::Block => {
-
-                    }
-                }
-            },
-            crate::textbuffer::Movement::Backward(kind, count) => {
-
-            }
-            crate::textbuffer::Movement::Begin(kind) => {
-
-            }
-            crate::textbuffer::Movement::End(kind) => {
-
-            }
-        }
-
-        todo!()
-    }
-
-    fn meta_data(&self) -> &MetaData {
-        todo!("no metadata functionality exists yet for GapBuffer");
-    }
-
-    fn iter(&'a self) -> Self::ItemIterator {
-        GapBufferIterator {
-            pos: 0,
-            end: self.len(),
-            buffer: self,
-        }
     }
 }
 
