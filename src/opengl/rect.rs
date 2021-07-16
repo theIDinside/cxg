@@ -1,6 +1,5 @@
 use crate::ui::{
     boundingbox::BoundingBox,
-    coordinate::{Anchor, Size},
 };
 
 use super::{
@@ -147,11 +146,6 @@ impl RectRenderer {
             );
         }
         self.needs_update = false;
-    }
-
-    pub fn clear_data(&mut self) {
-        self.vtx_data.clear();
-        self.indices.clear();
     }
 
     fn reserve_gpu_memory_if_needed(&mut self) {

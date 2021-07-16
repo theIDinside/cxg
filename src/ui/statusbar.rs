@@ -1,6 +1,6 @@
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 
-use super::coordinate::{Anchor, Size};
+use super::{boundingbox::BoundingBox, coordinate::{Anchor, Size}};
 
 pub struct StatusBar<'app> {
     pub text_renderer: TextRenderer<'app>,

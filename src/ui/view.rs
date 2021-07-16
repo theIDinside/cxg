@@ -16,7 +16,6 @@ use std::fmt::Formatter;
 pub trait Viewable {
     fn set_anchor(&mut self, anchor: Anchor);
     fn resize(&mut self, size: Size);
-    fn update(&mut self, renderable: Box<dyn Renderable>);
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -157,14 +156,15 @@ impl<'a> View<'a> {
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
             let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
 
-            let mut cursor_bound_box = BoundingBox::new(min, max);
+            let cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
             line_bounding_box.min.x = top_x;
             line_bounding_box.max.x = top_x + self.size.width;
 
             self.cursor_renderer.clear_data();
+
             self.cursor_renderer.add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
-            self.cursor_renderer.add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
+            self.cursor_renderer.add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });            
             self.view_changed = false;
         }
 

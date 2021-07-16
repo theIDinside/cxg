@@ -29,21 +29,31 @@ static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor {
 };
 
 pub struct Application<'app> {
+    /// Window Title
     _title_bar: String,
+    /// Window Size
     window_size: Size,
+    /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
     panel_space_size: Size,
+    /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
     fonts: &'app Vec<Font>,
+    /// The statusbar, displays different short info about whatever element we're using, or some other user message/debug data
     status_bar: StatusBar<'app>,
+    /// The shader for the font
     font_shader: shaders::TextShader,
+    /// Shaders for rectangles/windows/views
     rect_shader: shaders::RectShader,
+    /// The panels, which hold the different views, and manages their layout and size
     panels: Vec<Panel<'app>>,
+    /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
     popup: Option<Popup<'app>>,
+    /// The active element's id
     active_ui_element: UID,
+    /// Whether or not we're in debug interface mode (showing different kinds of debug information)
     debug: bool,
+    /// Pointer to the element which is receiving Keyboard Input.
     active_view: *mut View<'app>,
-    // TODO: Remove the pointer logic around these. As soon as we create enough panels, this pointer *will* dangle, since a Vec will realloc and the memory will be gone
-    //  instead, use pure index and unique identifiers. Not as fast, but 1000000000000000 x times safer.
-    active_panel: PanelId,
+    /// The active/displayed views in the window
     active_views: Vec<ViewId>,
 }
 
@@ -87,6 +97,13 @@ impl<'app> Application<'app> {
         }
     }
 
+    /// Gets the currently active panel, which always is the parent of the View that is currently active
+    pub fn active_panel(&self) -> PanelId {
+        unsafe {
+            (*self.active_view).panel_id.unwrap()
+        }
+    }
+
     pub fn cycle_focus(&mut self) {
         unsafe {
             (*self.active_view).bg_color = VIEW_BACKGROUND;
@@ -114,8 +131,10 @@ impl<'app> Application<'app> {
         self.active_ui_element = UID::View(*id);
     }
 
+    /// Updates the string contents of the status bar
     pub fn update_status_bar(&mut self, text: String) {
         self.status_bar.update_string_contents(&text);
+        self.status_bar.update();
     }
 
     pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
@@ -185,8 +204,6 @@ impl<'app> Application<'app> {
             view: popup,
         });
 
-        let active_panel = panels.first().unwrap().id;
-
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -199,7 +216,6 @@ impl<'app> Application<'app> {
             popup,
             active_ui_element: UID::View(active_view_id),
             debug: false,
-            active_panel,
             active_view: std::ptr::null_mut(),
             active_views: vec![],
         };
@@ -208,8 +224,6 @@ impl<'app> Application<'app> {
     }
 
     pub fn init<'b>(&'b mut self) {
-        self.active_panel = self.panels.first().unwrap().id;
-
         match self.active_ui_element {
             UID::View(id) => {
                 if let Some(v) = self.panels.last_mut().unwrap().get_view(id.into()) {
@@ -363,7 +377,7 @@ impl<'app> Application<'app> {
             }
             Key::N if modifier == Modifiers::Control && action == Action::Press => {
                 let size = self.window_size;
-                self.open_text_view(self.active_panel, Some("new view".into()), size);
+                self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
             Key::Tab if modifier == Modifiers::Control && action == Action::Press => {
                 self.cycle_focus();

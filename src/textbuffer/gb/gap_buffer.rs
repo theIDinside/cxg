@@ -229,7 +229,7 @@ where
         debug_assert!(text_range.end <= self.len(), "you can't erase data not contained by this buffer");
         let len = text_range.len();
         self.set_gap_position(text_range.start);
-        self.end += len;
+        self.gap.end += len;
     }
 
     /**
@@ -468,13 +468,14 @@ impl<'a> CharBuffer<'a> for GapBuffer<char> {
         todo!("no metadata functionality exists yet for GapBuffer");
     }
 
+    #[allow(unused)]
     fn delete(&mut self, dir: crate::textbuffer::Movement) {
         match dir {
             crate::textbuffer::Movement::Forward(kind, count) => {
                 match kind {
                     crate::textbuffer::TextKind::Char => {
                         for _ in 0 .. count {
-                            self.delete()
+                            todo!("not yet implemented");
                         }
                     },
                     crate::textbuffer::TextKind::Word => {
