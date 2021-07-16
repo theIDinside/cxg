@@ -2,14 +2,7 @@ use crate::opengl::shaders;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::panel::PanelId;
 use crate::ui::view::ViewId;
-use crate::ui::{
-    coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
-    font::Font,
-    panel::Panel,
-    statusbar::StatusBar,
-    view::{Popup, View},
-    UID,
-};
+use crate::ui::{ coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size}, font::Font, panel::Panel, statusbar::StatusBar, view::{Popup, View}, UID };
 use crate::{
     datastructure::generic::Vec2i,
     debugger_catch,
@@ -17,7 +10,7 @@ use crate::{
     DebuggerCatch,
 };
 
-use glfw::{Action, Key, Modifiers, Window};
+use glfw::{ Action, Key, Modifiers, Window };
 use std::sync::mpsc::Receiver;
 
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
@@ -108,8 +101,7 @@ impl<'app> Application<'app> {
                 .panels
                 .iter_mut()
                 .flat_map(|p| p.children.iter_mut())
-                .find(|v| v.id == *next_id)
-            {
+                .find(|v| v.id == *next_id) {
                 self.active_view = view as *mut _;
             }
         }
@@ -141,9 +133,7 @@ impl<'app> Application<'app> {
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
         let sb_anchor = Anchor(0, 768);
         let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-        status_bar.update_string_contents("foobar");
         status_bar.update();
-        
 
         let panel = Panel::new(
             0,

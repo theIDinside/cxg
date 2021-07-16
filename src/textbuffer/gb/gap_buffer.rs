@@ -223,6 +223,15 @@ where
         Some(e)
     }
 
+    /// Erases data in the range text_range.start .. end, in text representational terms
+    ///  
+    pub fn erase(&mut self, text_range: std::ops::Range<usize>) {
+        debug_assert!(text_range.end <= self.len(), "you can't erase data not contained by this buffer");
+        let len = text_range.len();
+        self.set_gap_position(text_range.start);
+        self.end += len;
+    }
+
     /**
     Works like the "backspace" key when you edit text. It deletes what is BEFORE the cursor. (gap.start - 1)
     */
@@ -460,7 +469,52 @@ impl<'a> CharBuffer<'a> for GapBuffer<char> {
     }
 
     fn delete(&mut self, dir: crate::textbuffer::Movement) {
-        let _ = dir;
+        match dir {
+            crate::textbuffer::Movement::Forward(kind, count) => {
+                match kind {
+                    crate::textbuffer::TextKind::Char => {
+                        for _ in 0 .. count {
+                            self.delete()
+                        }
+                    },
+                    crate::textbuffer::TextKind::Word => {
+                        if let Some(c) = self.get(self.get_pos()) {
+                            if c.is_whitespace() {
+                                let mut length_to_delete = 0usize;
+                                for c in self.iter().skip(self.get_pos()) {
+                                    if c.is_alphanumeric() {
+                                        if length_to_delete > 1 {
+
+                                        } else {
+                                            
+                                        }
+                                    }
+                                    length_to_delete += 1;
+                                }
+                            } else if c.is_alphanumeric() {
+
+                            }
+                        }
+                    }
+                    crate::textbuffer::TextKind::Line => {
+
+                    }
+                    crate::textbuffer::TextKind::Block => {
+
+                    }
+                }
+            },
+            crate::textbuffer::Movement::Backward(kind, count) => {
+
+            }
+            crate::textbuffer::Movement::Begin(kind) => {
+
+            }
+            crate::textbuffer::Movement::End(kind) => {
+
+            }
+        }
+
         todo!()
     }
 
