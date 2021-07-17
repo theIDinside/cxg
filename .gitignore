@@ -1,7 +1,6 @@
 /target
 Cargo.lock
 debug/
-fonts
 .idea/
 .vscode/
 flame.svg
