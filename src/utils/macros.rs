@@ -143,6 +143,17 @@ macro_rules! IndexingType {
                     Self(result as usize)
                 }
             }
+
+            pub fn offset_mut(&mut self, offset: isize) -> Self {
+                let Self(value) = self;
+                let value = *value as isize;
+                let result = value + offset;
+                if result < 0 {
+                    Self(0)
+                } else {
+                    Self(result as usize)
+                }
+            }
         }
     };
 }

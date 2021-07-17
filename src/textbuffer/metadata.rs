@@ -106,7 +106,7 @@ impl MetaData {
 
     pub fn get_line_info(&self, line_number: Line) -> Option<(Index, Length)> {
         self.get(line_number).map(|Index(index)| {
-            if let Some(i) = self.get(line_number + Line(1)) {
+            if let Some(i) = self.get(line_number.offset(1)) {
                 (Index(index), Length(*i - index))
             } else {
                 (Index(index), Length(self.buffer_size - index))
@@ -131,17 +131,13 @@ impl MetaData {
 
     pub fn update_line_metadata_after_line(&mut self, line: Line, shift_amount: i64) {
         self.line_begin_indices.iter_mut().skip(*line + 1).for_each(|l| {
-            if shift_amount < 0 {
-                *l -= Index((-1 * shift_amount) as usize);
-            } else {
-                *l += Index(shift_amount as usize);
-            }
+            *l = l.offset_mut(shift_amount as _);
         });
     }
 
     pub fn update_line_metadata_from_line(&mut self, line: Line, shift_amount: usize) {
         self.line_begin_indices.iter_mut().skip(*line).for_each(|l| {
-            *l += Index(shift_amount);
+            *l = l.offset(shift_amount as _);
         });
     }
 
