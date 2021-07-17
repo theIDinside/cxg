@@ -1,6 +1,4 @@
-use std::{
-    cmp::min,
-};
+use std::{cmp::min, path::Path};
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
 use crate::{debugger_catch, textbuffer::{TextKind, metadata::{self}}, utils::copy_slice_to};
@@ -25,6 +23,18 @@ impl SimpleBuffer {
             size: 0,
             meta_data: metadata::MetaData::new(None),
         }
+    }
+
+    pub fn buffer_info(&self) -> (Option<&Path>, BufferCursor) {
+        (self.file_name(), self.cursor())
+    }
+
+    pub fn file_name(&self) -> Option<&Path> {
+        self.meta_data.file_name.as_ref().map(|pb| pb.as_path())
+    }
+
+    pub fn cursor(&self) -> BufferCursor {
+        self.cursor.clone()
     }
 
     pub fn get(&self, idx: metadata::Index) -> Option<&char> {

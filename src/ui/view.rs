@@ -5,6 +5,7 @@ use crate::datastructure::generic::Vec2i;
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
+use crate::textbuffer::cursor::BufferCursor;
 use crate::textbuffer::metadata::{Index, Line};
 use crate::textbuffer::simple::simplebuffer::SimpleBuffer;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
@@ -12,6 +13,7 @@ use crate::ui::font::Font;
 
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
+use std::path::Path;
 
 pub trait Viewable {
     fn set_anchor(&mut self, anchor: Anchor);
@@ -50,7 +52,7 @@ pub struct View<'a> {
     pub panel_id: Option<PanelId>,
     pub buffer: SimpleBuffer,
     buffer_in_view: std::ops::Range<usize>,
-    view_changed: bool,
+    pub view_changed: bool,
     cursor_width: i32,
     pub bg_color: RGBAColor
 }
@@ -339,6 +341,10 @@ impl<'a> View<'a> {
             self.buffer_in_view,
             &self.buffer.data[self.buffer_in_view.clone()].iter().map(|c| c).collect::<String>()
         );
+    }
+
+    pub fn get_file_info(&self) -> (Option<&Path>, BufferCursor) {
+        self.buffer.buffer_info()
     }
 }
 

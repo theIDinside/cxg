@@ -7,6 +7,8 @@ pub mod panel;
 pub mod statusbar;
 pub mod view;
 
+pub mod debug_view;
+
 #[derive(Clone, Copy, Debug)]
 pub enum UID {
     View(u32),

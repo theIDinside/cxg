@@ -106,12 +106,12 @@ fn main() -> Main {
             frame_counter += 1.0;
             None
         }
-
     };
 
-    while app.keep_running () {
+    while app.keep_running() {
         if let Some(fps) = updatefps(&mut glfw_handle) {
-            app.update_status_bar(format!("Frame speed: {:.2}/s, Frame time: {:.5}ms", fps, (1.0 / fps) * 1000.0));
+            let frame_time = (1.0 / fps) * 1000.0;
+            app.debug_view.do_update_view(fps, frame_time);
         }
         app.process_events(&mut window, &events);
         app.update_window();

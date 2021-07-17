@@ -1,8 +1,16 @@
 use crate::opengl::shaders;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
+use crate::ui::debug_view::DebugView;
 use crate::ui::panel::PanelId;
 use crate::ui::view::ViewId;
-use crate::ui::{ coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size}, font::Font, panel::Panel, statusbar::StatusBar, view::{Popup, View}, UID };
+use crate::ui::{
+    coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
+    font::Font,
+    panel::Panel,
+    statusbar::StatusBar,
+    view::{Popup, View},
+    UID,
+};
 use crate::{
     datastructure::generic::Vec2i,
     debugger_catch,
@@ -10,7 +18,7 @@ use crate::{
     DebuggerCatch,
 };
 
-use glfw::{ Action, Key, Modifiers, Window };
+use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
@@ -55,10 +63,11 @@ pub struct Application<'app> {
     active_view: *mut View<'app>,
     /// The active/displayed views in the window
     active_views: Vec<ViewId>,
-    /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as, 
-    /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state, 
+    /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
+    /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
-    close_requested: bool
+    close_requested: bool,
+    pub debug_view: DebugView<'app>,
 }
 
 impl<'app> Application<'app> {
@@ -103,9 +112,7 @@ impl<'app> Application<'app> {
 
     /// Gets the currently active panel, which always is the parent of the View that is currently active
     pub fn active_panel(&self) -> PanelId {
-        unsafe {
-            (*self.active_view).panel_id.unwrap()
-        }
+        unsafe { (*self.active_view).panel_id.unwrap() }
     }
 
     pub fn keep_running(&self) -> bool {
@@ -113,30 +120,35 @@ impl<'app> Application<'app> {
     }
 
     pub fn cycle_focus(&mut self) {
-        unsafe {
-            (*self.active_view).bg_color = VIEW_BACKGROUND;
-            (*self.active_view).set_need_redraw();
-            (*self.active_view).window_renderer.set_color(VIEW_BACKGROUND);
-        }
+        let view = self.get_active_view();
+        view.bg_color = VIEW_BACKGROUND;
+        view.set_need_redraw();
+        view.window_renderer.set_color(VIEW_BACKGROUND);
+
         let find_pos = |view_id: &ViewId| *view_id == unsafe { (*self.active_view).id };
 
         if let Some(idx) = self.active_views.iter().position(find_pos) {
             let next_id = self.active_views.get(idx + 1).unwrap_or(self.active_views.first().unwrap());
-            if let Some(view) = self
-                .panels
-                .iter_mut()
-                .flat_map(|p| p.children.iter_mut())
-                .find(|v| v.id == *next_id) {
-                self.active_view = view as *mut _;
+            if let Some(view) = self.panels.iter().flat_map(|p| p.children.iter()).find(|v| v.id == *next_id) {
+                self.active_view = view as *const _ as *mut _;
             }
         }
-        unsafe {
-            (*self.active_view).bg_color = ACTIVE_VIEW_BACKGROUND;
-            (*self.active_view).window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
-            (*self.active_view).set_need_redraw();
-        }
+
+        let view = self.get_active_view();
+        view.bg_color = ACTIVE_VIEW_BACKGROUND;
+        view.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+        view.set_need_redraw();
+
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
+    }
+
+    pub fn get_active_view(&mut self) -> &mut View<'app> {
+        unsafe { &mut *self.active_view }
+    }
+
+    pub fn set_active_view(&mut self, view: &View<'app>) {
+        self.active_view = view as *const _ as *mut _;
     }
 
     /// Updates the string contents of the status bar
@@ -212,6 +224,34 @@ impl<'app> Application<'app> {
             view: popup,
         });
 
+        let mut debug_view = View::new(
+            "debug_view",
+            10.into(),
+            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10),
+            RectRenderer::create(rect_shader.clone(), 1024 * 10),
+            0,
+            1014,
+            758,
+            fonts[0].row_height(),
+            RGBAColor {
+                r: 0.35,
+                g: 0.7,
+                b: 1.0,
+                a: 1.0,
+            },
+        );
+
+        debug_view.set_anchor(Anchor(5, 763));
+        debug_view.update();
+        debug_view.window_renderer.set_color(RGBAColor {
+            r: 0.35,
+            g: 0.7,
+            b: 1.0,
+            a: 1.0,
+        });
+
+        let debug_view = DebugView::new(debug_view);
+
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -226,7 +266,8 @@ impl<'app> Application<'app> {
             debug: false,
             active_view: std::ptr::null_mut(),
             active_views: vec![],
-            close_requested: false
+            close_requested: false,
+            debug_view,
         };
         res.init();
         res
@@ -240,7 +281,7 @@ impl<'app> Application<'app> {
                 }
                 self.active_views.push(unsafe { self.active_view.as_ref().unwrap().id });
                 for v in self.active_views.iter() {
-                    println!("View: {:?}", v );
+                    println!("View: {:?}", v);
                 }
             }
             UID::Panel(_id) => todo!(),
@@ -273,6 +314,10 @@ impl<'app> Application<'app> {
         self.status_bar.size.width = width;
         self.status_bar.anchor = Anchor(0, height);
         self.status_bar.update();
+        
+        self.debug_view.view.set_anchor(Anchor(10, self.height() - 10));
+        self.debug_view.view.size = Size { width: self.width() - 20, height: self.height() - 20 };
+        self.debug_view.update();
 
         unsafe { gl::Viewport(0, 0, width, height) }
     }
@@ -380,6 +425,9 @@ impl<'app> Application<'app> {
                     }
                 }
             }
+            Key::D if modifier == Modifiers::Control && action == Action::Press => {
+                self.debug_view.visibile = !self.debug_view.visibile;
+            }
             Key::N if modifier == Modifiers::Control && action == Action::Press => {
                 let size = self.window_size;
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
@@ -431,11 +479,21 @@ impl<'app> Application<'app> {
             }
         }
         self.status_bar.draw();
+
+        if self.debug_view.visibile {
+            self.debug_view.draw();
+        }
     }
 
     pub fn add_view(&mut self, panel_id: PanelId, mut view: View<'app>) {
         debugger_catch!(
-            panel_id == self.panels.iter().find(|p| p.id == panel_id).map(|p| p.id).unwrap_or(std::u32::MAX.into()),
+            panel_id
+                == self
+                    .panels
+                    .iter()
+                    .find(|p| p.id == panel_id)
+                    .map(|p| p.id)
+                    .unwrap_or(std::u32::MAX.into()),
             DebuggerCatch::Handle(format!("Could not find panel with id {}", *panel_id))
         );
         if let Some(panel) = self.panels.iter_mut().find(|p| p.id == panel_id) {
@@ -476,5 +534,32 @@ impl<'app> Application<'app> {
                 v.update();
             }
         }
+    }
+
+    pub fn show_debug_interface(&mut self) {
+        let mut debug_view = View::new(
+            "debug_view",
+            10.into(),
+            TextRenderer::create(self.font_shader.clone(), &self.fonts[0], 1024 * 10),
+            RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
+            0,
+            self.width() - 20,
+            self.height() - 20,
+            self.fonts[0].row_height(),
+            ACTIVE_VIEW_BACKGROUND,
+        );
+
+        debug_view.set_anchor(Anchor(10, self.height() - 10));
+        debug_view.update();
+        debug_view.window_renderer.set_color(RGBAColor {
+            r: 0.3,
+            g: 0.34,
+            b: 0.48,
+            a: 0.2,
+        });
+
+        
+        self.debug_view = DebugView::new(debug_view);
+        self.debug_view.visibile = true;
     }
 }
