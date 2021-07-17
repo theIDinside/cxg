@@ -1,6 +1,4 @@
-use crate::ui::{
-    boundingbox::BoundingBox,
-};
+use crate::ui::boundingbox::BoundingBox;
 
 use super::{
     glinit::OpenGLHandle,
@@ -17,7 +15,7 @@ pub struct RectRenderer {
     reserved_vertex_count: isize,
     reserved_index_count: isize,
     color: RGBAColor,
-    pub needs_update: bool
+    pub needs_update: bool,
 }
 
 /// Public interface
@@ -48,18 +46,13 @@ impl RectRenderer {
 
             gl::GenBuffers(1, &mut ebo);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                reserved_indices_bytes,
-                std::ptr::null(),
-                gl::DYNAMIC_DRAW,
-            );
+            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, reserved_indices_bytes, std::ptr::null(), gl::DYNAMIC_DRAW);
 
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);
         }
         let gl_handle = OpenGLHandle { vao, vbo, ebo };
-        
+
         RectRenderer {
             gl_handle,
             vtx_data: Vec::with_capacity(vertices_count.value()),
@@ -69,7 +62,7 @@ impl RectRenderer {
             reserved_index_count: reserved_indices.value() as _,
             // color: RGBAColor {r: 0.3,g: 0.34,b: 0.48,a: 1.0,},
             color: RGBAColor { r: 0.21, g: 0.52, b: 0.742123, a: 1.0 },
-            needs_update: true
+            needs_update: true,
         }
     }
 
@@ -82,9 +75,9 @@ impl RectRenderer {
         self.vtx_data.clear();
         self.indices.clear();
     }
-    
+
     pub fn add_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
-        let BoundingBox { min, max} = rect;
+        let BoundingBox { min, max } = rect;
         let vtx_index = self.vtx_data.len() as u32;
         self.vtx_data.push(RectVertex::new(min.x, max.y, color));
         self.vtx_data.push(RectVertex::new(min.x, min.y, color));
@@ -105,7 +98,7 @@ impl RectRenderer {
         self.clear_data();
         self.add_rect(rect, color);
     }
-   
+
     pub fn set_color(&mut self, color: RGBAColor) {
         self.color = color;
         for v in self.vtx_data.iter_mut() {
@@ -132,18 +125,8 @@ impl RectRenderer {
 impl RectRenderer {
     fn upload_cpu_data(&mut self) {
         unsafe {
-            gl::BufferSubData(
-                gl::ARRAY_BUFFER,
-                0,
-                (self.vtx_data.len() * std::mem::size_of::<RectVertex>()) as _,
-                self.vtx_data.as_ptr() as _,
-            );
-            gl::BufferSubData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                0,
-                (self.indices.len() * std::mem::size_of::<u32>()) as _,
-                self.indices.as_ptr() as _,
-            );
+            gl::BufferSubData(gl::ARRAY_BUFFER, 0, (self.vtx_data.len() * std::mem::size_of::<RectVertex>()) as _, self.vtx_data.as_ptr() as _);
+            gl::BufferSubData(gl::ELEMENT_ARRAY_BUFFER, 0, (self.indices.len() * std::mem::size_of::<u32>()) as _, self.indices.as_ptr() as _);
         }
         self.needs_update = false;
     }
@@ -152,24 +135,14 @@ impl RectRenderer {
         if self.reserved_vertex_count <= self.vtx_data.len() as _ {
             self.reserved_vertex_count = self.vtx_data.capacity() as _;
             unsafe {
-                gl::BufferData(
-                    gl::ARRAY_BUFFER,
-                    (std::mem::size_of::<RectVertex>() * self.vtx_data.capacity()) as _,
-                    std::ptr::null(),
-                    gl::DYNAMIC_DRAW,
-                );
+                gl::BufferData(gl::ARRAY_BUFFER, (std::mem::size_of::<RectVertex>() * self.vtx_data.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
             }
         }
 
         if self.reserved_index_count <= self.indices.len() as _ {
             self.reserved_index_count = self.indices.capacity() as _;
             unsafe {
-                gl::BufferData(
-                    gl::ELEMENT_ARRAY_BUFFER,
-                    (std::mem::size_of::<u32>() * self.indices.capacity()) as _,
-                    std::ptr::null(),
-                    gl::DYNAMIC_DRAW,
-                );
+                gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (std::mem::size_of::<u32>() * self.indices.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
             }
         }
     }

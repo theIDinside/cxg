@@ -21,12 +21,12 @@ macro_rules! debugger_catch {
         let (file, line, column) = (file!(), line!(), column!());
         if !$assert_expr {
             match $handleRequest {
-                DebuggerCatch::Handle(message) => {
+                crate::DebuggerCatch::Handle(message) => {
                     println!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
                     unsafe { libc::raise(libc::SIGTRAP); }
                     println!("Reached stoppable debug statement");
                 },
-                DebuggerCatch::Panic(message) => {
+                crate::DebuggerCatch::Panic(message) => {
                     panic!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
                 },
             }

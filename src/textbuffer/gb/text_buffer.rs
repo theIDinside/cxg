@@ -1,15 +1,12 @@
 #![allow(unused)]
+use crate::textbuffer::{cursor::BufferCursor, metadata, metadata::MetaData, CharBuffer};
+use crate::utils::copy_slice_to;
 /// Text data type that uses a GapBuffer as backing store
-
 use std::ops::Index;
 use std::ops::Range;
 use std::ptr::copy as copyrange;
-use crate::textbuffer::{metadata, metadata::MetaData, CharBuffer, cursor::BufferCursor};
-use crate::utils::copy_slice_to;
 
 use super::gap_buffer::{GapBuffer, GapBufferIterator};
-
-
 
 type TextGapBuffer = GapBuffer<char>;
 type TextBufferIterator<'a> = GapBufferIterator<'a, char>;
@@ -20,9 +17,7 @@ pub struct TextBuffer {
     size: usize,
 }
 
-impl TextBuffer {
-
-}
+impl TextBuffer {}
 
 impl<'a> CharBuffer<'a> for TextBuffer {
     type ItemIterator = TextBufferIterator<'a>;
@@ -83,5 +78,3 @@ impl<'a> CharBuffer<'a> for TextBuffer {
         todo!()
     }
 }
-
-

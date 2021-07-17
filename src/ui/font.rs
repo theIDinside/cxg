@@ -99,10 +99,7 @@ impl Font {
         let mut glyph_cache: HashMap<char, GlyphInfo> = HashMap::new();
 
         for c in characters {
-            face.load_char(
-                c as usize,
-                ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT,
-            )?;
+            face.load_char(c as usize, ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT)?;
             let glyph = face.glyph();
             let bitmap = glyph.bitmap();
             max_glyph_dimensions.y = std::cmp::max(bitmap.rows(), max_glyph_dimensions.x);
@@ -129,18 +126,9 @@ impl Font {
                 y0: pen_y,
                 y1: pen_y + bitmap.rows(),
                 advance: glyph.advance().x as i32 >> 6,
-                offsets: Vec2i {
-                    x: glyph.bitmap_left(),
-                    y: glyph.bitmap_top(),
-                },
-                size: Vec2i {
-                    x: bitmap.width(),
-                    y: bitmap.rows(),
-                },
-                bearing: Vec2i {
-                    x: glyph.bitmap_left(),
-                    y: glyph.bitmap_top(),
-                },
+                offsets: Vec2i { x: glyph.bitmap_left(), y: glyph.bitmap_top() },
+                size: Vec2i { x: bitmap.width(), y: bitmap.rows() },
+                bearing: Vec2i { x: glyph.bitmap_left(), y: glyph.bitmap_top() },
             };
             max_bearing_size_diff = std::cmp::max((glyph_info.size.y - glyph_info.bearing.y).abs(), max_bearing_size_diff);
             glyph_cache.insert(c, glyph_info);
@@ -151,13 +139,7 @@ impl Font {
 
         let texture_id = unsafe { Font::upload_texture(&pixels, texture_dimension.x, texture_dimension.y) };
 
-        debug_write_font_texture_to_file(
-            font_path,
-            &pixels,
-            pixel_size,
-            texture_dimension.x as u32,
-            texture_dimension.y as u32,
-        );
+        debug_write_font_texture_to_file(font_path, &pixels, pixel_size, texture_dimension.x as u32, texture_dimension.y as u32);
 
         Ok(Font {
             pixel_size,
@@ -176,17 +158,7 @@ impl Font {
         gl::GenTextures(1, &mut id);
         gl::BindTexture(gl::TEXTURE_2D, id);
         gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-        gl::TexImage2D(
-            gl::TEXTURE_2D,
-            0,
-            gl::RED as i32,
-            width,
-            height,
-            0,
-            gl::RED,
-            gl::UNSIGNED_BYTE,
-            data.as_ptr() as *const _,
-        );
+        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RED as i32, width, height, 0, gl::RED, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);
         gl::GenerateMipmap(gl::TEXTURE_2D);
         id
     }

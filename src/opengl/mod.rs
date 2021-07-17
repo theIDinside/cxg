@@ -8,7 +8,6 @@ pub mod text;
 #[macro_use]
 pub mod glinit;
 
-
 pub enum Primitive {
     /// used when dealing with TextVertex data quads
     CharacterQuad(isize),
@@ -19,14 +18,8 @@ pub enum Primitive {
 impl Primitive {
     pub fn request_reserve(&self) -> (GPUDataType, GPUDataType) {
         match *self {
-            Primitive::CharacterQuad(count) => (
-                GPUDataType::TextVertex(4 * count as usize),
-                GPUDataType::Index(6 * count as usize),
-            ),
-            Primitive::RegularQuad(count) => (
-                GPUDataType::RectVertex(4 * count as usize),
-                GPUDataType::Index(6 * count as usize),
-            ),
+            Primitive::CharacterQuad(count) => (GPUDataType::TextVertex(4 * count as usize), GPUDataType::Index(6 * count as usize)),
+            Primitive::RegularQuad(count) => (GPUDataType::RectVertex(4 * count as usize), GPUDataType::Index(6 * count as usize)),
         }
     }
 }

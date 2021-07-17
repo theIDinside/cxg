@@ -1,4 +1,5 @@
 use crate::opengl::shaders;
+use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::debug_view::DebugView;
 use crate::ui::panel::PanelId;
@@ -11,30 +12,14 @@ use crate::ui::{
     view::{Popup, View},
     UID,
 };
-use crate::{
-    datastructure::generic::Vec2i,
-    debugger_catch,
-    opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor},
-    DebuggerCatch,
-};
 
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
-static VIEW_BACKGROUND: RGBAColor = RGBAColor {
-    r: 0.781,
-    g: 0.52,
-    b: 0.742123,
-    a: 1.0,
-};
-static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor {
-    r: 0.51,
-    g: 0.59,
-    b: 0.13,
-    a: 1.0,
-};
+static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.781, g: 0.52, b: 0.742123, a: 1.0 };
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.51, g: 0.59, b: 0.13, a: 1.0 };
 
 pub struct Application<'app> {
     /// Window Title
@@ -71,6 +56,72 @@ pub struct Application<'app> {
 }
 
 impl<'app> Application<'app> {
+    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
+        let active_view_id = 0;
+        font_shader.bind();
+        let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
+        font_shader.set_projection(&mvp);
+        // utility renderer creation
+        rect_shader.bind();
+        rect_shader.set_projection(&mvp);
+
+        let make_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+
+        // Create the status bar UI element
+        let (sb_tr, mut sb_wr) = make_renderers();
+        sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
+        let sb_size = Size::new(1024, fonts[0].row_height() + 4);
+        let sb_anchor = Anchor(0, 768);
+        let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
+        status_bar.update();
+
+        // Create default 1st panel to hold views in
+        let panel = Panel::new(0, Layout::Horizontal(10.into()), Some(15), None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
+        let mut panels = vec![panel];
+
+        // Create the default 1st view
+        let (tr, rr) = make_renderers();
+        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 0, 1024, 768, fonts[0].row_height(), ACTIVE_VIEW_BACKGROUND);
+        panels[0].add_view(view);
+
+        // Create the popup UI
+        let (mut tr, mut rr) = make_renderers();
+        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, fonts[0].row_height(), ACTIVE_VIEW_BACKGROUND);
+        popup.set_anchor((250, 768 - 250).into());
+        popup.update();
+        popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
+        let popup = Some(Popup { visible: false, view: popup });
+
+        // Creating the Debug View UI
+        let (tr, rr) = make_renderers();
+        let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 1.0 };
+        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 0, 1014, 758, fonts[0].row_height(), dbg_view_bg_color);
+        debug_view.set_anchor(Anchor(5, 763));
+        debug_view.update();
+        debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 1.0 });
+        let debug_view = DebugView::new(debug_view);
+
+        let mut res = Application {
+            _title_bar: "cxgledit".into(),
+            window_size: Size::new(1024, 768),
+            panel_space_size: Size::new(1024, 768 - sb_size.height),
+            fonts,
+            status_bar,
+            font_shader,
+            rect_shader,
+            panels,
+            popup,
+            active_ui_element: UID::View(active_view_id),
+            debug: false,
+            active_view: std::ptr::null_mut(),
+            active_views: vec![],
+            close_requested: false,
+            debug_view,
+        };
+        res.init();
+        res
+    }
+
     /// Creates a text view and makes that the focused UI element
     pub fn open_text_view(&mut self, parent_panel: PanelId, view_name: Option<String>, view_size: Size) {
         let parent_panel = parent_panel.into();
@@ -157,122 +208,6 @@ impl<'app> Application<'app> {
         self.status_bar.update();
     }
 
-    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
-        let active_view_id = 0;
-        font_shader.bind();
-        let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
-        font_shader.set_projection(&mvp);
-
-        rect_shader.bind();
-        rect_shader.set_projection(&mvp);
-
-        let sb_tr = TextRenderer::create(font_shader.clone(), &fonts[0], 1024);
-        let mut sb_wr = RectRenderer::create(rect_shader.clone(), 8 * 60);
-        sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-        let sb_size = Size::new(1024, fonts[0].row_height() + 4);
-        let sb_anchor = Anchor(0, 768);
-        let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-        status_bar.update();
-
-        let panel = Panel::new(
-            0,
-            Layout::Horizontal(10.into()),
-            Some(15),
-            None,
-            1024,
-            768 - sb_size.height,
-            (0, 768 - sb_size.height).into(),
-        );
-        let mut panels = vec![panel];
-
-        let view = View::new(
-            "Unnamed view",
-            active_view_id.into(),
-            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10),
-            RectRenderer::create(rect_shader.clone(), 8 * 60),
-            0,
-            1024,
-            768,
-            fonts[0].row_height(),
-            ACTIVE_VIEW_BACKGROUND,
-        );
-        panels[0].add_view(view);
-
-        let mut popup = View::new(
-            "Popup view",
-            (active_view_id + 1).into(),
-            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10),
-            RectRenderer::create(rect_shader.clone(), 8 * 60),
-            0,
-            524,
-            518,
-            fonts[0].row_height(),
-            ACTIVE_VIEW_BACKGROUND,
-        );
-
-        popup.set_anchor((250, 768 - 250).into());
-        popup.update();
-        popup.window_renderer.set_color(RGBAColor {
-            r: 0.3,
-            g: 0.34,
-            b: 0.48,
-            a: 0.8,
-        });
-
-        let popup = Some(Popup {
-            visible: false,
-            view: popup,
-        });
-
-        let mut debug_view = View::new(
-            "debug_view",
-            10.into(),
-            TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10),
-            RectRenderer::create(rect_shader.clone(), 1024 * 10),
-            0,
-            1014,
-            758,
-            fonts[0].row_height(),
-            RGBAColor {
-                r: 0.35,
-                g: 0.7,
-                b: 1.0,
-                a: 1.0,
-            },
-        );
-
-        debug_view.set_anchor(Anchor(5, 763));
-        debug_view.update();
-        debug_view.window_renderer.set_color(RGBAColor {
-            r: 0.35,
-            g: 0.7,
-            b: 1.0,
-            a: 1.0,
-        });
-
-        let debug_view = DebugView::new(debug_view);
-
-        let mut res = Application {
-            _title_bar: "cxgledit".into(),
-            window_size: Size::new(1024, 768),
-            panel_space_size: Size::new(1024, 768 - sb_size.height),
-            fonts,
-            status_bar,
-            font_shader,
-            rect_shader,
-            panels,
-            popup,
-            active_ui_element: UID::View(active_view_id),
-            debug: false,
-            active_view: std::ptr::null_mut(),
-            active_views: vec![],
-            close_requested: false,
-            debug_view,
-        };
-        res.init();
-        res
-    }
-
     pub fn init<'b>(&'b mut self) {
         match self.active_ui_element {
             UID::View(id) => {
@@ -314,7 +249,7 @@ impl<'app> Application<'app> {
         self.status_bar.size.width = width;
         self.status_bar.anchor = Anchor(0, height);
         self.status_bar.update();
-        
+
         self.debug_view.view.set_anchor(Anchor(10, self.height() - 10));
         self.debug_view.view.size = Size { width: self.width() - 20, height: self.height() - 20 };
         self.debug_view.update();
@@ -438,6 +373,10 @@ impl<'app> Application<'app> {
             Key::Q if modifier == Modifiers::Control => {
                 self.close_requested = true;
             }
+
+            Key::W if modifier == Modifiers::Control => {
+                self.close_active_view();
+            }
             Key::Enter if action == Action::Press || action == Action::Repeat => {
                 v.insert_ch('\n');
             }
@@ -485,81 +424,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn add_view(&mut self, panel_id: PanelId, mut view: View<'app>) {
-        debugger_catch!(
-            panel_id
-                == self
-                    .panels
-                    .iter()
-                    .find(|p| p.id == panel_id)
-                    .map(|p| p.id)
-                    .unwrap_or(std::u32::MAX.into()),
-            DebuggerCatch::Handle(format!("Could not find panel with id {}", *panel_id))
-        );
-        if let Some(panel) = self.panels.iter_mut().find(|p| p.id == panel_id) {
-            view.set_manager_panel(panel_id);
-            if panel.children.is_empty() {
-                let adjusted_anchor = panel
-                    .margin
-                    .and_then(|margin| Some(Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin))))
-                    .unwrap_or(panel.anchor);
-                view.resize(Size::shrink_by_margin(panel.size, panel.margin.unwrap_or(0)));
-                view.set_anchor(adjusted_anchor);
-                panel.children.push(view);
-            } else {
-                panel.children.push(view);
-                let sub_space_count = panel.children.len();
-                let margin = panel.margin.unwrap_or(0);
-                let child_sizes = panel.size.divide(sub_space_count as _, margin, panel.layout);
-                match panel.layout {
-                    Layout::Vertical(space) => {
-                        let mut anchor_iter = Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
-                        for (c, size) in panel.children.iter_mut().zip(child_sizes.into_iter()) {
-                            c.resize(size);
-                            c.set_anchor(anchor_iter);
-                            anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -size.height - *space as i32));
-                        }
-                    }
-                    Layout::Horizontal(space) => {
-                        let mut anchor_iter = Anchor::vector_add(panel.anchor, Vec2i::new(margin, -margin));
-                        for (c, size) in panel.children.iter_mut().zip(child_sizes.into_iter()) {
-                            c.resize(size);
-                            c.set_anchor(anchor_iter);
-                            anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(size.width + *space as i32, 0));
-                        }
-                    }
-                }
-            }
-            for v in panel.children.iter_mut() {
-                v.update();
-            }
-        }
-    }
-
-    pub fn show_debug_interface(&mut self) {
-        let mut debug_view = View::new(
-            "debug_view",
-            10.into(),
-            TextRenderer::create(self.font_shader.clone(), &self.fonts[0], 1024 * 10),
-            RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
-            0,
-            self.width() - 20,
-            self.height() - 20,
-            self.fonts[0].row_height(),
-            ACTIVE_VIEW_BACKGROUND,
-        );
-
-        debug_view.set_anchor(Anchor(10, self.height() - 10));
-        debug_view.update();
-        debug_view.window_renderer.set_color(RGBAColor {
-            r: 0.3,
-            g: 0.34,
-            b: 0.48,
-            a: 0.2,
-        });
-
-        
-        self.debug_view = DebugView::new(debug_view);
-        self.debug_view.visibile = true;
+    pub fn close_active_view(&mut self) {
+        let view = self.get_active_view();
     }
 }

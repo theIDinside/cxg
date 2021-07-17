@@ -1,7 +1,14 @@
 use std::{cmp::min, path::Path};
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
-use crate::{debugger_catch, textbuffer::{TextKind, metadata::{self}}, utils::copy_slice_to};
+use crate::{
+    debugger_catch,
+    textbuffer::{
+        metadata::{self},
+        TextKind,
+    },
+    utils::copy_slice_to,
+};
 
 #[cfg(debug_assertions)]
 use crate::DebuggerCatch;
@@ -48,11 +55,7 @@ impl SimpleBuffer {
     pub fn get_slice(&self, range: std::ops::Range<usize>) -> &[char] {
         debugger_catch!(
             range.start <= self.len() && range.end <= self.len(),
-            DebuggerCatch::Handle(format!(
-                "Illegal access of buffer; getting range {:?} from buffer of only {} len",
-                range.clone(),
-                self.len()
-            ))
+            DebuggerCatch::Handle(format!("Illegal access of buffer; getting range {:?} from buffer of only {} len", range.clone(), self.len()))
         );
         &self
             .data
@@ -165,7 +168,6 @@ impl SimpleBuffer {
             }
             TextKind::Block => todo!(),
         }
-
     }
     /// Moves cursor backward, in the fashion specified by TextKind
     pub fn cursor_move_backward(&mut self, kind: TextKind, count: usize) {
@@ -214,7 +216,6 @@ impl SimpleBuffer {
             TextKind::Block => todo!(),
         }
     }
-
 }
 
 /// Private interface implementation
@@ -224,7 +225,7 @@ impl SimpleBuffer {
     /// Instead of having each function individually updating the cursor and keeping track of rows and columns
     /// They explicitly only deal with absolute positions/indices, and before returning, calls this function
     /// to return an Option of a well formed BufferCursor
-    
+
     fn find_index_of_prev_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
         self.data[0..=*start_position]
             .into_iter()
@@ -288,7 +289,7 @@ impl SimpleBuffer {
                     self.cursor.row = self.cursor.row.offset(1);
                     self.cursor.col = metadata::Column(0);
                 } else {
-                    self.cursor.col = self.cursor.col.offset(1); 
+                    self.cursor.col = self.cursor.col.offset(1);
                 }
                 self.cursor.pos = self.cursor.pos.offset(1);
             }
@@ -301,9 +302,8 @@ impl SimpleBuffer {
                 self.cursor.pos = self.cursor.pos.offset(-1);
                 if let Some('\n') = self.get(self.cursor.absolute()) {
                     self.cursor.row -= self.cursor.row.offset(-1);
-                    self.cursor.col = metadata::Column(
-                        *(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
-                    )
+                    self.cursor.col =
+                        metadata::Column(*(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))))
                 } else {
                     self.cursor.col -= metadata::Column(1);
                 }
@@ -311,10 +311,12 @@ impl SimpleBuffer {
         } else {
             self.cursor = BufferCursor::default();
         }
-    } 
+    }
 
     fn cursor_move_up(&mut self) {
-        if self.cursor_row() == metadata::Line(0) { return; }
+        if self.cursor_row() == metadata::Line(0) {
+            return;
+        }
         let prior_line = self.cursor_row().offset(-1);
         self.cursor = self
             .meta_data
@@ -335,10 +337,12 @@ impl SimpleBuffer {
         // This is all the lines up until the 3rd to last - normal behavior, 2nd to last means we are moving into the last, other behavior applies in the else branch
         let next_line_index = self.cursor_row().offset(1);
 
-        let a = self.line_length(next_line_index);
-        let b = self.meta_data.line_length(next_line_index);
-        debugger_catch!(a == b, DebuggerCatch::Handle(format!("Line length operation failed")));
-
+        #[cfg(debug_assertions)]
+        {
+            let a = self.line_length(next_line_index);
+            let b = self.meta_data.line_length(next_line_index);
+            debugger_catch!(a == b, DebuggerCatch::Handle(format!("Line length operation failed")));
+        }
         let new_cursor = self.line_length(next_line_index).and_then(|next_line_length| {
             let metadata::Index(line_begin) = self.meta_data.get(self.cursor.row.offset(1)).unwrap();
             let new_buffer_index: usize = line_begin + if *self.cursor_col() <= *next_line_length - 1 { *self.cursor_col() } else { *next_line_length - 1 };
@@ -383,11 +387,8 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     }
 
     fn insert(&mut self, ch: char) {
-        use metadata::{Column as Col, Index, Line};
-        debug_assert!(
-            self.cursor.absolute() <= Index(self.len()),
-            "You can't insert something outside of the range of [0..len()]"
-        );
+        use metadata::{Column as Col, Index};
+        debug_assert!(self.cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
         if ch == '\n' {
             self.data.insert(*self.cursor.absolute(), ch);
             self.cursor.pos = self.cursor.pos.offset(1);
@@ -505,7 +506,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     #[allow(non_snake_case)]
     fn move_cursor(&mut self, dir: Movement) {
-        use super::super::metadata::{Index, Line};
+        use super::super::metadata::Index;
 
         match dir {
             Movement::Forward(kind, count) => {
@@ -605,5 +606,4 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn set_cursor(&mut self, cursor: BufferCursor) {
         self.cursor = cursor;
     }
-
 }

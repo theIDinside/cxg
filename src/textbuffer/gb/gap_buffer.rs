@@ -33,32 +33,16 @@ where
     T: Clone + Copy,
 {
     pub fn new() -> GapBuffer<T> {
-        GapBuffer {
-            data: Vec::new(),
-            gap: 0..0,
-        }
+        GapBuffer { data: Vec::new(), gap: 0..0 }
     }
     /// Returns pointer to begin, and element count up until gap.start, and pointer to where the gap ends in the buffer, and element count until end of buffer
     fn data_pointers_mut(&mut self) -> ((*mut T, usize), (*mut T, usize)) {
-        let res = unsafe {
-            (
-                (self.data.as_mut_ptr(), self.gap.start),
-                (
-                    self.data.as_mut_ptr().offset(self.gap.end as isize),
-                    self.capacity() - self.gap.end,
-                ),
-            )
-        };
+        let res = unsafe { ((self.data.as_mut_ptr(), self.gap.start), (self.data.as_mut_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end)) };
         res
     }
 
     fn data_pointers(&self) -> ((*const T, usize), (*const T, usize)) {
-        let res = unsafe {
-            (
-                (self.data.as_ptr(), self.gap.start),
-                (self.data.as_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end),
-            )
-        };
+        let res = unsafe { ((self.data.as_ptr(), self.gap.start), (self.data.as_ptr().offset(self.gap.end as isize), self.capacity() - self.gap.end)) };
         res
     }
 
@@ -192,10 +176,7 @@ where
     /// Erases data in the range text_range.start .. end, in text representational terms
     ///  
     pub fn erase(&mut self, text_range: std::ops::Range<usize>) {
-        debug_assert!(
-            text_range.end <= self.len(),
-            "you can't erase data not contained by this buffer"
-        );
+        debug_assert!(text_range.end <= self.len(), "you can't erase data not contained by this buffer");
         let len = text_range.len();
         self.set_gap_position(text_range.start);
         self.gap.end += len;
@@ -248,11 +229,7 @@ where
         let (ssrc_a, ssrc_b) = self.data_slices_mut();
         let newgap = tmp.start..(tmp.end + added_gap_size);
         // self.gap.start..newbuf.capacity() - ssrc_b.len() was how we previously calculated new gap. it should be identical
-        assert_eq!(
-            tmp.start..newbuf.capacity() - ssrc_b.len(),
-            newgap,
-            "calculation of new gap error"
-        );
+        assert_eq!(tmp.start..newbuf.capacity() - ssrc_b.len(), newgap, "calculation of new gap error");
 
         unsafe {
             // memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
@@ -278,11 +255,7 @@ where
             Cursor::Absolute(pos) => pos,
             Cursor::Buffer => self.get_pos(),
         };
-        GapBufferIterator {
-            pos: 0,
-            end: pos,
-            buffer: self,
-        }
+        GapBufferIterator { pos: 0, end: pos, buffer: self }
     }
 
     pub fn iter_cursor_to_end(&self, cursor: Cursor) -> GapBufferIterator<T> {
@@ -290,19 +263,11 @@ where
             Cursor::Absolute(pos) => pos,
             Cursor::Buffer => self.get_pos(),
         };
-        GapBufferIterator {
-            pos,
-            end: self.len(),
-            buffer: self,
-        }
+        GapBufferIterator { pos, end: self.len(), buffer: self }
     }
 
     pub fn iter(&self) -> GapBufferIterator<T> {
-        GapBufferIterator {
-            pos: 0,
-            end: self.len(),
-            buffer: self,
-        }
+        GapBufferIterator { pos: 0, end: self.len(), buffer: self }
     }
 }
 
@@ -329,7 +294,10 @@ where
     buffer: &'a GapBuffer<T>,
 }
 
-impl<'a, T> ExactSizeIterator for GapBufferIterator<'a, T> where T: Clone + Copy {
+impl<'a, T> ExactSizeIterator for GapBufferIterator<'a, T>
+where
+    T: Clone + Copy,
+{
     fn len(&self) -> usize {
         let (lower, upper) = self.size_hint();
         // Note: This assertion is overly defensive, but it checks the invariant

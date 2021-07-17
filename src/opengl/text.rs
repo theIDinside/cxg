@@ -6,7 +6,6 @@ use crate::{
         coordinate::{PointArithmetic, Size},
         font::{Font, GlyphInfo},
     },
-    DebuggerCatch,
 };
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -68,12 +67,7 @@ impl<'a> TextRenderer<'a> {
 
             gl::GenBuffers(1, &mut ebo);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                reserved_indices_bytes,
-                std::ptr::null(),
-                gl::DYNAMIC_DRAW,
-            );
+            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, reserved_indices_bytes, std::ptr::null(), gl::DYNAMIC_DRAW);
 
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);
@@ -114,11 +108,7 @@ impl<'a> TextRenderer<'a> {
     }
 
     pub fn prepare_data_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
-        let color = super::types::RGBColor {
-            r: 1.0f32,
-            g: 1.0,
-            b: 1.3,
-        };
+        let color = super::types::RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
         self.clear_data();
         self.vtx_data.reserve(crate::utils::difference(self.vtx_data.capacity(), text.len()));
 
@@ -133,11 +123,7 @@ impl<'a> TextRenderer<'a> {
                 continue;
             }
             if let Some(g) = self.font.get_glyph(c) {
-                let super::types::RGBColor {
-                    r: red,
-                    g: green,
-                    b: blue,
-                } = color;
+                let super::types::RGBColor { r: red, g: green, b: blue } = color;
                 let xpos = current_x as f32 + g.bearing.x as f32;
                 let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
                 let x0 = g.x0 as f32 / self.font.texture_width() as f32;
@@ -184,17 +170,11 @@ impl<'a> TextRenderer<'a> {
         // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
         debugger_catch!(
             !text.contains(&'\n'),
-            DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
+            crate::DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
         );
         text.iter()
             .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
-            .fold(
-                Size {
-                    width: 0i32,
-                    height: self.font.row_height(),
-                },
-                |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }),
-            )
+            .fold(Size { width: 0i32, height: self.font.row_height() }, |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }))
     }
 }
 
@@ -202,18 +182,8 @@ impl<'a> TextRenderer<'a> {
 impl<'a> TextRenderer<'a> {
     fn upload_cpu_data(&self) {
         unsafe {
-            gl::BufferSubData(
-                gl::ARRAY_BUFFER,
-                0,
-                (self.vtx_data.len() * std::mem::size_of::<TVertex>()) as _,
-                self.vtx_data.as_ptr() as _,
-            );
-            gl::BufferSubData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                0,
-                (self.indices.len() * std::mem::size_of::<u32>()) as _,
-                self.indices.as_ptr() as _,
-            );
+            gl::BufferSubData(gl::ARRAY_BUFFER, 0, (self.vtx_data.len() * std::mem::size_of::<TVertex>()) as _, self.vtx_data.as_ptr() as _);
+            gl::BufferSubData(gl::ELEMENT_ARRAY_BUFFER, 0, (self.indices.len() * std::mem::size_of::<u32>()) as _, self.indices.as_ptr() as _);
         }
     }
 
@@ -226,24 +196,14 @@ impl<'a> TextRenderer<'a> {
         if self.reserved_vertex_count <= self.vtx_data.len() as _ {
             self.reserved_vertex_count = self.vtx_data.capacity() as _;
             unsafe {
-                gl::BufferData(
-                    gl::ARRAY_BUFFER,
-                    (std::mem::size_of::<TVertex>() * self.vtx_data.capacity()) as _,
-                    std::ptr::null(),
-                    gl::DYNAMIC_DRAW,
-                );
+                gl::BufferData(gl::ARRAY_BUFFER, (std::mem::size_of::<TVertex>() * self.vtx_data.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
             }
         }
 
         if self.reserved_index_count <= self.indices.len() as _ {
             self.reserved_index_count = self.indices.capacity() as _;
             unsafe {
-                gl::BufferData(
-                    gl::ELEMENT_ARRAY_BUFFER,
-                    (std::mem::size_of::<u32>() * self.indices.capacity()) as _,
-                    std::ptr::null(),
-                    gl::DYNAMIC_DRAW,
-                );
+                gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (std::mem::size_of::<u32>() * self.indices.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
             }
         }
     }

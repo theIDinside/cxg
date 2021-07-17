@@ -1,13 +1,15 @@
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 
-use super::{boundingbox::BoundingBox, coordinate::{Anchor, Size}};
-use crate::textbuffer::metadata::{Line, Column};
-
+use super::{
+    boundingbox::BoundingBox,
+    coordinate::{Anchor, Size},
+};
+use crate::textbuffer::metadata::{Column, Line};
 
 #[derive(Debug)]
 pub enum StatusBarContent<'a> {
     FileEdit(&'a std::path::Path, (Line, Column)),
-    Message(Vec<char>)
+    Message(Vec<char>),
 }
 
 impl<'a> StatusBarContent<'a> {
@@ -15,14 +17,11 @@ impl<'a> StatusBarContent<'a> {
         match self {
             StatusBarContent::FileEdit(path, (line, column)) => {
                 format!("{}:{}:{}", path.display(), **line, **column)
-            },
-            StatusBarContent::Message(msg) => {
-                msg.iter().collect()
-            },
+            }
+            StatusBarContent::Message(msg) => msg.iter().collect(),
         }
     }
 }
-
 
 pub struct StatusBar<'app> {
     pub text_renderer: TextRenderer<'app>,
@@ -41,7 +40,7 @@ impl<'app> StatusBar<'app> {
             size,
             anchor,
             display_data: StatusBarContent::Message("<cxgledit>".chars().into_iter().collect()),
-            bg_color
+            bg_color,
         }
     }
 
@@ -56,7 +55,8 @@ impl<'app> StatusBar<'app> {
     pub fn update(&mut self) {
         let Anchor(x, y) = self.anchor;
         self.window_renderer.clear_data();
-        self.window_renderer.add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
+        self.window_renderer
+            .add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
         let t: Vec<_> = self.display_data.to_str().chars().map(|c| c).collect();
         self.text_renderer.prepare_data_iter(t.iter(), x, y);
     }

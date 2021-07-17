@@ -30,10 +30,7 @@ impl TextShader {
 
         println!("uniform location of projection: {}", projection_uniform);
         assert_ne!(projection_uniform, -1);
-        TextShader {
-            id: font_program,
-            projection_uniform,
-        }
+        TextShader { id: font_program, projection_uniform }
     }
 
     pub fn bind(&self) {
@@ -70,19 +67,12 @@ impl RectShader {
         let (projection_uniform, color_uniform) = unsafe {
             let projection_uniform_name = std::ffi::CString::new("projection").expect("Failed to create CString");
             let color_uniform_name = std::ffi::CString::new("fillcolor").expect("Failed to create CString");
-            (
-                gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
-                gl::GetUniformLocation(font_program, color_uniform_name.as_ptr()),
-            )
+            (gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()), gl::GetUniformLocation(font_program, color_uniform_name.as_ptr()))
         };
 
         println!("uniform location of projection: {}", projection_uniform);
         assert_ne!(projection_uniform, -1);
-        RectShader {
-            id: font_program,
-            projection_uniform,
-            color_uniform,
-        }
+        RectShader { id: font_program, projection_uniform, color_uniform }
     }
 
     pub fn bind(&self) {

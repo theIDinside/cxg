@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::debugger_catch;
 use crate::IndexingType;
 
-IndexingType!(/** Wrapper around usize to display that this is an index type */, 
+IndexingType!(/** Wrapper around usize to display that this is an index type */,
     Index, usize);
 IndexingType!(/** A wrapper around the usize type, meant to represent line numbers */,
     Line, usize);
@@ -22,22 +22,13 @@ pub struct MetaData {
 
 impl std::fmt::Display for MetaData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MetaData {{ File name: {:?}, Lines: {} }}",
-            self.file_name,
-            self.line_begin_indices.len()
-        )
+        write!(f, "MetaData {{ File name: {:?}, Lines: {} }}", self.file_name, self.line_begin_indices.len())
     }
 }
 
 impl MetaData {
     pub fn new(file_name: Option<&Path>) -> MetaData {
-        MetaData {
-            file_name: file_name.map(|p| p.to_path_buf()),
-            line_begin_indices: vec![Index(0)],
-            buffer_size: 0,
-        }
+        MetaData { file_name: file_name.map(|p| p.to_path_buf()), line_begin_indices: vec![Index(0)], buffer_size: 0 }
     }
 
     /// Guaranteed to always be at least 1, no matter what.
@@ -54,10 +45,7 @@ impl MetaData {
     }
 
     pub fn get_line_length_of(&self, line_index: Line) -> Option<Length> {
-        debugger_catch!(
-            *line_index <= self.line_begin_indices.len(),
-            "requested line number is outside of buffer"
-        );
+        debugger_catch!(*line_index <= self.line_begin_indices.len(), "requested line number is outside of buffer");
         self.line_begin_indices
             .windows(2)
             .skip(*line_index)
@@ -91,13 +79,7 @@ impl MetaData {
                 a <= buffer_index && buffer_index < b
             })
             .map(|(index, _)| index)
-            .or_else(|| {
-                if *buffer_index <= self.buffer_size {
-                    Some(self.line_begin_indices.len() - 1)
-                } else {
-                    None
-                }
-            })
+            .or_else(|| if *buffer_index <= self.buffer_size { Some(self.line_begin_indices.len() - 1) } else { None })
     }
 
     pub fn get(&self, line: Line) -> Option<Index> {

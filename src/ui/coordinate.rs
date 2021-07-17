@@ -94,10 +94,7 @@ impl Coordinate for Size {
     }
 
     fn new(a: i32, b: i32) -> Self {
-        Size {
-            width: a,
-            height: b,
-        }
+        Size { width: a, height: b }
     }
 }
 
@@ -136,47 +133,29 @@ impl Size {
         match layout {
             Layout::Horizontal(Spacing(space)) => {
                 let total_width = self.width - (margin * 2) - space as i32 * (divisor - 1);
-                assert!(
-                    total_width > 0,
-                    "Margin & spacing taking up more space than dimension can handle"
-                );
+                assert!(total_width > 0, "Margin & spacing taking up more space than dimension can handle");
                 let element_width = total_width / divisor;
                 // we're dealing with integers... so we need all elements to actually cover, so one element might get a bit larger
                 let diff_width = total_width - (divisor * element_width);
                 let mut result = vec![];
                 for _ in 0..(divisor - 1) {
-                    result.push(Size {
-                        width: element_width,
-                        height: self.height,
-                    })
+                    result.push(Size { width: element_width, height: self.height })
                 }
-                result.push(Size {
-                    width: element_width + diff_width,
-                    height: self.height,
-                });
+                result.push(Size { width: element_width + diff_width, height: self.height });
                 result
             }
             Layout::Vertical(Spacing(space)) => {
                 let width = self.width - (margin * 2);
                 let total_height = self.height - (margin * 2) - space as i32 * (divisor - 1);
-                assert!(
-                    total_height > 0,
-                    "Margin & spacing taking up more space than dimension can handle"
-                );
+                assert!(total_height > 0, "Margin & spacing taking up more space than dimension can handle");
                 let element_height = total_height / divisor;
                 // we're dealing with integers... so we need all elements to actually cover, so one element might get a bit larger
                 let diff_height = total_height - (divisor * element_height);
                 let mut result = vec![];
                 for _ in 0..(divisor - 1) {
-                    result.push(Size {
-                        width,
-                        height: element_height,
-                    })
+                    result.push(Size { width, height: element_height })
                 }
-                result.push(Size {
-                    width,
-                    height: element_height + diff_height,
-                });
+                result.push(Size { width, height: element_height + diff_height });
                 result
             }
         }

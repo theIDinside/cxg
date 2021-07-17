@@ -38,12 +38,7 @@ pub fn screen_projection_matrix(width: u32, height: u32, scrolled: i32) -> Matri
     let a = Vec4f::new(2.0f32 / width as f32, 0f32, 0f32, 0f32);
     let b = Vec4f::new(0f32, 2f32 / (height as i32 - scrolled) as f32, 0f32, 0f32);
     let c = Vec4f::new(0f32, 0f32, -1f32, 0f32);
-    let d = Vec4f::new(
-        -1f32,
-        -((height as i32 + scrolled) as f32 / (height as i32 - scrolled) as f32),
-        0f32,
-        1f32,
-    );
+    let d = Vec4f::new(-1f32, -((height as i32 + scrolled) as f32 / (height as i32 - scrolled) as f32), 0f32, 1f32);
     Matrix { data: [a, b, c, d] }
 }
 
@@ -63,16 +58,8 @@ pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<g
         log.set_len(512 - 1);
         GetShaderiv(vertex_shader, gl::COMPILE_STATUS, &mut ok);
         if ok != gl::TRUE as gl::types::GLint {
-            GetShaderInfoLog(
-                vertex_shader,
-                512,
-                std::ptr::null_mut(),
-                log.as_mut_ptr() as *mut gl::types::GLchar,
-            );
-            println!(
-                "Compilation of vertex shader failed:\n{}",
-                std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL")
-            );
+            GetShaderInfoLog(vertex_shader, 512, std::ptr::null_mut(), log.as_mut_ptr() as *mut gl::types::GLchar);
+            println!("Compilation of vertex shader failed:\n{}", std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL"));
             return Err(MainInitError::Shader(String::from_utf8(log).unwrap()));
         }
         log.clear();
@@ -84,16 +71,8 @@ pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<g
 
         GetShaderiv(frag_shader, gl::COMPILE_STATUS, &mut ok);
         if ok != gl::TRUE as gl::types::GLint {
-            GetShaderInfoLog(
-                frag_shader,
-                512,
-                std::ptr::null_mut(),
-                log.as_mut_ptr() as *mut gl::types::GLchar,
-            );
-            println!(
-                "Compilation of fragment shader failed:\n{}",
-                std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL")
-            );
+            GetShaderInfoLog(frag_shader, 512, std::ptr::null_mut(), log.as_mut_ptr() as *mut gl::types::GLchar);
+            println!("Compilation of fragment shader failed:\n{}", std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL"));
             return Err(MainInitError::Shader(String::from_utf8(log).unwrap()));
         }
         log.clear();
@@ -106,16 +85,8 @@ pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<g
         GetProgramiv(shader_program, gl::LINK_STATUS, &mut ok);
 
         if ok != gl::TRUE as gl::types::GLint {
-            GetProgramInfoLog(
-                shader_program,
-                512,
-                std::ptr::null_mut(),
-                log.as_mut_ptr() as *mut gl::types::GLchar,
-            );
-            println!(
-                "Linking of shader program failed:\n{}",
-                std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL")
-            );
+            GetProgramInfoLog(shader_program, 512, std::ptr::null_mut(), log.as_mut_ptr() as *mut gl::types::GLchar);
+            println!("Linking of shader program failed:\n{}", std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL"));
         }
 
         gl::DeleteShader(vertex_shader);

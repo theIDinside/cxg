@@ -13,11 +13,7 @@ impl Into<BufferCursor> for (usize, usize, usize) {
     #[inline(always)]
     fn into(self) -> BufferCursor {
         let (pos, row, col) = self;
-        BufferCursor {
-            pos: Index(pos),
-            row: Line(row),
-            col: Column(col),
-        }
+        BufferCursor { pos: Index(pos), row: Line(row), col: Column(col) }
     }
 }
 

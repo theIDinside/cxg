@@ -18,7 +18,10 @@ impl AsUsize for usize {
     }
 }
 
-pub fn difference<T>(a: T, b: T) -> usize where T: std::ops::Sub<Output=T> + std::ops::SubAssign + std::cmp::PartialEq + std::cmp::PartialOrd + AsUsize {
+pub fn difference<T>(a: T, b: T) -> usize
+where
+    T: std::ops::Sub<Output = T> + std::ops::SubAssign + std::cmp::PartialEq + std::cmp::PartialOrd + AsUsize,
+{
     if a < b {
         (b - a).as_usize()
     } else {

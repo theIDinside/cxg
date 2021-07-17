@@ -54,7 +54,7 @@ pub struct View<'a> {
     buffer_in_view: std::ops::Range<usize>,
     pub view_changed: bool,
     cursor_width: i32,
-    pub bg_color: RGBAColor
+    pub bg_color: RGBAColor,
 }
 
 pub struct Popup<'a> {
@@ -83,16 +83,14 @@ impl<'a> std::fmt::Debug for View<'a> {
 }
 
 impl<'a> View<'a> {
-    pub fn new(name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32, row_height: i32, bg_color: RGBAColor) -> View<'a> {
+    pub fn new(
+        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32, row_height: i32,
+        bg_color: RGBAColor,
+    ) -> View<'a> {
         let cursor_width = text_renderer.get_cursor_width_size();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
-        cursor_renderer.set_color(RGBAColor {
-            r: 0.5,
-            g: 0.5,
-            b: 0.5,
-            a: 0.5,
-        });
+        cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
         let mut v = View {
             name: name.to_string(),
             id: view_id,
@@ -110,7 +108,7 @@ impl<'a> View<'a> {
             buffer: SimpleBuffer::new(*view_id, 1000),
             buffer_in_view: 0..0,
             view_changed: true,
-            bg_color
+            bg_color,
         };
         v.window_renderer.add_rect(BoundingBox::from_info(v.anchor, v.size), bg_color);
         v
@@ -130,7 +128,8 @@ impl<'a> View<'a> {
 
     /// Prepares the renderable data, so that upon next draw() call, it renders the new content
     pub fn update(&mut self) {
-        self.window_renderer.set_rect(BoundingBox::from_info(self.anchor, self.size), self.bg_color);
+        self.window_renderer
+            .set_rect(BoundingBox::from_info(self.anchor, self.size), self.bg_color);
         self.set_need_redraw()
     }
 
@@ -146,14 +145,15 @@ impl<'a> View<'a> {
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             // either way of these two works
-            self.text_renderer.prepare_data_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
+            self.text_renderer
+                .prepare_data_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
             // self.text_renderer.prepare_data_iter(self.buffer.iter().skip(self.buffer_in_view.start).take(self.buffer_in_view.len()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
 
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-            crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer" ));
+            crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer"));
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
 
             let min_x = top_x + self.text_renderer.calculate_text_line_dimensions(line_contents).x();
@@ -167,8 +167,10 @@ impl<'a> View<'a> {
 
             self.cursor_renderer.clear_data();
 
-            self.cursor_renderer.add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
-            self.cursor_renderer.add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });            
+            self.cursor_renderer
+                .add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
+            self.cursor_renderer
+                .add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
             self.view_changed = false;
         }
 
@@ -177,7 +179,9 @@ impl<'a> View<'a> {
         self.text_renderer.draw();
         self.cursor_renderer.draw();
 
-        unsafe { gl::Disable(gl::SCISSOR_TEST); }
+        unsafe {
+            gl::Disable(gl::SCISSOR_TEST);
+        }
     }
 
     pub fn set_anchor(&mut self, anchor: Anchor) {
@@ -214,32 +218,26 @@ impl<'a> View<'a> {
     pub fn adjust_view_range(&mut self) {
         let md = self.buffer.meta_data();
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
-            let diff = std::cmp::max(
-                (*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.displayable_lines) as i32,
-                1,
-            );
+            let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.displayable_lines) as i32, 1);
             self.topmost_line_in_buffer += diff;
-            if let (Some(a), end) = md.get_byte_indices_of_lines(
-                Line(self.topmost_line_in_buffer as _),
-                Line((self.topmost_line_in_buffer + self.displayable_lines) as _),
-            ) {
+            if let (Some(a), end) =
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+            {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
 
             self.view_changed = true;
         } else if self.buffer.cursor_row() < Line(self.topmost_line_in_buffer as _) {
             self.topmost_line_in_buffer = *self.buffer.cursor_row() as _;
-            if let (Some(a), end) = md.get_byte_indices_of_lines(
-                Line(self.topmost_line_in_buffer as _),
-                Line((self.topmost_line_in_buffer + self.displayable_lines) as _),
-            ) {
+            if let (Some(a), end) =
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+            {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         } else {
-            if let (Some(a), end) = md.get_byte_indices_of_lines(
-                Line(self.topmost_line_in_buffer as _),
-                Line((self.topmost_line_in_buffer + self.displayable_lines) as _),
-            ) {
+            if let (Some(a), end) =
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+            {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         }
@@ -309,13 +307,7 @@ impl<'a> View<'a> {
             .text_renderer
             .get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
         let cursor_width = g
-            .map(|glyph| {
-                if glyph.width() == 0 as _ {
-                    glyph.advance
-                } else {
-                    glyph.width() as _
-                }
-            })
+            .map(|glyph| if glyph.width() == 0 as _ { glyph.advance } else { glyph.width() as _ })
             .unwrap_or(self.cursor_width);
 
         let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();

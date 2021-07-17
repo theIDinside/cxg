@@ -29,15 +29,12 @@ impl RGBAColor {
 
 pub struct RectVertex {
     pub coord: Vec2f,
-    pub color: RGBAColor
+    pub color: RGBAColor,
 }
 
 impl RectVertex {
     pub fn new(x: i32, y: i32, color: RGBAColor) -> RectVertex {
-        let coord = Vec2f {
-            x: x as glfloat,
-            y: y as glfloat,
-        };
+        let coord = Vec2f { x: x as glfloat, y: y as glfloat };
         RectVertex { coord, color }
     }
 }
@@ -51,38 +48,20 @@ pub struct TextVertex {
     pub r: glfloat,
     pub g: glfloat,
     pub b: glfloat,
-    _padding: glfloat
+    _padding: glfloat,
 }
 
 impl TextVertex {
     #[inline(always)]
     pub fn new(x: glfloat, y: glfloat, u: glfloat, v: glfloat, r: glfloat, g: glfloat, b: glfloat) -> TextVertex {
-        TextVertex {
-            x,
-            y,
-            u,
-            v,
-            r,
-            g,
-            b,
-            _padding: 0.0
-        }
+        TextVertex { x, y, u, v, r, g, b, _padding: 0.0 }
     }
 
     pub fn create(coords: Vec2f, uv: UVCoordinates, color: RGBColor) -> TextVertex {
         let Vec2f { x, y } = coords;
         let UVCoordinates { u, v } = uv;
         let RGBColor { r, g, b } = color;
-        TextVertex {
-            x,
-            y,
-            u,
-            v,
-            r,
-            g,
-            b,
-            _padding: 0.0
-        }
+        TextVertex { x, y, u, v, r, g, b, _padding: 0.0 }
     }
 }
 

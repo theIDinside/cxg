@@ -24,6 +24,13 @@ pub enum Movement {
     End(TextKind),
 }
 
+pub enum BufferState {
+    Empty,
+    Pristine,
+    NotSaved,
+    NotSavedToDisk,
+}
+
 pub trait CharBuffer<'a> {
     type ItemIterator: Iterator<Item = &'a char>;
     // todo(feature): Add support for multiple cursors, whether they be implemented as multi-cursors or just as macros pretending to be multiple cursors is utterly irrelevant
@@ -79,7 +86,7 @@ pub trait CharBuffer<'a> {
                 })
         }
     }
-    
+
     /// Get a reference to the MetaData sturcture
     fn meta_data(&self) -> &MetaData;
     /// Get an iterator to the data of this buffer
@@ -120,7 +127,7 @@ pub trait SubstringClone {
 mod tests {
     use super::gb::gap_buffer::GapBuffer as GB;
     // use super::Gap::GapBuffer as GB;
-    use super::{SubstringClone};
+    use super::SubstringClone;
 
     #[test]
     fn test_iteration() {
@@ -254,5 +261,4 @@ mod tests {
         gb.map_into(simon.chars());
         assert_eq!("hello Simon", gb.read_string(0..25));
     }
-
 }
