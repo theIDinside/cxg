@@ -46,8 +46,6 @@ pub struct Application<'app> {
     debug: bool,
     /// Pointer to the element which is receiving Keyboard Input.
     active_view: *mut View<'app>,
-    /// The active/displayed views in the window
-    active_views: Vec<ViewId>,
     /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
@@ -114,7 +112,6 @@ impl<'app> Application<'app> {
             active_ui_element: UID::View(active_view_id),
             debug: false,
             active_view: std::ptr::null_mut(),
-            active_views: vec![],
             close_requested: false,
             debug_view,
         };
@@ -165,8 +162,6 @@ impl<'app> Application<'app> {
                 (*self.active_view).update();
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
-            self.active_views.push(view_id.into());
-            println!("pushed active views: {}", self.active_views.len());
         } else {
             panic!("panel with id {} was not found", *parent_panel);
         }
@@ -229,10 +224,6 @@ impl<'app> Application<'app> {
             UID::View(id) => {
                 if let Some(v) = self.panels.last_mut().unwrap().get_view(id.into()) {
                     self.active_view = v;
-                }
-                self.active_views.push(unsafe { self.active_view.as_ref().unwrap().id });
-                for v in self.active_views.iter() {
-                    println!("View: {:?}", v);
                 }
             }
             UID::Panel(_id) => todo!(),
@@ -364,14 +355,6 @@ impl<'app> Application<'app> {
             Key::P if modifier == Modifiers::Control => {
                 if action == Action::Press {
                     if let Some(p) = self.popup.as_mut() {
-                        if p.visible {
-                            if let Some(_v) = self.active_views.pop() {
-                                // self.active_view = v;
-                            }
-                        } else {
-                            // self.active_views.push(self.active_view);
-                            // self.active_view = &mut p.view as _;
-                        }
                         p.visible = !p.visible;
                     }
                 }
@@ -458,7 +441,6 @@ impl<'app> Application<'app> {
         
         self.active_view = {
             let v = panel.remove_view(view_id).unwrap();
-            self.active_views.pop();
             println!("Closing and dropping resources of view: {:?}", v);
             panel.children.last_mut().unwrap() as _
         };
