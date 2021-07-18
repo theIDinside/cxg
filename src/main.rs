@@ -16,8 +16,6 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
-use std::iter::once;
-
 use self::glfw::Context;
 use opengl::glinit;
 

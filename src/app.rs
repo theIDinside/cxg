@@ -3,7 +3,6 @@ use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::debug_view::DebugView;
 use crate::ui::panel::PanelId;
-use crate::ui::view::ViewId;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
     font::Font,
@@ -192,7 +191,7 @@ impl<'app> Application<'app> {
         let mut next = false;
         while let Some(it) = iter.next() {
             if next {
-                self.active_view = unsafe { it as *const _ as *mut _ };
+                self.active_view =  it as *const _ as *mut _ ;
                 break;
             }
             if (*it).id == id {
