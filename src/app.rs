@@ -18,8 +18,8 @@ use std::sync::mpsc::Receiver;
 
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
-static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.781, g: 0.52, b: 0.742123, a: 1.0 };
-static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.51, g: 0.59, b: 0.13, a: 1.0 };
+static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r:0.071, g: 0.102, b: 0.1242123, a: 1.0 };
 
 pub struct Application<'app> {
     /// Window Title
@@ -85,7 +85,7 @@ impl<'app> Application<'app> {
         panels[0].add_view(view);
 
         // Create the popup UI
-        let (mut tr, mut rr) = make_renderers();
+        let (tr, rr) = make_renderers();
         let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, fonts[0].row_height(), ACTIVE_VIEW_BACKGROUND);
         popup.set_anchor((250, 768 - 250).into());
         popup.update();
@@ -94,11 +94,11 @@ impl<'app> Application<'app> {
 
         // Creating the Debug View UI
         let (tr, rr) = make_renderers();
-        let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 1.0 };
+        let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
         let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 0, 1014, 758, fonts[0].row_height(), dbg_view_bg_color);
         debug_view.set_anchor(Anchor(5, 763));
         debug_view.update();
-        debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 1.0 });
+        debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view);
 
         let mut res = Application {
@@ -425,6 +425,6 @@ impl<'app> Application<'app> {
     }
 
     pub fn close_active_view(&mut self) {
-        let view = self.get_active_view();
+        todo!("close_active_view not yet implemented");
     }
 }

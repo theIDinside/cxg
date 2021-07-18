@@ -62,17 +62,18 @@ impl<'app> DebugView<'app> {
         let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, shared_lib_code } = proc_info.unwrap();
 
         let r: Vec<_> = format!(
-            "\n\n
+"
 Debug Information
-Application 
-    name            [{}] 
-    pid:            [{}]
-Memory:
-    Usage:          [{:.2}MB]
-    Peak usage:     [{:.2}MB]
-    Shared lib code [{:.2}MB]
-Frame time:      {:.5}ms
-Frame speed      {:.2}f/s",
+ |  Application 
+ |  > name              [{}] 
+ |  > pid:              [{}]
+ |  Memory: 
+ |  > Usage:            [{:.2}MB]
+ |  > Peak usage:       [{:.2}MB]
+ |  > Shared lib code   [{:.2}MB]
+ |  Timing  
+ |  > Frame time:       [{:.5}ms]
+ |  > Frame speed       [{:.2}f/s]",
             name,
             pid,
             virtual_mem_usage as f64 / 1024.0,

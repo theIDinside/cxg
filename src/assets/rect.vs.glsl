@@ -9,5 +9,5 @@ out vec4 rect_color;
 void main()
 {
     gl_Position = projection * vec4(vertex, 0.0, 1.0);
-    rect_color = vec4(color.xyz, 0.3);
+    rect_color = vec4(color);
 }
