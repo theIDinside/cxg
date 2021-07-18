@@ -92,19 +92,16 @@ impl<'app> Panel<'app> {
         self.anchor = Anchor(x, y);
     }
 
-    pub fn add_view(&mut self, mut view: View<'app>) {
-        if self.children.is_empty() {
+    pub fn layout(&mut self) {
+        if self.children.len() == 1 {
             let adjusted_anchor = self
                 .margin
                 .map(|margin| Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))
                 .unwrap_or(self.anchor);
+            let view = self.children.first_mut().unwrap();
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
-            view.set_manager_panel(self.id);
-            self.children.push(view);
         } else {
-            view.set_manager_panel(self.id);
-            self.children.push(view);
             let sub_space_count = self.children.len();
             let margin = self.margin.unwrap_or(0);
             let child_sizes = self.size.divide(sub_space_count as _, margin, self.layout);
@@ -131,6 +128,21 @@ impl<'app> Panel<'app> {
             v.update();
         }
     }
+
+    pub fn add_view(&mut self, mut view: View<'app>) {
+        view.set_manager_panel(self.id);
+        self.children.push(view);
+        self.layout();
+    }
+
+    pub fn remove_view(&mut self, view_id: ViewId) -> Option<View<'app>> {
+        if let Some(pos) = self.children.iter().position(|v| v.id == view_id) {
+            Some(self.children.remove(pos))
+        } else {
+            None
+        }        
+    }
+
 
     pub fn resize(&mut self, w: i32, h: i32) {
         let old_size = self.size;

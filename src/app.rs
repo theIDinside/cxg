@@ -122,6 +122,16 @@ impl<'app> Application<'app> {
         res
     }
 
+    pub fn decorate_active_view(&mut self) {
+        let view = unsafe {
+            self.active_view.as_mut().unwrap()
+        };
+        view.bg_color = ACTIVE_VIEW_BACKGROUND;
+        view.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+        view.update();
+
+    }
+
     /// Creates a text view and makes that the focused UI element
     pub fn open_text_view(&mut self, parent_panel: PanelId, view_name: Option<String>, view_size: Size) {
         let parent_panel = parent_panel.into();
@@ -156,6 +166,7 @@ impl<'app> Application<'app> {
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
             self.active_views.push(view_id.into());
+            println!("pushed active views: {}", self.active_views.len());
         } else {
             panic!("panel with id {} was not found", *parent_panel);
         }
@@ -171,30 +182,35 @@ impl<'app> Application<'app> {
     }
 
     pub fn cycle_focus(&mut self) {
-        let view = self.get_active_view();
-        view.bg_color = VIEW_BACKGROUND;
-        view.set_need_redraw();
-        view.window_renderer.set_color(VIEW_BACKGROUND);
-
-        let find_pos = |view_id: &ViewId| *view_id == unsafe { (*self.active_view).id };
-
-        if let Some(idx) = self.active_views.iter().position(find_pos) {
-            let next_id = self.active_views.get(idx + 1).unwrap_or(self.active_views.first().unwrap());
-            if let Some(view) = self.panels.iter().flat_map(|p| p.children.iter()).find(|v| v.id == *next_id) {
-                self.active_view = view as *const _ as *mut _;
+        if self.panels.iter().map(|p| p.children.len()).sum::<usize>() < 2 {
+            return;
+        }
+        let id = {
+            let view = self.get_active_view();
+            view.bg_color = VIEW_BACKGROUND;
+            view.set_need_redraw();
+            view.window_renderer.set_color(VIEW_BACKGROUND);
+            view.id
+        };
+        
+        let mut iter = self.panels.iter().flat_map(|p| p.children.iter()).cycle();
+        let mut next = false;
+        while let Some(it) = iter.next() {
+            if next {
+                self.active_view = unsafe { it as *const _ as *mut _ };
+                break;
+            }
+            if (*it).id == id {
+                next = true;
             }
         }
 
-        let view = self.get_active_view();
-        view.bg_color = ACTIVE_VIEW_BACKGROUND;
-        view.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
-        view.set_need_redraw();
-
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
+        self.decorate_active_view();
     }
 
-    pub fn get_active_view(&mut self) -> &mut View<'app> {
+    pub fn get_active_view(&self) -> &mut View<'app> {
         unsafe { &mut *self.active_view }
     }
 
@@ -373,8 +389,7 @@ impl<'app> Application<'app> {
             Key::Q if modifier == Modifiers::Control => {
                 self.close_requested = true;
             }
-
-            Key::W if modifier == Modifiers::Control => {
+            Key::W if modifier == Modifiers::Control && action == Action::Press => {
                 self.close_active_view();
             }
             Key::Enter if action == Action::Press || action == Action::Repeat => {
@@ -425,6 +440,31 @@ impl<'app> Application<'app> {
     }
 
     pub fn close_active_view(&mut self) {
-        todo!("close_active_view not yet implemented");
+        // todo: we need to ask user,  what to do with unsaved files etc.
+        if self.panels.iter().map(|p| p.children.len()).sum::<usize>() == 1 {
+            // We only have 1 view/window open. Close the program. In the future, we might have some file browser or whatever, that'll be a "main/unclosable" that will be displayed instead. Until then though
+            // we just shut shit down.
+            self.close_requested = true;
+            return;
+        }
+
+        let view = unsafe {
+            self.active_view.as_mut().unwrap()
+        };
+
+        let view_id = view.id;
+        let panel_id = view.panel_id.unwrap();
+        let panel = self.panels.get_mut(*panel_id as usize).unwrap();
+        
+        self.active_view = {
+            let v = panel.remove_view(view_id).unwrap();
+            self.active_views.pop();
+            println!("Closing and dropping resources of view: {:?}", v);
+            panel.children.last_mut().unwrap() as _
+        };
+        
+        panel.layout();
+        self.decorate_active_view();        
+        self.active_ui_element = UID::View(*self.get_active_view().id);
     }
 }

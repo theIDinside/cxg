@@ -16,6 +16,8 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
+use std::iter::once;
+
 use self::glfw::Context;
 use opengl::glinit;
 
@@ -103,13 +105,16 @@ fn main() -> Main {
 
     let mut last_update = glfw_handle.get_time();
     let mut frame_counter = 0.0;
+    let mut once_a_second_update = 10000.0;
 
     let mut updatefps = move |glfw_handle: &mut glfw::Glfw| -> Option<f64> {
-        if frame_counter > 10000.0 {
+        if frame_counter > once_a_second_update {
             let now_time = glfw_handle.get_time();
             let diff_time = now_time - last_update;
             last_update = now_time;
             let res = frame_counter / diff_time;
+            let tmp = once_a_second_update / res;
+            once_a_second_update /= tmp;
             frame_counter = 0.0;
             Some(res)
         } else {

@@ -123,7 +123,21 @@ impl<'a> TextRenderer<'a> {
                 continue;
             }
 
-            let c = if c == '<' || c == '>' || c == '!' {
+            let c = {
+                let resulting_unicode = match text.peek() {
+                    Some('=') => match c {
+                        '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
+                        '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
+                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) }
+                        _ => c
+                    }, 
+                    _ => c
+                };
+                if resulting_unicode != c { text.next(); }
+                resulting_unicode
+            };
+            /* 
+            let c = if c == '<' || c == '>' || c == '!' {                  
                 if let Some('=') = text.peek() {
                     let resulting_unicode_char = if c == '<' {
                         unsafe { std::char::from_u32_unchecked(0x2264) }
@@ -140,6 +154,7 @@ impl<'a> TextRenderer<'a> {
             } else {
                 c
             };
+            */
 
             if let Some(g) = self.font.get_glyph(c) {
                 let super::types::RGBColor { r: red, g: green, b: blue } = color;
