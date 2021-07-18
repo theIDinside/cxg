@@ -54,6 +54,12 @@ pub fn foo() {
         libc::signal(libc::SIGTRAP, code as _);
     }
 }
+/// Converts a vec of u32 to Vec<char>, unsafely. If you fuck up the code points, it's on you.
+fn convert_vec_of_u32_utf(data: &[u32]) -> Vec<char> {
+    unsafe {
+        data.iter().map(|&c| std::char::from_u32_unchecked(c) ).collect()
+    }
+}
 
 fn main() -> Main {
     let width = 1024;
@@ -84,7 +90,11 @@ fn main() -> Main {
     let rectangle_program = opengl::shaders::RectShader::new();
 
     font_program.bind();
-    let char_range = (0..0x00f6u8).map(|x| x as char).collect();
+    // let char_range = (0..=0x0F028u32).filter_map(|c| std::char::from_u32(c)).collect();
+                                                                            //       ___________ these two unicode symbols are the less-than-equal and greater-than-equal ≤ and ≥ symbols
+    // let char_range: Vec<char> = (0..=1000u32).filter_map(std::char::from_u32).chain((0x2264..=0x2265).filter_map(std::char::from_u32)).collect();
+    let char_range: Vec<char> = (0..=0x0f8u32).filter_map(std::char::from_u32).chain(convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265])).collect();
+
     let font = ui::font::Font::new(font_path, 18, char_range).expect("Failed to create font");
     let fonts = vec![font];
 
