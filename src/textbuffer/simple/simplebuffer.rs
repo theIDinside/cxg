@@ -454,28 +454,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     }
                 }
                 TextKind::Word => {
-                    if let Some(ch) = self.get(Index(self.cursor_abs().wrapping_sub(1))) {
-                        let pred = 
-                        if ch.is_whitespace() { 
-                            |c: char| c.is_alphanumeric() || c.is_ascii_punctuation() 
-                        } else if ch.is_ascii_punctuation() { 
-                            |c: char| c.is_whitespace()  || c.is_alphanumeric()
-                        } else {
-                            |c: char| c.is_whitespace()  || c.is_ascii_punctuation()
-                        };
-
-                        if let Some(a) = self.find_prev(pred).map(|bc| bc.pos.offset(1)) {
-                            let remove_count = self.cursor.pos - a;
-                            if *remove_count == 0 {
-                                self.cursor_step_backward(1);
-                                self.remove();
-                            } else {
-                                self.cursor_goto(a);
-                                for _ in 0..*remove_count {
-                                    self.remove();
-                                }
-                            }
-                        }
+                    let idx_pos = self.cursor.pos;
+                    self.move_cursor(Movement::Begin(TextKind::Word));
+                    let len = *(idx_pos - self.cursor.pos);
+                    for _ in 0 .. len {
+                        self.remove();
                     }
                 }
                 TextKind::Line => todo!(),
