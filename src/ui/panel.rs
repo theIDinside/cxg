@@ -167,9 +167,8 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    //let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
-                    let size = Size::new(self.size.width, view.size.height + dh);
-                    view.resize(Size::shrink_by_margin(size, margin));
+                    let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
+                    view.resize(size);
                     view.set_anchor((edge_left, anchor_y_shift).into());
                     anchor_y_shift -= view.size.height + *spacing as i32;
                 }
@@ -180,9 +179,10 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    // let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
-                    let size = Size::new(view.size.width + dw, self.size.height);
-                    view.resize(Size::shrink_by_margin(size, margin));
+                    let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
+                    // let size = Size::new(view.size.width + dw, self.size.height);
+                    view.resize(size);
+                    // view.resize(Size::shrink_by_margin(size, margin));
                     view.set_anchor((anchor_x_shift, edge_top).into());
                     anchor_x_shift += view.size.width + *spacing as i32;
                 }

@@ -206,6 +206,7 @@ impl<'a> View<'a> {
         if input_not_valid(ch) {
             return;
         }
+        
         self.buffer.insert(ch);
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
             self.adjust_view_range();
@@ -341,5 +342,12 @@ impl<'a> View<'a> {
 }
 
 fn input_not_valid(ch: char) -> bool {
-    ch == 'å' || ch == 'ä' || ch == 'ö'
+    let mut buf = [0; 4];
+    ch.encode_utf16(&mut buf);
+    for cp in buf {
+        if cp > 1000 {
+            return true;
+        }
+    }
+    false
 }

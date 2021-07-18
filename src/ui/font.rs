@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::datastructure::generic::Vec2i;
+use crate::debugger_catch;
 
 /// Contains the texture coordinates & related glyph info about size & dimension
 pub struct GlyphInfo {
@@ -37,9 +38,6 @@ pub struct Font {
     texture_dimensions: Vec2i,
 }
 
-const GLYPH_COUNT: f64 = 128.0;
-
-#[cfg(debug_assertions)]
 fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {
     use std::fs::File;
     use std::io::BufWriter;
@@ -74,15 +72,15 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
     println!("Wrote to file {}", path.display());
 }
 
-#[cfg(not(debug_assertions))]
-fn debug_write_font_texture_to_file(_font_path: &Path, _pixels: &Vec<u8>, _pixel_size: i32, _tex_width: u32, _tex_height: u32) {}
+// fn debug_write_font_texture_to_file(_font_path: &Path, _pixels: &Vec<u8>, _pixel_size: i32, _tex_width: u32, _tex_height: u32) {}
 
 impl Font {
     pub fn new(font_path: &Path, pixel_size: i32, characters: Vec<char>) -> Result<Font, ft::Error> {
         let lib = ft::Library::init()?;
         let face = lib.new_face(font_path, 0)?;
         face.set_pixel_sizes(pixel_size as u32, pixel_size as u32)?;
-        let max_dim = ((1 + face.size_metrics().unwrap().height >> 6) as f64 * GLYPH_COUNT.sqrt().ceil()) as i32;
+        let glyph_count = characters.len() as f64;
+        let max_dim = ((1 + face.size_metrics().unwrap().height >> 6) as f64 * glyph_count.sqrt().ceil()) as i32;
 
         let mut texture_dimension = Vec2i { x: 1, y: 1 };
         while texture_dimension.x < max_dim {
@@ -99,7 +97,7 @@ impl Font {
         let mut glyph_cache: HashMap<char, GlyphInfo> = HashMap::new();
 
         for c in characters {
-            face.load_char(c as usize, ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT)?;
+            face.load_char(c as usize, ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT | ft::face::LoadFlag::COLOR)?;
             let glyph = face.glyph();
             let bitmap = glyph.bitmap();
             max_glyph_dimensions.y = std::cmp::max(bitmap.rows(), max_glyph_dimensions.x);
@@ -114,9 +112,14 @@ impl Font {
                 for col in 0..bitmap.width() {
                     let x = pen_x + col;
                     let y = pen_y + row;
-                    let pixel_index = (y * texture_dimension.x + x) as usize;
+                    let mut pixel_index = (y * texture_dimension.x + x) as usize;
                     let bitmap_index = (row * bitmap.pitch() + col) as usize;
-                    pixels[pixel_index] = bitmap.buffer()[bitmap_index];
+                    if pixel_index >= pixels.len() {
+                        debugger_catch!(!(pixel_index >= 262144), crate::DebuggerCatch::Handle("Pixel index must remaing below 262144".into()));
+                        pixel_index = pixels.len() - 1;
+                    }
+                    pixels[pixel_index] 
+                    = bitmap.buffer()[bitmap_index];
                 }
             }
 

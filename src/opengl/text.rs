@@ -107,21 +107,40 @@ impl<'a> TextRenderer<'a> {
         }
     }
 
-    pub fn prepare_data_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
+    pub fn prepare_data_iter<'b>(&mut self, mut text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
         let color = super::types::RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
         self.clear_data();
         self.vtx_data.reserve(crate::utils::difference(self.vtx_data.capacity(), text.len()));
 
         let mut current_x = x;
         let mut current_y = y - self.font.row_height();
-
-        for c in text {
+        let mut text = text.peekable();
+        while let Some(c) = text.next() {
             let c = *c;
             if c == '\n' {
                 current_x = x;
                 current_y -= self.font.row_height();
                 continue;
             }
+
+            let c = if c == '<' || c == '>' || c == '!' {
+                if let Some('=') = text.peek() {
+                    let resulting_unicode_char = if c == '<' {
+                        unsafe { std::char::from_u32_unchecked(0x2264) }
+                    } else if c == '>' {
+                        unsafe { std::char::from_u32_unchecked(0x2265) }
+                    } else {
+                        unsafe { std::char::from_u32_unchecked(0x2260) }
+                    };
+                    text.next();
+                    resulting_unicode_char
+                } else {
+                    c
+                }
+            } else {
+                c
+            };
+
             if let Some(g) = self.font.get_glyph(c) {
                 let super::types::RGBColor { r: red, g: green, b: blue } = color;
                 let xpos = current_x as f32 + g.bearing.x as f32;
@@ -152,9 +171,56 @@ impl<'a> TextRenderer<'a> {
                 ]);
                 current_x += g.advance;
             } else {
-                panic!("Could not find glyph for {}", c);
+                let mut buf = [0; 4];
+                c.encode_utf16(&mut buf);
+                panic!("Could not find glyph for {}, {:?}", c, buf);
             }
         }
+
+        /*
+            for c in text {
+                let c = *c;
+                if c == '\n' {
+                    current_x = x;
+                    current_y -= self.font.row_height();
+                    continue;
+                }
+                if let Some(g) = self.font.get_glyph(c) {
+                    let super::types::RGBColor { r: red, g: green, b: blue } = color;
+                    let xpos = current_x as f32 + g.bearing.x as f32;
+                    let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
+                    let x0 = g.x0 as f32 / self.font.texture_width() as f32;
+                    let x1 = g.x1 as f32 / self.font.texture_width() as f32;
+                    let y0 = g.y0 as f32 / self.font.texture_height() as f32;
+                    let y1 = g.y1 as f32 / self.font.texture_height() as f32;
+
+                    let w = g.width();
+                    let h = g.height();
+
+                    let vtx_index = self.vtx_data.len() as u32;
+                    // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
+
+                    self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
+                    self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
+                    self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
+                    self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
+
+                    self.indices.extend_from_slice(&[
+                        vtx_index,
+                        vtx_index + 1,
+                        vtx_index + 2,
+                        vtx_index,
+                        vtx_index + 2,
+                        vtx_index + 3,
+                    ]);
+                    current_x += g.advance;
+                } else {
+                    let mut buf = [0; 4];
+                    c.encode_utf16(&mut buf);
+                    panic!("Could not find glyph for {}, {:?}", c, buf);
+                }
+            }
+        */
         self.pristine = false;
     }
 
@@ -172,8 +238,39 @@ impl<'a> TextRenderer<'a> {
             !text.contains(&'\n'),
             crate::DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
         );
+
+        let parse_special_symbols = |(index, &c): (usize, &char)| {
+            let c = if c == '<' || c == '>' || c == '!' {
+                if let Some('=') = text.get(index + 1) {
+                    let resulting_unicode_char = if c == '<' {
+                        unsafe { std::char::from_u32_unchecked(0x2264) }
+                    } else if c == '>' {
+                        unsafe { std::char::from_u32_unchecked(0x2265) }
+                    } else {
+                        unsafe { std::char::from_u32_unchecked(0x2260) }
+                    };
+                    resulting_unicode_char
+                } else {
+                    c
+                }
+            } else {
+                c
+            };
+            if c == '=' {
+                match text.get(index - 1) {
+                    Some('<') | Some('>') | Some('!') => None,
+                    _ => self.get_glyph(c),
+                }
+            } else {
+                self.get_glyph(c)
+            }
+        };
+
         text.iter()
-            .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
+            .enumerate()
+            .filter_map(parse_special_symbols)
+            // .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
+            .map(|glyph_info| glyph_info.advance)
             .fold(Size { width: 0i32, height: self.font.row_height() }, |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }))
     }
 }

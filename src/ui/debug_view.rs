@@ -56,8 +56,10 @@ impl<'app> DebugView<'app> {
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
+        if self.visibile {
+            
+        
         let Anchor(top_x, top_y) = self.view.anchor;
-
         let proc_info = ProcessInfo::new();
         let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, shared_lib_code } = proc_info.unwrap();
 
@@ -80,12 +82,12 @@ Debug Information
             virtual_mem_usage_peak as f64 / 1024.0,
             shared_lib_code as f64 / 1024.0,
             frame_time,
-            fps
-        )
-        .chars()
-        .collect();
-        self.view.text_renderer.prepare_data_iter(r.iter(), top_x, top_y);
-        self.view.set_need_redraw();
+            fps)
+            .chars()
+            .collect();
+            self.view.text_renderer.prepare_data_iter(r.iter(), top_x, top_y);
+            self.view.set_need_redraw();
+        }
     }
 
     pub fn draw(&mut self) {
