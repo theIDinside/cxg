@@ -320,7 +320,7 @@ impl<'app> Application<'app> {
             Key::Backspace if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
                     v.delete(Movement::Backward(TextKind::Word, 1));
-                } else if modifier.is_empty() {
+                } else {
                     v.delete(Movement::Backward(TextKind::Char, 1));
                 }
             }
