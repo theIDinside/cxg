@@ -273,7 +273,7 @@ impl SimpleBuffer {
     }
 
     fn cursor_step_forward(&mut self, count: usize) {
-        if *self.cursor.absolute() + 1 <= self.data.len() {
+        if *self.cursor.absolute().offset(1) <= self.data.len() {
             for _ in 0..count {
                 if let Some('\n') = self.get(self.cursor.absolute()) {
                     self.cursor.row = self.cursor.row.offset(1);
@@ -301,7 +301,7 @@ impl SimpleBuffer {
             for _ in 0..count {
                 self.cursor.pos = self.cursor.pos.offset(-1);
                 if let Some('\n') = self.get(self.cursor.absolute()) {
-                    self.cursor.row -= self.cursor.row.offset(-1);
+                    self.cursor.row = self.cursor.row.offset(-1);
                     self.cursor.col =
                         metadata::Column(*(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))))
                 } else {
@@ -517,48 +517,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 TextKind::Char => self.cursor_step_backward(1),
                 TextKind::Word => {
                     if let Some(c) = self.get(self.cursor.pos) {
-                        if c.is_whitespace() {
-                            self.cursor = self
-                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |c| c.is_alphanumeric() || c.is_ascii_punctuation())
-                                .and_then(|i| {
-                                    let c = self.get_unchecked(i);
-                                    // predicate P generator
-                                    let P = if c.is_alphanumeric() {
-                                        |c: char| !c.is_alphanumeric()
-                                    } else {
-                                        |c: char| !c.is_ascii_punctuation()
-                                    };
-                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
-                                })
-                                .and_then(|i| self.cursor_from_metadata(i))
-                                .unwrap_or(BufferCursor::default());
-                        } else if c.is_alphanumeric() {
-                            self.cursor = self
-                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |ch| !ch.is_alphanumeric())
-                                .and_then(|i| {
-                                    let _c = self.get_unchecked(i);
-                                    // predicate P generator
-                                    let P = if _c.is_ascii_punctuation() {
-                                        |c: char| !c.is_ascii_punctuation()
-                                    } else {
-                                        |c: char| c.is_ascii_punctuation()
-                                    };
-                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
-                                })
-                                .and_then(|i| self.cursor_from_metadata(i))
-                                .unwrap_or(BufferCursor::default())
-                        } else {
-                            // means we is_ascii_punctuation is true
-                            self.cursor = self
-                                .find_index_of_prev_from(self.cursor.pos.offset(-1), |ch| !ch.is_ascii_punctuation())
-                                .and_then(|i| {
-                                    let _c = self.get_unchecked(i);
-                                    let P = if _c.is_alphanumeric() { |c: char| !c.is_alphanumeric() } else { |c: char| !c.is_whitespace() };
-                                    self.find_index_of_prev_from(i.offset(-1), P).map(|i| i.offset(1))
-                                })
-                                .and_then(|i| self.cursor_from_metadata(i))
-                                .unwrap_or(BufferCursor::default())
-                        }
+                        let predicate = predicate_generate(c);
+                        let start_position = self.cursor.pos.offset(-1);
+                        let i = self.find_index_of_prev_from(start_position, predicate).unwrap_or(Index::default());
+                        let len = *(self.cursor.pos - i);
+                        self.cursor_step_backward(len);
                     }
                 }
                 TextKind::Line => {
@@ -573,18 +536,12 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 TextKind::Word => {
                     if let Some(c) = self.get(self.cursor.pos) {
                         let start = self.cursor.pos.offset(1);
-                        let new_pos = if c.is_whitespace() {
-                            self.find_index_of_next_from(start, |c| !c.is_whitespace())
-                                .and_then(|i| self.cursor_from_metadata(i))
-                        } else if c.is_alphanumeric() {
-                            self.find_index_of_next_from(start, |c| !c.is_alphanumeric())
-                                .and_then(|i| self.cursor_from_metadata(i))
-                        } else {
-                            self.find_index_of_next_from(start, |c| !c.is_ascii_punctuation())
-                                .and_then(|i| self.cursor_from_metadata(i))
-                        };
+                        let predicate = predicate_generate(c);
+                        let new_pos = self.find_index_of_next_from(start, predicate).unwrap_or(Index(self.len())); // .and_then(|i| self.cursor_from_metadata(i));
+                        let step_length = *(new_pos - self.cursor.pos);
+                        self.cursor_step_forward(step_length);
 
-                        self.cursor = new_pos.unwrap_or(self.cursor_from_metadata(Index(self.len())).unwrap());
+                        // self.cursor = new_pos.unwrap_or(self.cursor_from_metadata(Index(self.len())).unwrap());
                     }
                 }
                 TextKind::Line => {
@@ -603,5 +560,17 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     fn set_cursor(&mut self, cursor: BufferCursor) {
         self.cursor = cursor;
+    }
+}
+
+
+#[inline(always)]
+pub fn predicate_generate(c: &char) -> fn(char) -> bool {
+    if c.is_whitespace() {
+        |ch: char| !ch.is_whitespace()
+    } else if c.is_alphanumeric() {
+        |ch: char| !ch.is_alphanumeric()
+    } else {
+        |ch: char| !ch.is_ascii_punctuation()
     }
 }
