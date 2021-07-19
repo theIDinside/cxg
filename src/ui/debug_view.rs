@@ -24,7 +24,7 @@ pub struct ProcessInfo {
 
 impl ProcessInfo {
     pub fn new() -> std::io::Result<ProcessInfo> {
-        let mut rss = {
+        let rss = {
             let mut file = std::fs::File::open("/proc/self/smaps_rollup").expect("failed to open smaps_rollup");
             let mut buf = String::with_capacity(1024);
             file.read_to_string(&mut buf)?;
