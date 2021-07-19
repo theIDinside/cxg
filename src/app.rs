@@ -342,7 +342,7 @@ impl<'app> Application<'app> {
                 }
             }
 
-            Key::F1 => {
+            Key::F1 => if action == Action::Press {
                 if modifier == Modifiers::Control {
                     // v.insert_slice(&vec[..]);
                     v.insert_str(TEST_DATA);
