@@ -3,7 +3,7 @@ use super::coordinate::{Anchor, Size};
 use super::panel::PanelId;
 use crate::datastructure::generic::Vec2i;
 use crate::opengl::rect::RectRenderer;
-use crate::opengl::text::TextRenderer;
+use crate::opengl::text::{TextRenderer};
 use crate::opengl::types::RGBAColor;
 use crate::textbuffer::cursor::BufferCursor;
 use crate::textbuffer::metadata::{Index, Line};
@@ -63,6 +63,7 @@ pub struct Popup<'app> {
 }
 
 impl<'app> Popup<'app> {
+
     pub fn reset(&mut self) {
         self.view.buffer.clear();
         self.view.set_need_redraw();
@@ -91,9 +92,10 @@ impl<'a> std::fmt::Debug for View<'a> {
 
 impl<'a> View<'a> {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32, row_height: i32,
+        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32,
         bg_color: RGBAColor,
     ) -> View<'a> {
+        let row_height = text_renderer.font.row_height();
         let cursor_width = text_renderer.get_cursor_width_size();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
