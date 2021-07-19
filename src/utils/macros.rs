@@ -132,7 +132,8 @@ macro_rules! IndexingType {
 
         impl $safe_type {
             /// Takes the Index and adds the offset provided as parameter. If the result is negative
-            /// the returned Index is Index(0). Thus, this type is always safe to add an offset to.
+            /// the returned Index is Index(0). Thus, this type is always safe to add an offset to, that's negative
+            /// This is the *absolute* best reason for wrapping usize and primitive types into a struct like this.
             pub fn offset(&self, offset: isize) -> Self {
                 let Self(value) = self;
                 let value = *value as isize;
