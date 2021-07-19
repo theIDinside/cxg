@@ -12,6 +12,7 @@ use crate::ui::{
     UID,
 };
 
+
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
@@ -78,12 +79,12 @@ impl<'app> Application<'app> {
 
         // Create the default 1st view
         let (tr, rr) = make_renderers();
-        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 0, 1024, 768, fonts[0].row_height(), ACTIVE_VIEW_BACKGROUND);
+        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 0, 1024, 768, ACTIVE_VIEW_BACKGROUND);
         panels[0].add_view(view);
 
         // Create the popup UI
         let (tr, rr) = make_renderers();
-        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, fonts[0].row_height(), ACTIVE_VIEW_BACKGROUND);
+        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, ACTIVE_VIEW_BACKGROUND);
         popup.set_anchor((250, 768 - 250).into());
         popup.update();
         popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
@@ -92,7 +93,7 @@ impl<'app> Application<'app> {
         // Creating the Debug View UI
         let (tr, rr) = make_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 0, 1014, 758, fonts[0].row_height(), dbg_view_bg_color);
+        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 0, 1014, 758, dbg_view_bg_color);
         debug_view.set_anchor(Anchor(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
@@ -147,7 +148,6 @@ impl<'app> Application<'app> {
                 0,
                 width,
                 height,
-                font.row_height(),
                 ACTIVE_VIEW_BACKGROUND,
             );
             self.active_ui_element = UID::View(*view.id);
@@ -305,6 +305,8 @@ impl<'app> Application<'app> {
                 if modifier == Modifiers::Control {
                     // v.move_cursor(Movement::Forward(TextKind::Word, 1));
                     v.move_cursor(Movement::End(TextKind::Word));
+                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
+                    v.move_cursor(Movement::End(TextKind::Block));
                 } else {
                     v.move_cursor(Movement::Forward(TextKind::Char, 1));
                 }
@@ -313,6 +315,8 @@ impl<'app> Application<'app> {
                 if modifier == Modifiers::Control {
                     // v.move_cursor(Movement::Backward(TextKind::Word, 1));
                     v.move_cursor(Movement::Begin(TextKind::Word));
+                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
+                    v.move_cursor(Movement::Begin(TextKind::Block));
                 } else {
                     v.move_cursor(Movement::Backward(TextKind::Char, 1));
                 }
