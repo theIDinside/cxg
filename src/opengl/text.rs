@@ -27,7 +27,7 @@ impl Into<RendererId> for u32 {
 
 pub struct TextRenderer<'a> {
     gl_handle: super::glinit::OpenGLHandle,
-    font: &'a Font,
+    pub font: &'a Font,
     pub pristine: bool,
     vtx_data: Vec<TVertex>,
     indices: Vec<u32>,
