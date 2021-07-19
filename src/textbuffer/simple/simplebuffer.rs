@@ -227,11 +227,13 @@ impl SimpleBuffer {
     /// to return an Option of a well formed BufferCursor
 
     fn find_index_of_prev_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
-        self.data[0..=*start_position]
-            .into_iter()
-            .rev()
-            .position(|c| f(*c))
-            .map(|len_from_pos| metadata::Index(*start_position - len_from_pos))
+        self.data.get(0..=(*start_position)).and_then(|range| {
+            range
+                .iter()
+                .rev()
+                .position(|c| f(*c))
+                .map(|len_from_pos| metadata::Index(*start_position - len_from_pos))
+        })
     }
 
     fn find_index_of_next_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
@@ -525,7 +527,6 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     #[allow(non_snake_case)]
     fn move_cursor(&mut self, dir: Movement) {
         use super::super::metadata::Index;
-
         match dir {
             Movement::Forward(kind, count) => {
                 self.cursor_move_forward(kind, count);
@@ -552,7 +553,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         self.cursor_goto(start);
                     }
                 }
-                TextKind::Block => todo!(),
+                TextKind::Block => {
+                    if let Some(block_begin) = self.find_index_of_prev_from(self.cursor.pos.offset(-1), |f| f == '{') {
+                        self.cursor_goto(block_begin);
+                    }
+                }
             },
             Movement::End(kind) => match kind {
                 TextKind::Char => self.cursor_step_forward(1),
@@ -572,7 +577,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         self.cursor_goto(end);
                     }
                 }
-                TextKind::Block => todo!(),
+                TextKind::Block => {
+                    if let Some(block_begin) = self.find_index_of_next_from(self.cursor.pos.offset(1), |f| f == '}') {
+                        self.cursor_goto(block_begin);
+                    }
+                }
             },
         }
     }
