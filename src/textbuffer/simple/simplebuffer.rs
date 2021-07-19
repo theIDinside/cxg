@@ -345,10 +345,13 @@ impl SimpleBuffer {
             let b = self.meta_data.line_length(next_line_index);
             debugger_catch!(a == b, DebuggerCatch::Handle(format!("Line length operation failed")));
         }
-        let new_cursor = self.line_length(next_line_index).and_then(|next_line_length| {
-            let metadata::Index(line_begin) = self.meta_data.get(self.cursor.row.offset(1)).unwrap();
-            let new_buffer_index: usize = line_begin + if *self.cursor_col() <= *next_line_length - 1 { *self.cursor_col() } else { *next_line_length - 1 };
-            Some(self.cursor_from_metadata(metadata::Index(new_buffer_index)).unwrap())
+        let new_cursor = self.line_length(next_line_index).map(|l| l.as_column()).and_then(|next_line_length| {
+            if let Some(line_begin) = self.meta_data.get(self.cursor.row.offset(1)) {
+                let new_buffer_index = line_begin.offset(if self.cursor_col() <= next_line_length.offset(-1) { *self.cursor_col() as _ } else { *(next_line_length.offset(-1)) as _ });
+                self.cursor_from_metadata(new_buffer_index)
+            } else {
+                None
+            }
         });
         self.set_cursor(new_cursor.unwrap_or(self.cursor));
     }
@@ -507,7 +510,6 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     fn rebuild_metadata(&mut self) {
         self.meta_data.clear_line_index_metadata();
-        self.meta_data.push_new_line_begin(metadata::Index(0));
         for (i, ch) in self.data.iter().enumerate() {
             if *ch == '\n' {
                 self.meta_data.push_new_line_begin(metadata::Index(i + 1));
