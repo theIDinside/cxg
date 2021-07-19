@@ -140,9 +140,8 @@ impl<'app> Panel<'app> {
             Some(self.children.remove(pos))
         } else {
             None
-        }        
+        }
     }
-
 
     pub fn resize(&mut self, w: i32, h: i32) {
         let old_size = self.size;

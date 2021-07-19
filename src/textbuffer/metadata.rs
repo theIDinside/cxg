@@ -109,6 +109,7 @@ impl MetaData {
     /// Clears the line index metadata
     pub fn clear_line_index_metadata(&mut self) {
         self.line_begin_indices.clear();
+        self.line_begin_indices.push(Index(0));
     }
 
     pub fn update_line_metadata_after_line(&mut self, line: Line, shift_amount: i64) {

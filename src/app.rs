@@ -18,7 +18,7 @@ use std::sync::mpsc::Receiver;
 static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
-static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r:0.071, g: 0.102, b: 0.1242123, a: 1.0 };
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.102, b: 0.1242123, a: 1.0 };
 
 pub struct Application<'app> {
     /// Window Title
@@ -38,7 +38,7 @@ pub struct Application<'app> {
     /// The panels, which hold the different views, and manages their layout and size
     panels: Vec<Panel<'app>>,
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
-    popup: Option<Popup<'app>>,
+    popup: Popup<'app>,
     /// The active element's id
     active_ui_element: UID,
     /// Whether or not we're in debug interface mode (showing different kinds of debug information)
@@ -87,7 +87,7 @@ impl<'app> Application<'app> {
         popup.set_anchor((250, 768 - 250).into());
         popup.update();
         popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
-        let popup = Some(Popup { visible: false, view: popup });
+        let popup = Popup { visible: false, view: popup };
 
         // Creating the Debug View UI
         let (tr, rr) = make_renderers();
@@ -119,13 +119,10 @@ impl<'app> Application<'app> {
     }
 
     pub fn decorate_active_view(&mut self) {
-        let view = unsafe {
-            self.active_view.as_mut().unwrap()
-        };
+        let view = unsafe { self.active_view.as_mut().unwrap() };
         view.bg_color = ACTIVE_VIEW_BACKGROUND;
         view.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
         view.update();
-
     }
 
     /// Creates a text view and makes that the focused UI element
@@ -186,12 +183,12 @@ impl<'app> Application<'app> {
             view.window_renderer.set_color(VIEW_BACKGROUND);
             view.id
         };
-        
+
         let mut iter = self.panels.iter().flat_map(|p| p.children.iter()).cycle();
         let mut next = false;
         while let Some(it) = iter.next() {
             if next {
-                self.active_view =  it as *const _ as *mut _ ;
+                self.active_view = it as *const _ as *mut _;
                 break;
             }
             if (*it).id == id {
@@ -204,8 +201,20 @@ impl<'app> Application<'app> {
         self.decorate_active_view();
     }
 
-    pub fn get_active_view(&self) -> &mut View<'app> {
-        unsafe { &mut *self.active_view }
+    pub fn get_active_view(&mut self) -> &mut View<'app> {
+        if self.popup.visible {
+            return unsafe { &mut *(&self.popup.view as *const _ as *mut _) };
+        } else {
+            unsafe { &mut *self.active_view }
+        }
+    }
+
+    pub fn get_active_view_ptr(&mut self) -> *mut View<'app> {
+        if self.popup.visible {
+            &mut self.popup.view as *mut _
+        } else {
+            self.active_view
+        }
     }
 
     pub fn set_active_view(&mut self, view: &View<'app>) {
@@ -270,9 +279,8 @@ impl<'app> Application<'app> {
                     self.handle_resize_event(width, height);
                 }
                 glfw::WindowEvent::Char(ch) => {
-                    if let Some(v) = unsafe { self.active_view.as_mut() } {
-                        v.insert_ch(ch);
-                    }
+                    let v = self.get_active_view();
+                    v.insert_ch(ch);
                 }
                 glfw::WindowEvent::Key(key, _, action, m) => {
                     self.handle_key_event(window, key, action, m);
@@ -283,8 +291,7 @@ impl<'app> Application<'app> {
     }
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
-        let v = unsafe { self.active_view.as_mut().unwrap() };
-
+        let v = unsafe { self.get_active_view_ptr().as_mut().unwrap() };
         match key {
             Key::Home => match modifier {
                 Modifiers::Control => v.cursor_goto(crate::textbuffer::metadata::Index(0)),
@@ -336,9 +343,10 @@ impl<'app> Application<'app> {
                     // v.insert_slice(&vec[..]);
                     v.insert_str(TEST_DATA);
                 } else {
-                    self.debug = !self.debug;
+                    self.set_debug(!self.debug);
+                    // self.debug = !self.debug;
                     println!("Opening debug interface...");
-                    println!("Application window: {:?}", self.window_size);
+                    println!("Application window: {:?}", &self.window_size);
                     for p in self.panels.iter() {
                         println!("{:?}", p);
                     }
@@ -353,9 +361,7 @@ impl<'app> Application<'app> {
             }
             Key::P if modifier == Modifiers::Control => {
                 if action == Action::Press {
-                    if let Some(p) = self.popup.as_mut() {
-                        p.visible = !p.visible;
-                    }
+                    self.popup.visible = !self.popup.visible;
                 }
             }
             Key::D if modifier == Modifiers::Control && action == Action::Press => {
@@ -409,11 +415,10 @@ impl<'app> Application<'app> {
             v.draw();
         }
 
-        if let Some(v) = self.popup.as_mut() {
-            if v.visible {
-                v.view.draw();
-            }
+        if self.popup.visible {
+            self.popup.view.draw();
         }
+
         self.status_bar.draw();
 
         if self.debug_view.visibile {
@@ -422,6 +427,13 @@ impl<'app> Application<'app> {
     }
 
     pub fn close_active_view(&mut self) {
+        // we never detroy the popup window until the application is exited. So hitting "ctrl+w" or whatever keybinding we might have,
+        // is just going to cancel the popup and hide it again
+        if self.popup.visible {
+            self.popup.visible = false;
+            self.popup.reset();
+            return;
+        }
         // todo: we need to ask user,  what to do with unsaved files etc.
         if self.panels.iter().map(|p| p.children.len()).sum::<usize>() == 1 {
             // We only have 1 view/window open. Close the program. In the future, we might have some file browser or whatever, that'll be a "main/unclosable" that will be displayed instead. Until then though
@@ -430,22 +442,24 @@ impl<'app> Application<'app> {
             return;
         }
 
-        let view = unsafe {
-            self.active_view.as_mut().unwrap()
-        };
+        let view = unsafe { self.active_view.as_mut().unwrap() };
 
         let view_id = view.id;
         let panel_id = view.panel_id.unwrap();
         let panel = self.panels.get_mut(*panel_id as usize).unwrap();
-        
+
         self.active_view = {
             let v = panel.remove_view(view_id).unwrap();
             println!("Closing and dropping resources of view: {:?}", v);
             panel.children.last_mut().unwrap() as _
         };
-        
+
         panel.layout();
-        self.decorate_active_view();        
+        self.decorate_active_view();
         self.active_ui_element = UID::View(*self.get_active_view().id);
+    }
+
+    pub fn set_debug(&mut self, set: bool) {
+        self.debug = set;
     }
 }

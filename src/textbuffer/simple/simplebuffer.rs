@@ -7,7 +7,7 @@ use crate::{
         metadata::{self},
         TextKind,
     },
-    utils::copy_slice_to,
+    utils::{copy_slice_to, AsUsize},
 };
 
 #[cfg(debug_assertions)]
@@ -324,9 +324,9 @@ impl SimpleBuffer {
             .and_then(|index| {
                 self.meta_data
                     .get_line_length_of(prior_line)
-                    .map(|metadata::Length(len)| {
-                        let pos = *index + min(len - 1, *self.cursor_col());
-                        self.cursor_from_metadata(metadata::Index(pos))
+                    .map(|len| {
+                        let pos = index.offset(min(len.offset(-1).as_usize() as _, *self.cursor_col() as _));
+                        self.cursor_from_metadata(pos)
                     })
                     .unwrap_or(self.cursor_from_metadata(index))
             })
@@ -368,8 +368,28 @@ impl std::ops::IndexMut<usize> for SimpleBuffer {
     }
 }
 
+impl std::ops::Index<std::ops::Range<usize>> for SimpleBuffer {
+    type Output = [char];
+    #[inline(always)]
+    fn index(&self, index: std::ops::Range<usize>) -> &Self::Output {
+        unsafe { self.data.get_unchecked(index) }
+    }
+}
+
+impl std::ops::IndexMut<std::ops::Range<usize>> for SimpleBuffer {
+    fn index_mut(&mut self, index: std::ops::Range<usize>) -> &mut Self::Output {
+        unsafe { self.data.get_unchecked_mut(index) }
+    }
+}
+
 impl<'a> CharBuffer<'a> for SimpleBuffer {
     type ItemIterator = std::slice::Iter<'a, char>;
+
+    fn clear(&mut self) {
+        self.data.clear();
+        self.cursor = BufferCursor::default();
+        self.meta_data.clear_line_index_metadata();
+    }
 
     #[inline(always)]
     fn cursor_row(&self) -> metadata::Line {
@@ -457,7 +477,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     let idx_pos = self.cursor.pos;
                     self.move_cursor(Movement::Begin(TextKind::Word));
                     let len = *(idx_pos - self.cursor.pos);
-                    for _ in 0 .. len {
+                    for _ in 0..len {
                         self.remove();
                     }
                 }
@@ -519,7 +539,10 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     if let Some(c) = self.get(self.cursor.pos.offset(-1)) {
                         let predicate = predicate_generate(c);
                         let start_position = self.cursor.pos.offset(-2);
-                        let i = self.find_index_of_prev_from(start_position, predicate).unwrap_or(Index::default()).offset(1);
+                        let i = self
+                            .find_index_of_prev_from(start_position, predicate)
+                            .unwrap_or(Index::default())
+                            .offset(1);
                         let len = *(self.cursor.pos - i);
                         self.cursor_step_backward(len);
                     }
@@ -562,7 +585,6 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         self.cursor = cursor;
     }
 }
-
 
 #[inline(always)]
 pub fn predicate_generate(c: &char) -> fn(char) -> bool {

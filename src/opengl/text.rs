@@ -114,6 +114,7 @@ impl<'a> TextRenderer<'a> {
 
         let mut current_x = x;
         let mut current_y = y - self.font.row_height();
+        // we need to be able to peek ahead
         let mut text = text.peekable();
         while let Some(c) = text.next() {
             let c = *c;
@@ -128,33 +129,16 @@ impl<'a> TextRenderer<'a> {
                     Some('=') => match c {
                         '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
                         '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
-                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) }
-                        _ => c
-                    }, 
-                    _ => c
+                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) },
+                        _ => c,
+                    },
+                    _ => c,
                 };
-                if resulting_unicode != c { text.next(); }
+                if resulting_unicode != c {
+                    text.next();
+                }
                 resulting_unicode
             };
-            /* 
-            let c = if c == '<' || c == '>' || c == '!' {                  
-                if let Some('=') = text.peek() {
-                    let resulting_unicode_char = if c == '<' {
-                        unsafe { std::char::from_u32_unchecked(0x2264) }
-                    } else if c == '>' {
-                        unsafe { std::char::from_u32_unchecked(0x2265) }
-                    } else {
-                        unsafe { std::char::from_u32_unchecked(0x2260) }
-                    };
-                    text.next();
-                    resulting_unicode_char
-                } else {
-                    c
-                }
-            } else {
-                c
-            };
-            */
 
             if let Some(g) = self.font.get_glyph(c) {
                 let super::types::RGBColor { r: red, g: green, b: blue } = color;
@@ -191,51 +175,6 @@ impl<'a> TextRenderer<'a> {
                 panic!("Could not find glyph for {}, {:?}", c, buf);
             }
         }
-
-        /*
-            for c in text {
-                let c = *c;
-                if c == '\n' {
-                    current_x = x;
-                    current_y -= self.font.row_height();
-                    continue;
-                }
-                if let Some(g) = self.font.get_glyph(c) {
-                    let super::types::RGBColor { r: red, g: green, b: blue } = color;
-                    let xpos = current_x as f32 + g.bearing.x as f32;
-                    let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
-                    let x0 = g.x0 as f32 / self.font.texture_width() as f32;
-                    let x1 = g.x1 as f32 / self.font.texture_width() as f32;
-                    let y0 = g.y0 as f32 / self.font.texture_height() as f32;
-                    let y1 = g.y1 as f32 / self.font.texture_height() as f32;
-
-                    let w = g.width();
-                    let h = g.height();
-
-                    let vtx_index = self.vtx_data.len() as u32;
-                    // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
-
-                    self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
-                    self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
-                    self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
-                    self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
-
-                    self.indices.extend_from_slice(&[
-                        vtx_index,
-                        vtx_index + 1,
-                        vtx_index + 2,
-                        vtx_index,
-                        vtx_index + 2,
-                        vtx_index + 3,
-                    ]);
-                    current_x += g.advance;
-                } else {
-                    let mut buf = [0; 4];
-                    c.encode_utf16(&mut buf);
-                    panic!("Could not find glyph for {}, {:?}", c, buf);
-                }
-            }
-        */
         self.pristine = false;
     }
 

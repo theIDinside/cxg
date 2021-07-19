@@ -97,7 +97,10 @@ impl Font {
         let mut glyph_cache: HashMap<char, GlyphInfo> = HashMap::new();
 
         for c in characters {
-            face.load_char(c as usize, ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT | ft::face::LoadFlag::COLOR)?;
+            face.load_char(
+                c as usize,
+                ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT | ft::face::LoadFlag::COLOR,
+            )?;
             let glyph = face.glyph();
             let bitmap = glyph.bitmap();
             max_glyph_dimensions.y = std::cmp::max(bitmap.rows(), max_glyph_dimensions.x);
@@ -118,8 +121,7 @@ impl Font {
                         debugger_catch!(!(pixel_index >= 262144), crate::DebuggerCatch::Handle("Pixel index must remaing below 262144".into()));
                         pixel_index = pixels.len() - 1;
                     }
-                    pixels[pixel_index] 
-                    = bitmap.buffer()[bitmap_index];
+                    pixels[pixel_index] = bitmap.buffer()[bitmap_index];
                 }
             }
 

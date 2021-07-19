@@ -115,6 +115,8 @@ pub trait CharBuffer<'a> {
     fn is_valid_index(&self, index: metadata::Index) -> bool {
         self.len() >= *index
     }
+
+    fn clear(&mut self);
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.

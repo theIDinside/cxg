@@ -11,11 +11,11 @@ pub struct OpenGLHandle {
 
 impl Drop for OpenGLHandle {
     fn drop(&mut self) {
-            unsafe {
-                gl::DeleteVertexArrays(1, &self.vao as _);
-                gl::DeleteBuffers(1, &self.vbo as _);
-                gl::DeleteBuffers(1, &self.ebo as _);
-            }
+        unsafe {
+            gl::DeleteVertexArrays(1, &self.vao as _);
+            gl::DeleteBuffers(1, &self.vbo as _);
+            gl::DeleteBuffers(1, &self.ebo as _);
+        }
     }
 }
 

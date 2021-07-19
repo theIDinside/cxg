@@ -77,4 +77,8 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn set_cursor(&mut self, cursor: BufferCursor) {
         todo!()
     }
+
+    fn clear(&mut self) {
+        todo!()
+    }
 }

@@ -57,9 +57,16 @@ pub struct View<'a> {
     pub bg_color: RGBAColor,
 }
 
-pub struct Popup<'a> {
+pub struct Popup<'app> {
     pub visible: bool,
-    pub view: View<'a>,
+    pub view: View<'app>,
+}
+
+impl<'app> Popup<'app> {
+    pub fn reset(&mut self) {
+        self.view.buffer.clear();
+        self.view.set_need_redraw();
+    }
 }
 
 impl<'a> std::ops::Deref for Popup<'a> {
@@ -206,7 +213,7 @@ impl<'a> View<'a> {
         if input_not_valid(ch) {
             return;
         }
-        
+
         self.buffer.insert(ch);
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
             self.adjust_view_range();
