@@ -13,6 +13,13 @@ IndexingType!( /** Wrapper around usize to signal that this value holds a column
 IndexingType!( /** Wrapper around a usize to signal that this value holds the length of a range in buffer */,
     Length, usize);
 
+impl Length {
+    pub fn as_column(self) -> Column {
+        Column(*self)
+    }
+}
+
+
 #[derive(Debug)]
 pub struct MetaData {
     pub file_name: Option<PathBuf>,
