@@ -16,12 +16,26 @@ pub struct ProcessInfo {
     virtual_mem_usage_peak: usize,
     // virtual memory usage
     virtual_mem_usage: usize,
+    
+    rss: usize,
     // shared library code size
     shared_lib_code: usize,
 }
 
 impl ProcessInfo {
     pub fn new() -> std::io::Result<ProcessInfo> {
+
+        let mut rss = {
+            let mut file = std::fs::File::open("/proc/self/smaps_rollup").expect("failed to open smaps_rollup");
+            let mut buf = String::with_capacity(1024);
+            file.read_to_string(&mut buf)?;
+            
+            let data: String = buf.lines().skip(1).take(1).flat_map(|line| {
+                line.chars().filter(|c| c.is_digit(10))
+            }).collect();
+            data.parse().unwrap()
+        };
+
         let mut file = std::fs::File::open("/proc/self/status").expect("failed to open statm");
         let mut buf = String::with_capacity(1024);
         file.read_to_string(&mut buf)?; // .expect("failed to read data");
@@ -38,6 +52,7 @@ impl ProcessInfo {
             pid: items.remove(0).parse().expect("failed to parse pid"),
             virtual_mem_usage_peak: items.remove(0).parse().expect("failed to parse peak virtual memory usage"),
             virtual_mem_usage: items.remove(0).parse().expect("failed to parse virtual memory usage"),
+            rss,
             shared_lib_code: items.remove(0).parse().expect("failed to parse shared library code size"),
         })
     }
@@ -61,7 +76,7 @@ impl<'app> DebugView<'app> {
         
         let Anchor(top_x, top_y) = self.view.anchor;
         let proc_info = ProcessInfo::new();
-        let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, shared_lib_code } = proc_info.unwrap();
+        let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
 
         let r: Vec<_> = format!(
 "
@@ -73,6 +88,7 @@ Debug Information
  |  > Usage:            [{:.2}MB]
  |  > Peak usage:       [{:.2}MB]
  |  > Shared lib code   [{:.2}MB]
+ |  > RSS               [{:.2}MB]
  |  Timing  
  |  > Frame time:       [{:.5}ms]
  |  > Frame speed       [{:.2}f/s]",
@@ -81,6 +97,7 @@ Debug Information
             virtual_mem_usage as f64 / 1024.0,
             virtual_mem_usage_peak as f64 / 1024.0,
             shared_lib_code as f64 / 1024.0,
+            rss as f64 / 1024.0,
             frame_time,
             fps)
             .chars()
