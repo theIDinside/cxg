@@ -516,10 +516,10 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             Movement::Begin(kind) => match kind {
                 TextKind::Char => self.cursor_step_backward(1),
                 TextKind::Word => {
-                    if let Some(c) = self.get(self.cursor.pos) {
+                    if let Some(c) = self.get(self.cursor.pos.offset(-1)) {
                         let predicate = predicate_generate(c);
-                        let start_position = self.cursor.pos.offset(-1);
-                        let i = self.find_index_of_prev_from(start_position, predicate).unwrap_or(Index::default());
+                        let start_position = self.cursor.pos.offset(-2);
+                        let i = self.find_index_of_prev_from(start_position, predicate).unwrap_or(Index::default()).offset(1);
                         let len = *(self.cursor.pos - i);
                         self.cursor_step_backward(len);
                     }
