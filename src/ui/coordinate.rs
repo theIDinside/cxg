@@ -139,7 +139,7 @@ impl Size {
                 let diff_width = total_width - (divisor * element_width);
                 let mut result = vec![];
                 for _ in 0..(divisor - 1) {
-                    result.push(Size { width: element_width, height: self.height })
+                    result.push(Size { width: element_width, height: self.height - margin * 2 })
                 }
                 result.push(Size { width: element_width + diff_width, height: self.height - margin * 2 });
                 result
