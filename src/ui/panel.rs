@@ -9,13 +9,14 @@ pub struct PanelId(pub u32);
 
 impl std::ops::Deref for PanelId {
     type Target = u32;
-
+    #[inline(always)]
     fn deref<'a>(&'a self) -> &'a u32 {
         &self.0
     }
 }
 
 impl Into<PanelId> for u32 {
+    #[inline(always)]
     fn into(self) -> PanelId {
         PanelId(self)
     }
@@ -115,12 +116,15 @@ impl<'app> Panel<'app> {
                     }
                 }
                 Layout::Horizontal(space) => {
-                    let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
-                    for (c, size) in self.children.iter_mut().zip(child_sizes.into_iter()) {
-                        c.resize(size);
-                        c.set_anchor(anchor_iter);
-                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(size.width + *space as i32, 0));
-                    }
+                    let init_anchor = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
+                    self.children
+                        .iter_mut()
+                        .zip(child_sizes.iter())
+                        .fold(init_anchor, |anchor, (c, size)| {
+                            c.resize(*size);
+                            c.set_anchor(anchor);
+                            Anchor::vector_add(anchor, Vec2i::new(size.width + *space as i32, 0))
+                        });
                 }
             }
         }
