@@ -1,6 +1,10 @@
+use glfw::{Action, Key, Modifiers};
+
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
+use super::input::event::Input;
 use super::panel::PanelId;
+use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::{TextRenderer};
@@ -9,16 +13,10 @@ use crate::textbuffer::cursor::BufferCursor;
 use crate::textbuffer::metadata::{Index, Line};
 use crate::textbuffer::simple::simplebuffer::SimpleBuffer;
 use crate::textbuffer::{CharBuffer, Movement, TextKind};
-use crate::ui::font::Font;
 
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
 use std::path::Path;
-
-pub trait Viewable {
-    fn set_anchor(&mut self, anchor: Anchor);
-    fn resize(&mut self, size: Size);
-}
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct ViewId(pub u32);
@@ -35,6 +33,11 @@ impl Into<ViewId> for u32 {
     fn into(self) -> ViewId {
         ViewId(self)
     }
+}
+
+pub trait Viewable {
+    fn resize(&mut self, size: Size);
+    fn set_anchor(&mut self, anchor: Anchor);
 }
 
 pub struct View<'a> {
@@ -90,6 +93,79 @@ impl<'a> std::fmt::Debug for View<'a> {
     }
 }
 
+impl<'app> Input for View<'app> {
+    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+        match key {
+            Key::Home => match modifier {
+                Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
+                _ => self.move_cursor(Movement::Begin(TextKind::Line)),
+            },
+            Key::End => match modifier {
+                Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(self.buffer.len())),
+                _ => self.move_cursor(Movement::End(TextKind::Line)),
+            },
+            Key::Right if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    // self.move_cursor(Movement::Forward(TextKind::Word, 1));
+                    self.move_cursor(Movement::End(TextKind::Word));
+                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
+                    self.move_cursor(Movement::End(TextKind::Block));
+                } else {
+                    self.move_cursor(Movement::Forward(TextKind::Char, 1));
+                }
+            }
+            Key::Left if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    // self.move_cursor(Movement::Backward(TextKind::Word, 1));
+                    self.move_cursor(Movement::Begin(TextKind::Word));
+                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
+                    self.move_cursor(Movement::Begin(TextKind::Block));
+                } else {
+                    self.move_cursor(Movement::Backward(TextKind::Char, 1));
+                }
+            }
+            Key::Up if action == Action::Repeat || action == Action::Press => {
+                self.move_cursor(Movement::Backward(TextKind::Line, 1));
+            }
+            Key::Down if action == Action::Repeat || action == Action::Press => {
+                self.move_cursor(Movement::Forward(TextKind::Line, 1));
+            }
+            Key::Backspace if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    self.delete(Movement::Backward(TextKind::Word, 1));
+                } else {
+                    self.delete(Movement::Backward(TextKind::Char, 1));
+                }
+            }
+            Key::Delete if action == Action::Repeat || action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    self.delete(Movement::Forward(TextKind::Word, 1));
+                } else if modifier.is_empty() {
+                    self.delete(Movement::Forward(TextKind::Char, 1));
+                }
+            }
+
+            Key::F1 => if action == Action::Press {
+                if modifier == Modifiers::Control {
+                    self.insert_str(TEST_DATA);
+                }
+            }
+            Key::Enter if action == Action::Press || action == Action::Repeat => {
+                self.insert_ch('\n');
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_char(&mut self, ch: char) {
+        self.insert_ch(ch);
+    }
+
+    fn get_uid(&self) -> Option<super::UID> {
+        Some(super::UID::View(*self.id))
+    }
+}
+
 impl<'a> View<'a> {
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32,
@@ -125,10 +201,6 @@ impl<'a> View<'a> {
 
     pub fn set_manager_panel(&mut self, panel_id: PanelId) {
         self.panel_id = Some(panel_id);
-    }
-
-    pub fn watch_buffer(&mut self, id: u32) {
-        self.buffer_id = id;
     }
 
     pub fn set_need_redraw(&mut self) {
@@ -169,17 +241,20 @@ impl<'a> View<'a> {
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
             let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
 
-            let cursor_bound_box = BoundingBox::new(min, max);
+            let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
             line_bounding_box.min.x = top_x;
             line_bounding_box.max.x = top_x + self.size.width;
+
+            cursor_bound_box.min.y += 2;
+            cursor_bound_box.max.y -= 2;
 
             self.cursor_renderer.clear_data();
 
             self.cursor_renderer
                 .add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
             self.cursor_renderer
-                .add_rect(cursor_bound_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.5 });
+                .add_rect(cursor_bound_box, RGBAColor { r: 0.95, g: 0.75, b: 0.75, a: 0.5 });
             self.view_changed = false;
         }
 
@@ -200,15 +275,6 @@ impl<'a> View<'a> {
     pub fn resize(&mut self, size: Size) {
         self.size = size;
         self.displayable_lines = self.size.height / self.row_height;
-    }
-
-    pub fn calc_displayable_lines(&mut self, font: &Font) {
-        self.row_height = font.row_height();
-        self.displayable_lines = (self.size.height as f32 / font.row_height() as f32).floor() as _;
-    }
-
-    pub fn get_bounding_box(&self) -> BoundingBox {
-        BoundingBox::from((self.anchor, self.size))
     }
 
     pub fn insert_ch(&mut self, ch: char) {
