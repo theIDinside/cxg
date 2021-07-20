@@ -48,3 +48,8 @@ impl CountDigits for usize {
         }
     }
 }
+
+/// Converts a vec of u32 to Vec<char>, unsafely. If you fuck up the code points, it's on you.
+pub fn convert_vec_of_u32_utf(data: &[u32]) -> Vec<char> {
+    unsafe { data.iter().map(|&c| std::char::from_u32_unchecked(c)).collect() }
+}
