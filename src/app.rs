@@ -1,7 +1,7 @@
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
-use crate::textbuffer::{CharBuffer, Movement, TextKind};
 use crate::ui::debug_view::DebugView;
+use crate::ui::input::event::{Input, InvalidInput};
 use crate::ui::panel::PanelId;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
@@ -16,7 +16,7 @@ use crate::ui::{
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
-static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
+pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.102, b: 0.1242123, a: 1.0 };
@@ -37,21 +37,25 @@ pub struct Application<'app> {
     /// Shaders for rectangles/windows/views
     rect_shader: shaders::RectShader,
     /// The panels, which hold the different views, and manages their layout and size
-    panels: Vec<Panel<'app>>,
+    pub panels: Vec<Panel<'app>>,
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
     popup: Popup<'app>,
     /// The active element's id
-    active_ui_element: UID,
+    pub active_ui_element: UID,
     /// Whether or not we're in debug interface mode (showing different kinds of debug information)
     debug: bool,
     /// Pointer to the element which is receiving Keyboard Input.
-    active_view: *mut View<'app>,
+    pub active_view: *mut View<'app>,
+
+    pub active_input: &'app mut dyn Input,
     /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
     close_requested: bool,
     pub debug_view: DebugView<'app>,
 }
+
+static mut INVALID_INPUT: InvalidInput = InvalidInput {};
 
 impl<'app> Application<'app> {
     pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
@@ -99,7 +103,8 @@ impl<'app> Application<'app> {
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view);
 
-        let mut res = Application {
+        let mut res = 
+        Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
             panel_space_size: Size::new(1024, 768 - sb_size.height),
@@ -112,10 +117,23 @@ impl<'app> Application<'app> {
             active_ui_element: UID::View(active_view_id),
             debug: false,
             active_view: std::ptr::null_mut(),
+            active_input: unsafe { &mut INVALID_INPUT as &mut dyn Input },
             close_requested: false,
             debug_view,
         };
-        res.init();
+        let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
+        res.active_input = unsafe { &mut (*v) as &'app mut dyn Input };
+        
+        match res.active_ui_element {
+            UID::View(id) => {
+                if let Some(v) = res.panels.last_mut().unwrap().get_view(id.into()) {
+                    res.active_view = v;
+                }
+            }
+            UID::Panel(_id) => todo!(),
+            UID::None => todo!(),
+        }
+        // res.init();
         res
     }
 
@@ -158,6 +176,7 @@ impl<'app> Application<'app> {
                 (*self.active_view).update();
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
+            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
         } else {
             panic!("panel with id {} was not found", *parent_panel);
         }
@@ -199,6 +218,7 @@ impl<'app> Application<'app> {
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
         self.decorate_active_view();
+        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
     }
 
     pub fn get_active_view(&mut self) -> &mut View<'app> {
@@ -225,17 +245,6 @@ impl<'app> Application<'app> {
     pub fn update_status_bar(&mut self, text: String) {
         self.status_bar.update_string_contents(&text);
         self.status_bar.update();
-    }
-
-    pub fn init<'b>(&'b mut self) {
-        match self.active_ui_element {
-            UID::View(id) => {
-                if let Some(v) = self.panels.last_mut().unwrap().get_view(id.into()) {
-                    self.active_view = v;
-                }
-            }
-            UID::Panel(_id) => todo!(),
-        }
     }
 
     fn sync_shader_uniform_projection(&mut self) {
@@ -279,8 +288,9 @@ impl<'app> Application<'app> {
                     self.handle_resize_event(width, height);
                 }
                 glfw::WindowEvent::Char(ch) => {
-                    let v = self.get_active_view();
-                    v.insert_ch(ch);
+                    self.active_input.handle_char(ch);
+                    // let v = self.get_active_view();
+                    // v.insert_ch(ch);
                 }
                 glfw::WindowEvent::Key(key, _, action, m) => {
                     self.handle_key_event(window, key, action, m);
@@ -291,61 +301,24 @@ impl<'app> Application<'app> {
     }
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
-        let v = unsafe { self.get_active_view_ptr().as_mut().unwrap() };
         match key {
-            Key::Home => match modifier {
-                Modifiers::Control => v.cursor_goto(crate::textbuffer::metadata::Index(0)),
-                _ => v.move_cursor(Movement::Begin(TextKind::Line)),
-            },
-            Key::End => match modifier {
-                Modifiers::Control => v.cursor_goto(crate::textbuffer::metadata::Index(v.buffer.len())),
-                _ => v.move_cursor(Movement::End(TextKind::Line)),
-            },
-            Key::Right if action == Action::Repeat || action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    // v.move_cursor(Movement::Forward(TextKind::Word, 1));
-                    v.move_cursor(Movement::End(TextKind::Word));
-                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
-                    v.move_cursor(Movement::End(TextKind::Block));
-                } else {
-                    v.move_cursor(Movement::Forward(TextKind::Char, 1));
+            Key::W if modifier == Modifiers::Control && action == Action::Press => {
+                self.close_active_view();
+            }
+            Key::P if modifier == Modifiers::Control => {
+                if action == Action::Press {
+                    self.popup.visible = !self.popup.visible;
                 }
             }
-            Key::Left if action == Action::Repeat || action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    // v.move_cursor(Movement::Backward(TextKind::Word, 1));
-                    v.move_cursor(Movement::Begin(TextKind::Word));
-                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
-                    v.move_cursor(Movement::Begin(TextKind::Block));
-                } else {
-                    v.move_cursor(Movement::Backward(TextKind::Char, 1));
-                }
+            Key::Tab if modifier == Modifiers::Control && action == Action::Press => {
+                self.cycle_focus();
             }
-            Key::Up if action == Action::Repeat || action == Action::Press => {
-                v.move_cursor(Movement::Backward(TextKind::Line, 1));
+            Key::Q if modifier == Modifiers::Control => {
+                self.close_requested = true;
             }
-            Key::Down if action == Action::Repeat || action == Action::Press => {
-                v.move_cursor(Movement::Forward(TextKind::Line, 1));
-            }
-            Key::Backspace if action == Action::Repeat || action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    v.delete(Movement::Backward(TextKind::Word, 1));
-                } else {
-                    v.delete(Movement::Backward(TextKind::Char, 1));
-                }
-            }
-            Key::Delete if action == Action::Repeat || action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    v.delete(Movement::Forward(TextKind::Word, 1));
-                } else if modifier.is_empty() {
-                    v.delete(Movement::Forward(TextKind::Char, 1));
-                }
-            }
-
             Key::F1 => if action == Action::Press {
                 if modifier == Modifiers::Control {
-                    // v.insert_slice(&vec[..]);
-                    v.insert_str(TEST_DATA);
+                    self.active_input.handle_key(key, action, modifier);
                 } else {
                     self.set_debug(!self.debug);
                     // self.debug = !self.debug;
@@ -353,19 +326,10 @@ impl<'app> Application<'app> {
                     println!("Application window: {:?}", &self.window_size);
                     for p in self.panels.iter() {
                         println!("{:?}", p);
+                        for c in p.children.iter() {
+                            c.debug_viewcursor();
+                        }
                     }
-                    v.debug_viewcursor();
-                }
-            }
-            Key::F2 => {
-                if modifier == Modifiers::Control {
-                    let vec: Vec<char> = TEST_DATA.chars().collect();
-                    v.insert_slice(&vec[..]);
-                }
-            }
-            Key::P if modifier == Modifiers::Control => {
-                if action == Action::Press {
-                    self.popup.visible = !self.popup.visible;
                 }
             }
             Key::D if modifier == Modifiers::Control && action == Action::Press => {
@@ -375,19 +339,9 @@ impl<'app> Application<'app> {
                 let size = self.window_size;
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
-            Key::Tab if modifier == Modifiers::Control && action == Action::Press => {
-                self.cycle_focus();
+            _ => {
+                self.active_input.handle_key(key, action, modifier);
             }
-            Key::Q if modifier == Modifiers::Control => {
-                self.close_requested = true;
-            }
-            Key::W if modifier == Modifiers::Control && action == Action::Press => {
-                self.close_active_view();
-            }
-            Key::Enter if action == Action::Press || action == Action::Repeat => {
-                v.insert_ch('\n');
-            }
-            _ => {}
         }
     }
 
