@@ -7,7 +7,7 @@ use super::panel::PanelId;
 use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
 use crate::opengl::rect::RectRenderer;
-use crate::opengl::text::{TextRenderer};
+use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
 use crate::textbuffer::cursor::BufferCursor;
 use crate::textbuffer::metadata::{Index, Line};
@@ -66,7 +66,6 @@ pub struct Popup<'app> {
 }
 
 impl<'app> Popup<'app> {
-
     pub fn reset(&mut self) {
         self.view.buffer.clear();
         self.view.set_need_redraw();
@@ -106,7 +105,6 @@ impl<'app> Input for View<'app> {
             },
             Key::Right if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    // self.move_cursor(Movement::Forward(TextKind::Word, 1));
                     self.move_cursor(Movement::End(TextKind::Word));
                 } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
                     self.move_cursor(Movement::End(TextKind::Block));
@@ -116,7 +114,6 @@ impl<'app> Input for View<'app> {
             }
             Key::Left if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    // self.move_cursor(Movement::Backward(TextKind::Word, 1));
                     self.move_cursor(Movement::Begin(TextKind::Word));
                 } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
                     self.move_cursor(Movement::Begin(TextKind::Block));
@@ -144,10 +141,11 @@ impl<'app> Input for View<'app> {
                     self.delete(Movement::Forward(TextKind::Char, 1));
                 }
             }
-
-            Key::F1 => if action == Action::Press {
-                if modifier == Modifiers::Control {
-                    self.insert_str(TEST_DATA);
+            Key::F1 => {
+                if action == Action::Press {
+                    if modifier == Modifiers::Control {
+                        self.insert_str(TEST_DATA);
+                    }
                 }
             }
             Key::Enter if action == Action::Press || action == Action::Repeat => {
