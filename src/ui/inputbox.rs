@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use walkdir::WalkDir;
 
 use super::{
@@ -67,6 +69,17 @@ impl ListBox {
             item_height: list_item_height,
         }
     }
+
+    /// Returns selected item, if any selection has been made (and there's any available choices in the list)
+    pub fn get_selected(&self) -> Option<&Vec<char>> {
+        self.selection.and_then(|index| self.data.get(index))
+    }
+
+    /// Resets the text input and the generated item choices
+    pub fn clear(&mut self) {
+        self.selection = None;
+        self.data.clear();
+    }
 }
 
 pub struct InputBox<'app> {
@@ -94,7 +107,7 @@ impl<'app> InputBox<'app> {
             anchor: Anchor::vector_add(frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
             size: Size { width: frame.size.width, height: frame.size.height - input_box_frame.size.height },
         };
-        let lb = ListBox::new(list_box_frame, font.row_height(), None);
+        let lb = ListBox::new(list_box_frame, font.row_height(), Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)));
 
         InputBox {
             input_box: ltb,
@@ -173,7 +186,7 @@ impl<'app> InputBox<'app> {
                 .prepare_data_from_iterator(self.input_box.data.iter(), color, t.min.x, t.max.y);
             let color = self.selection_list.text_render_settings.text_color;
 
-            let mut displace_y = 0;
+            let mut displace_y = 3;
 
             let height = self.selection_list.frame.size.height;
             let step = self.selection_list.item_height;
@@ -188,7 +201,15 @@ impl<'app> InputBox<'app> {
                 })
                 .collect();
 
-            for item in items.into_iter() {
+            let selected = self.selection_list.selection.unwrap_or(0);
+            for (index, item) in items.into_iter().enumerate() {
+                if selected == index {
+                    let Anchor(x, _) = self.selection_list.frame.anchor;
+                    let min = Vec2i::new(x, t.min.y - displace_y - self.selection_list.item_height - 4);
+                    let max = Vec2i::new(x + self.selection_list.frame.size.width, t.min.y - displace_y);
+                    let selection_box = BoundingBox::new(min, max);
+                    self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
+                }
                 self.text_renderer
                     .append_data_from_iterator(item.iter(), color, t.min.x, t.min.y - displace_y);
                 displace_y += self.selection_list.item_height;
@@ -200,13 +221,20 @@ impl<'app> InputBox<'app> {
         self.text_renderer.draw_clipped(self.frame);
     }
 
+    pub fn clear(&mut self) {
+        self.selection_list.clear();
+        self.input_box.clear();
+        self.needs_update = true;
+    }
+
     pub fn render(&mut self) {}
 }
 
 impl<'app> Input for InputBox<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
+        self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
         let key_pressed = || action == glfw::Action::Press || action == glfw::Action::Repeat;
-        match key {
+        let response = match key {
             glfw::Key::Backspace if key_pressed() => {
                 if let Some(_) = self.input_box.data.pop() {
                     self.input_box.cursor -= 1;
@@ -228,23 +256,48 @@ impl<'app> Input for InputBox<'app> {
                 if self.input_box.data.is_empty() {
                     self.selection_list.data.clear();
                 }
+                InputResponse::None
             }
-            glfw::Key::Up => {}
-            glfw::Key::Down => {}
-            glfw::Key::Enter => match self.mode {
-                InputBoxMode::Command => {}
-                InputBoxMode::FileList => {}
+            glfw::Key::Up if key_pressed() => {
+                self.selection_list.selection = self
+                    .selection_list
+                    .selection
+                    .map(|f| if f == 0 { self.selection_list.data.len() - 1 } else { f - 1 })
+                    .or(Some(0));
+                InputResponse::None
+            }
+            glfw::Key::Down if key_pressed() => {
+                self.selection_list.selection = self
+                    .selection_list
+                    .selection
+                    .map(|f| if f + 1 >= self.selection_list.data.len() { 0 } else { f + 1 })
+                    .or(Some(0));
+                InputResponse::None
+            }
+            glfw::Key::Enter if key_pressed() => match self.mode {
+                InputBoxMode::Command => InputResponse::None,
+                InputBoxMode::FileList => self.selection_list.get_selected().map_or_else(
+                    || InputResponse::None,
+                    |item| {
+                        let p = Path::new(&item.iter().collect::<String>()).to_path_buf();
+                        if p.exists() {
+                            InputResponse::File(p)
+                        } else {
+                            InputResponse::None
+                        }
+                    },
+                ),
             },
-            _ => {}
-        }
+            _ => InputResponse::None,
+        };
         self.needs_update = true;
-        InputResponse::None
+        response
     }
 
     fn handle_char(&mut self, ch: char) {
         self.input_box.data.insert(self.input_box.cursor, ch);
         self.input_box.cursor += 1;
-
+        self.selection_list.selection = None;
         match self.mode {
             InputBoxMode::Command => {}
             InputBoxMode::FileList => {

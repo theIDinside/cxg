@@ -77,4 +77,8 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn clear(&mut self) {
         todo!()
     }
+
+    fn load_file(&mut self, path: &std::path::Path) {
+        todo!()
+    }
 }

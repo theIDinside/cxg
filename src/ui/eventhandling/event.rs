@@ -1,6 +1,10 @@
+use std::path::PathBuf;
+
 use crate::{debugger_catch, ui::UID};
 
 pub enum InputResponse {
+    Command,
+    File(PathBuf),
     None,
 }
 

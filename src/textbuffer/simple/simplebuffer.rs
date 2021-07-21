@@ -1,4 +1,4 @@
-use std::{cmp::min, path::Path};
+use std::{cmp::min, io::Read, path::Path};
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
 use crate::{
@@ -601,6 +601,33 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     fn set_cursor(&mut self, cursor: BufferCursor) {
         self.cursor = cursor;
+    }
+
+    fn load_file(&mut self, path: &Path) {
+        println!("File {} exists: {}", path.display(), path.exists());
+
+        let file_options = std::fs::OpenOptions::new().read(true).open(path);
+        let mut strbuf = String::with_capacity(10000);
+
+        match file_options {
+            Ok(mut file) => match file.read_to_string(&mut strbuf) {
+                Ok(_) => {
+                    for (i, ch) in strbuf.chars().enumerate() {
+                        self.data.insert(i, ch);
+                    }
+                    self.rebuild_metadata();
+                    self.cursor = self
+                        .cursor_from_metadata(metadata::Index(self.len()))
+                        .unwrap_or(BufferCursor::default());
+                    self.size = self.data.len();
+                    self.meta_data.set_buffer_size(self.size);
+                }
+                Err(e) => println!("failed to read data: {}", e),
+            },
+            Err(e) => {
+                println!("failed to OPEN file: {}", e);
+            }
+        }
     }
 }
 

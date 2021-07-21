@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
 use self::metadata::MetaData;
@@ -41,6 +43,7 @@ pub trait CharBuffer<'a> {
     fn delete(&mut self, dir: Movement);
     /// Copies a slice into the buffer, using memcpy. If there's not enough space, the buffer will have to re-allocate it's data first
     fn insert_slice_fast(&mut self, slice: &[char]);
+
     /// Moves the cursor in the buffer
     fn move_cursor(&mut self, dir: Movement);
     /// Capacity of the buffer
@@ -117,6 +120,8 @@ pub trait CharBuffer<'a> {
     }
 
     fn clear(&mut self);
+
+    fn load_file(&mut self, path: &Path);
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.

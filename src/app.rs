@@ -1,5 +1,7 @@
+use crate::debugger_catch;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::textbuffer::CharBuffer;
 use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{Input, InvalidInput};
 use crate::ui::frame::Frame;
@@ -375,9 +377,30 @@ impl<'app> Application<'app> {
                 let size = self.window_size;
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
-            _ => {
-                self.active_input.handle_key(key, action, modifier);
-            }
+            _ => match self.active_input.handle_key(key, action, modifier) {
+                crate::ui::eventhandling::event::InputResponse::File(path) => {
+                    let v = self.get_active_view();
+                    if v.buffer.empty() {
+                        v.buffer.load_file(&path);
+                        v.set_need_redraw();
+                        v.update();
+                        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
+                        self.input_box.visible = false;
+                    } else {
+                        let p_id = self.get_active_view().panel_id;
+                        let f_name = path.file_name();
+                        self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                        let v = self.get_active_view();
+                        debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                        v.buffer.load_file(&path);
+                        v.set_need_redraw();
+                        v.update();
+                        self.input_box.visible = false;
+                    }
+                    self.input_box.clear();
+                }
+                _ => {}
+            },
         }
     }
 
@@ -452,6 +475,7 @@ impl<'app> Application<'app> {
             println!("Closing and dropping resources of view: {:?}", v);
             panel.children.last_mut().unwrap() as _
         };
+        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
 
         panel.layout();
         self.decorate_active_view();

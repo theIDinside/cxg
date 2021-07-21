@@ -6,6 +6,7 @@ use super::eventhandling::event::{Input, InputResponse};
 use super::panel::PanelId;
 use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
+use crate::debugger_catch;
 use crate::opengl::rect::RectRenderer;
 use crate::opengl::text::TextRenderer;
 use crate::opengl::types::RGBAColor;
@@ -83,6 +84,7 @@ impl<'a> std::fmt::Debug for View<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("View")
             .field("id", &self.id)
+            .field("name", &self.name)
             .field("size", &self.size)
             .field("anchor", &self.anchor)
             .field("top buffer line", &self.topmost_line_in_buffer)
@@ -203,6 +205,7 @@ impl<'a> View<'a> {
     }
 
     pub fn set_need_redraw(&mut self) {
+        self.adjust_view_range();
         self.view_changed = true;
     }
 
@@ -210,7 +213,7 @@ impl<'a> View<'a> {
     pub fn update(&mut self) {
         self.window_renderer
             .set_rect(BoundingBox::from_info(self.anchor, self.size), self.bg_color);
-        self.set_need_redraw()
+        self.set_need_redraw();
     }
 
     pub fn draw(&mut self) {
@@ -274,6 +277,14 @@ impl<'a> View<'a> {
     pub fn resize(&mut self, size: Size) {
         self.size = size;
         self.displayable_lines = self.size.height / self.row_height;
+    }
+
+    pub fn load_file(&mut self, path: &Path) {
+        debugger_catch!(self.buffer.empty(), crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file")));
+        if self.buffer.empty() {
+            self.buffer.load_file(path);
+            self.adjust_view_range();
+        }
     }
 
     pub fn insert_ch(&mut self, ch: char) {

@@ -37,4 +37,9 @@ impl LineTextBox {
         self.outer_frame.anchor = anchor;
         self.inner_frame = make_inner_frame(&self.outer_frame, 4);
     }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.cursor = 0;
+    }
 }
