@@ -82,7 +82,7 @@ impl<'app> Application<'app> {
         status_bar.update();
 
         // Create default 1st panel to hold views in
-        let panel = Panel::new(0, Layout::Horizontal(10.into()), Some(15), None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
+        let panel = Panel::new(0, Layout::Horizontal(5.into()), Some(5), None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
         let mut panels = vec![panel];
 
         // Create the default 1st view

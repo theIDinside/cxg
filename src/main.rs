@@ -67,7 +67,7 @@ fn main() -> Main {
     glfw_handle.window_hint(glfw::WindowHint::ContextVersion(4, 3));
     glfw_handle.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
     let (mut window, events) = glfw_handle
-        .create_window(width, height, "Testing GLFW on Rust", glfw::WindowMode::Windowed)
+        .create_window(width, height, "<cxgledit>", glfw::WindowMode::Windowed)
         .expect("Failed to create GLFW Window");
 
     window.make_current();

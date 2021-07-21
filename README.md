@@ -7,6 +7,7 @@ So far, only some 60-70% of the same features as the C++ version, with some mino
 Key-bindings are not re-mappable right now, but obviously will be
 - Ctrl + D:             Debug interface - show memory usage, frame time, fps, pid etc... more to come here
 - Ctrl + N:             New view & Buffer
+- Ctrl + W:             Close currently active view
 - Ctrl + Tab:           Cycle focused tab
 - Ctrl + F1:            Debug dump a rust source file to active buffer
 - Ctrl + End:           Go to end of file
@@ -14,6 +15,7 @@ Key-bindings are not re-mappable right now, but obviously will be
 - Ctrl + Left/Right:    Navigate cursor on word boundaries
 - Ctrl + P:             Show popup view (no other functionality than a normal view as of now)
 - Ctrl + shift + I:     Open Input box (screen shot below)
+
 
 ## Screenshots
 
