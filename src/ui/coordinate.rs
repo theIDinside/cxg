@@ -1,8 +1,17 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::ops::Deref;
+use std::ops::{Deref, Mul};
 
 use crate::datastructure::generic::{Vec2d, Vec2i};
+
+pub enum Margin {
+    /// Margin on either side of top and bottom
+    Vertical(i32),
+    /// Margin on either side of left and right
+    Horizontal(i32),
+    /// Margin on all sides, left, right, top and bottom
+    Perpendicular { horizontal: i32, vertical: i32 },
+}
 
 pub trait Coordinate {
     fn x(&self) -> i32;
@@ -166,6 +175,14 @@ impl Size {
         let height = size.height - (margin * 2);
         Size { width, height }
     }
+
+    pub fn shrink_axis_aligned(size: Size, margin: Margin) -> Size {
+        match margin {
+            Margin::Vertical(margin) => Size { width: size.width, height: size.height - margin.mul(2) },
+            Margin::Horizontal(margin) => Size { width: size.width - margin.mul(2), height: size.height },
+            Margin::Perpendicular { horizontal, vertical } => Size { width: size.width - horizontal.mul(2), height: size.height - vertical.mul(2) },
+        }
+    }
 }
 
 impl Anchor {
@@ -210,7 +227,6 @@ impl std::fmt::Debug for Layout {
             Layout::Vertical(Spacing(s)) => ("Vertical", s),
             Layout::Horizontal(Spacing(s)) => ("Horizontal", s),
         };
-
         f.write_fmt(format_args!("{} {}px", style, space))
     }
 }

@@ -5,6 +5,7 @@ extern crate gl;
 extern crate glfw;
 extern crate libc;
 extern crate png;
+extern crate walkdir;
 
 #[macro_use]
 pub mod opengl;
@@ -119,7 +120,6 @@ fn main() -> Main {
             None
         }
     };
-
     while app.keep_running() {
         if let Some(fps) = updatefps(&mut glfw_handle) {
             let frame_time = (1.0 / fps) * 1000.0;

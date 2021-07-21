@@ -2,7 +2,7 @@ use glfw::{Action, Key, Modifiers};
 
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
-use super::input::event::Input;
+use super::eventhandling::event::{Input, InputResponse};
 use super::panel::PanelId;
 use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
@@ -93,7 +93,7 @@ impl<'a> std::fmt::Debug for View<'a> {
 }
 
 impl<'app> Input for View<'app> {
-    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
         match key {
             Key::Home => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
@@ -153,6 +153,7 @@ impl<'app> Input for View<'app> {
             }
             _ => {}
         }
+        InputResponse::None
     }
 
     fn handle_char(&mut self, ch: char) {

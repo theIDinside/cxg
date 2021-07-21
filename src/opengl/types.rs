@@ -7,10 +7,33 @@ pub struct UVCoordinates {
     pub v: glfloat,
 }
 
+#[derive(Clone, Copy)]
 pub struct RGBColor {
     pub r: glfloat,
     pub g: glfloat,
     pub b: glfloat,
+}
+
+impl RGBColor {
+    pub fn black() -> RGBColor {
+        RGBColor { r: 0.0, g: 0.0, b: 0.0 }
+    }
+
+    pub fn white() -> RGBColor {
+        RGBColor { r: 1.0, g: 1.0, b: 1.0 }
+    }
+
+    pub fn red() -> RGBColor {
+        RGBColor { r: 1.0, g: 0.0, b: 0.0 }
+    }
+
+    pub fn green() -> RGBColor {
+        RGBColor { r: 0.0, g: 1.0, b: 0.0 }
+    }
+
+    pub fn blue() -> RGBColor {
+        RGBColor { r: 0.0, g: 0.0, b: 1.0 }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]

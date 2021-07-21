@@ -1,5 +1,5 @@
-use super::coordinate::{Anchor, Size};
-use crate::datastructure::generic::Vec2i;
+use super::{coordinate::{Anchor, Size}, frame::Frame};
+use crate::{datastructure::generic::Vec2i};
 
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -27,6 +27,11 @@ impl BoundingBox {
 
     pub fn from_info(anchor: Anchor, size: Size) -> BoundingBox {
         BoundingBox::from((anchor, size))
+    }
+
+    pub fn from_frame(frame: &Frame) -> BoundingBox {
+        let (Anchor(x, y), Size{width, height}) = (frame.anchor, frame.size);
+        BoundingBox::new(Vec2i::new(x, y - height), Vec2i::new(x + width, y))
     }
 }
 

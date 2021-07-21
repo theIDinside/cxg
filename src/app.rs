@@ -1,7 +1,9 @@
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::ui::debug_view::DebugView;
-use crate::ui::input::event::{Input, InvalidInput};
+use crate::ui::eventhandling::event::{Input, InvalidInput};
+use crate::ui::frame::Frame;
+use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::PanelId;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
@@ -44,14 +46,17 @@ pub struct Application<'app> {
     pub active_ui_element: UID,
     /// Whether or not we're in debug interface mode (showing different kinds of debug information)
     debug: bool,
-    /// Pointer to the element which is receiving Keyboard Input.
+    /// Pointer to the text editor view that is currently active
     pub active_view: *mut View<'app>,
-
+    /// Pointer to the element that's currently receiving user input. This handle, handles the behavior of the application
+    /// and dispatches accordingly to the right type, to determine what should be done when user inputs, key strokes or mouse movements, etc
     pub active_input: &'app mut dyn Input,
     /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
     close_requested: bool,
+
+    input_box: InputBox<'app>,
     pub debug_view: DebugView<'app>,
 }
 
@@ -103,6 +108,14 @@ impl<'app> Application<'app> {
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view);
 
+
+        let ib_frame = Frame {
+            anchor: Anchor(250, 700),
+            size: Size { width: 500, height: 650 }
+        };
+
+        let input_box = InputBox::new(ib_frame, &fonts[0], &font_shader, &rect_shader);
+
         let mut res = 
         Application {
             _title_bar: "cxgledit".into(),
@@ -119,6 +132,7 @@ impl<'app> Application<'app> {
             active_view: std::ptr::null_mut(),
             active_input: unsafe { &mut INVALID_INPUT as &mut dyn Input },
             close_requested: false,
+            input_box,
             debug_view,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
@@ -310,6 +324,28 @@ impl<'app> Application<'app> {
                     self.popup.visible = !self.popup.visible;
                 }
             }
+            Key::I if action == Action::Press => {
+                if modifier == Modifiers::Control {
+                    if self.input_box.visible {
+                        self.active_input = cast_ptr_to_input(self.active_view);
+                        self.input_box.visible = false;
+                    } else {
+                        self.input_box.mode = InputBoxMode::Command;
+                        // self.active_input = &mut self.input_box as &'app mut dyn Input;
+                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn Input };
+                        self.input_box.visible = true;
+                    }
+                } else if modifier == (Modifiers::Control | Modifiers::Shift) {
+                    if self.input_box.visible {
+                        self.active_input = cast_ptr_to_input(self.active_view);
+                        self.input_box.visible = false;
+                    } else {
+                        self.input_box.mode = InputBoxMode::FileList;
+                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn Input };
+                        self.input_box.visible = true;
+                    }
+                }
+            }
             Key::Tab if modifier == Modifiers::Control && action == Action::Press => {
                 self.cycle_focus();
             }
@@ -379,6 +415,11 @@ impl<'app> Application<'app> {
 
         self.status_bar.draw();
 
+        if self.input_box.visible {
+            self.input_box.draw();
+        }
+
+        // always draw the debug interface last, as it should overlay everything
         if self.debug_view.visibile {
             self.debug_view.draw();
         }
@@ -420,4 +461,15 @@ impl<'app> Application<'app> {
     pub fn set_debug(&mut self, set: bool) {
         self.debug = set;
     }
+}
+
+pub fn cast_ref_to_input<'app, T: Input>(t: &'app mut T) -> &'app mut dyn Input where T: 'app {
+    unsafe {
+        let a = t as *mut T;
+        &mut (*a) as &'app mut dyn Input
+    }
+}
+
+pub fn cast_ptr_to_input<'app, T: Input>(t: *mut T) -> &'app mut dyn Input where T: 'app {
+        unsafe { &mut (*t) as &'app mut dyn Input }
 }
