@@ -1,4 +1,4 @@
-use crate::{opengl::types::{RGBAColor, RGBColor}, ui::{ACTIVE_VIEW_BACKGROUND, frame::Frame, inputbox::TextRenderSetting}};
+use crate::{opengl::types::{RGBAColor, RGBColor}, ui::{ACTIVE_VIEW_BACKGROUND, coordinate::Anchor, frame::{Frame, make_inner_frame}, inputbox::TextRenderSetting}};
 
 /// POD data type LineTextBox. These do not define behavior in any real sense. They just hold the data
 /// that InputBox displays. Therefore the behaviors is defined in that struct impl.
@@ -23,5 +23,10 @@ impl LineTextBox {
             text_render_settings,
             background_color
         }
+    }
+
+    pub fn set_anchor(&mut self, anchor: Anchor) {
+        self.outer_frame.anchor = anchor;
+        self.inner_frame = make_inner_frame(&self.outer_frame, 4);
     }
 }

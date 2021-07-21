@@ -10,7 +10,8 @@ pub enum Margin {
     /// Margin on either side of left and right
     Horizontal(i32),
     /// Margin on all sides, left, right, top and bottom
-    Perpendicular { horizontal: i32, vertical: i32 },
+    /// h: horizontal, v: vertical
+    Perpendicular { h: i32, v: i32 },
 }
 
 pub trait Coordinate {
@@ -180,7 +181,7 @@ impl Size {
         match margin {
             Margin::Vertical(margin) => Size { width: size.width, height: size.height - margin.mul(2) },
             Margin::Horizontal(margin) => Size { width: size.width - margin.mul(2), height: size.height },
-            Margin::Perpendicular { horizontal, vertical } => Size { width: size.width - horizontal.mul(2), height: size.height - vertical.mul(2) },
+            Margin::Perpendicular { h: horizontal, v: vertical } => Size { width: size.width - horizontal.mul(2), height: size.height - vertical.mul(2) },
         }
     }
 }

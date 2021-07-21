@@ -75,7 +75,7 @@ pub struct InputBox<'app> {
     pub visible: bool,
     input_box: LineTextBox,
     selection_list: ListBox,
-    frame: Frame,
+    pub frame: Frame,
     text_renderer: TextRenderer<'app>,
     rect_renderer: RectRenderer,
     pub mode: InputBoxMode,
@@ -109,9 +109,22 @@ impl<'app> InputBox<'app> {
         }
     }
 
-    pub fn set_size(&mut self, size: Size) {
-        let _ = size;
-        todo!()
+    pub fn set_anchor(&mut self, anchor: Anchor) {
+        self.frame.anchor = anchor;
+
+        let margin = 4;
+        let input_box_frame = Frame { anchor: self.frame.anchor, size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4) };
+        let input_inner_frame = make_inner_frame(&input_box_frame, margin);
+        self.input_box.outer_frame = input_box_frame;
+        self.input_box.inner_frame = input_inner_frame;
+        
+        let list_box_frame = Frame {
+            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
+        };
+        self.selection_list.frame = list_box_frame;
+        
+        self.needs_update = true;
     }
 
     pub fn open(&mut self, mode: InputBoxMode) {
@@ -142,7 +155,9 @@ impl<'app> InputBox<'app> {
         if self.needs_update {
             self.rect_renderer.clear_data();
             let frame_bb = BoundingBox::from_frame(&self.frame);
-            self.rect_renderer.add_rect(frame_bb, RGBAColor { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
+            let frame_border_bb = BoundingBox::expand(&frame_bb, Margin::Perpendicular{ v: 2, h: 2 });
+            self.rect_renderer.add_rect(frame_border_bb, RGBAColor::white());
+            self.rect_renderer.add_rect(frame_bb, self.selection_list.background_color);
             let ltb_frame = BoundingBox::from_frame(&self.input_box.outer_frame);
             let ltb_inner_frame = BoundingBox::from_frame(&self.input_box.inner_frame);
             let t = ltb_inner_frame.clone();
@@ -180,7 +195,7 @@ impl<'app> InputBox<'app> {
         }
 
         self.rect_renderer.draw();
-        self.text_renderer.draw();
+        self.text_renderer.draw_clipped(self.frame);
     }
 
     pub fn render(&mut self) {}
