@@ -40,6 +40,7 @@ impl Default for TextRenderSetting {
 
 #[derive(PartialEq, Eq)]
 pub enum InputBoxMode {
+    // todo(feature): add SymbolList
     Command,
     FileList,
 }
