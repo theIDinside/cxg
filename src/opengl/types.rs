@@ -48,6 +48,26 @@ impl RGBAColor {
     pub fn new(r: glfloat, g: glfloat, b: glfloat, a: glfloat) -> RGBAColor {
         RGBAColor { r, g, b, a }
     }
+
+    pub fn black() -> RGBAColor {
+        RGBAColor { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+    }
+
+    pub fn white() -> RGBAColor {
+        RGBAColor { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+    }
+
+    pub fn red() -> RGBAColor {
+        RGBAColor { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }
+    }
+
+    pub fn green() -> RGBAColor {
+        RGBAColor { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }
+    }
+
+    pub fn blue() -> RGBAColor {
+        RGBAColor { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }
+    }
 }
 
 pub struct RectVertex {
