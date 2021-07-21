@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{iter::FromIterator, path::Path};
 
 use walkdir::WalkDir;
 
@@ -75,10 +75,23 @@ impl ListBox {
         self.selection.and_then(|index| self.data.get(index))
     }
 
+    pub fn pop_selected(&mut self) -> Option<Vec<char>> {
+        self.selection
+            .and_then(|index| if self.data.len() > index { Some(self.data.remove(index)) } else { None })
+    }
+
     /// Resets the text input and the generated item choices
     pub fn clear(&mut self) {
         self.selection = None;
         self.data.clear();
+    }
+
+    pub fn scroll_selection_up(&mut self) {
+        self.selection = self.selection.map(|f| if f == 0 { self.data.len() - 1 } else { f - 1 }).or(Some(0));
+    }
+
+    pub fn scroll_selection_down(&mut self) {
+        self.selection = self.selection.map(|f| if f + 1 >= self.data.len() { 0 } else { f + 1 }).or(Some(0));
     }
 }
 
@@ -160,11 +173,11 @@ impl<'app> InputBox<'app> {
                 2a. Draw the LineTextBox outer frame
                 2b. Draw the LineTextBox inner frame
                 2c. Draw the text contents of LineTextBox on top of inner frame
-                ^---- Done this far ----^
                 2d. Draw text cursor on top of text contents, on top of inner frame
                 3a. Draw ListBox frame
                 3b. On top of ListBox frame, iterate over items and draw their text contents respectively, on separate lines
-                todo(ui_feature): add scroll bar functionality to ListBox
+                ^---- Done this far ----^
+                4. todo(ui_feature): add scroll bar functionality to ListBox
         */
 
         if self.needs_update {
@@ -227,7 +240,42 @@ impl<'app> InputBox<'app> {
         self.needs_update = true;
     }
 
-    pub fn render(&mut self) {}
+    fn handle_file_selection(&mut self) -> InputResponse {
+        if let Some(item) = self.selection_list.pop_selected() {
+            let name = String::from_iter(&item);
+            let p = Path::new(&name).to_path_buf();
+            if p.is_dir() {
+                self.input_box.data = item;
+                self.input_box.data.push('/');
+                self.input_box.cursor = self.input_box.data.len();
+                self.selection_list.selection = None;
+
+                let found_files: Vec<Vec<char>> = WalkDir::new(&self.input_box.data.iter().collect::<String>())
+                    .into_iter()
+                    .filter_map(|e| {
+                        let e = e.unwrap();
+                        if e.path().to_str().unwrap().contains(&self.input_box.data[..]) {
+                            Some(e)
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|de| de.path().display().to_string().chars().collect())
+                    .collect();
+                self.selection_list.data = found_files;
+                self.needs_update = true;
+                InputResponse::None
+            } else {
+                if p.exists() {
+                    InputResponse::File(p)
+                } else {
+                    InputResponse::None
+                }
+            }
+        } else {
+            InputResponse::None
+        }
+    }
 }
 
 impl<'app> Input for InputBox<'app> {
@@ -259,34 +307,16 @@ impl<'app> Input for InputBox<'app> {
                 InputResponse::None
             }
             glfw::Key::Up if key_pressed() => {
-                self.selection_list.selection = self
-                    .selection_list
-                    .selection
-                    .map(|f| if f == 0 { self.selection_list.data.len() - 1 } else { f - 1 })
-                    .or(Some(0));
+                self.selection_list.scroll_selection_up();
                 InputResponse::None
             }
             glfw::Key::Down if key_pressed() => {
-                self.selection_list.selection = self
-                    .selection_list
-                    .selection
-                    .map(|f| if f + 1 >= self.selection_list.data.len() { 0 } else { f + 1 })
-                    .or(Some(0));
+                self.selection_list.scroll_selection_down();
                 InputResponse::None
             }
             glfw::Key::Enter if key_pressed() => match self.mode {
                 InputBoxMode::Command => InputResponse::None,
-                InputBoxMode::FileList => self.selection_list.get_selected().map_or_else(
-                    || InputResponse::None,
-                    |item| {
-                        let p = Path::new(&item.iter().collect::<String>()).to_path_buf();
-                        if p.exists() {
-                            InputResponse::File(p)
-                        } else {
-                            InputResponse::None
-                        }
-                    },
-                ),
+                InputBoxMode::FileList => self.handle_file_selection(),
             },
             _ => InputResponse::None,
         };

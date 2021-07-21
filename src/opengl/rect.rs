@@ -74,6 +74,7 @@ impl RectRenderer {
     pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
+        self.needs_update = true;
     }
 
     pub fn add_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
