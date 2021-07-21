@@ -54,7 +54,6 @@ macro_rules! debugger_catch {
 }
 
 #[macro_export]
-#[allow(unused)]
 macro_rules! Assert {
     ($assert_expr:expr, $message:literal) => {
         if !$assert_expr {

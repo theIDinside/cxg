@@ -19,7 +19,6 @@ pub enum Cursor {
 //      let mut s = String::from("hello ");
 //      s.extend(['w','o','r','l','d'].into_iter()); // s now -> "hello world"
 
-#[allow(unused)]
 pub struct GapBuffer<T>
 where
     T: Clone + Copy,

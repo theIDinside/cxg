@@ -26,14 +26,9 @@ impl GlyphInfo {
     }
 }
 
-#[allow(unused)]
 pub struct Font {
-    pixel_size: i32,
     row_height: i32,
-    max_glyph_dimensions: Vec2i,
-    max_bearing_size_diff: i32,
     glyph_cache: HashMap<char, GlyphInfo>,
-    pixel_data: Vec<u8>,
     texture_id: gl::types::GLuint,
     texture_dimensions: Vec2i,
 }
@@ -146,16 +141,7 @@ impl Font {
 
         debug_write_font_texture_to_file(font_path, &pixels, pixel_size, texture_dimension.x as u32, texture_dimension.y as u32);
 
-        Ok(Font {
-            pixel_size,
-            row_height: row_advance,
-            max_glyph_dimensions,
-            max_bearing_size_diff,
-            pixel_data: pixels,
-            texture_id,
-            glyph_cache,
-            texture_dimensions: texture_dimension,
-        })
+        Ok(Font { row_height: row_advance, texture_id, glyph_cache, texture_dimensions: texture_dimension })
     }
 
     unsafe fn upload_texture(data: &Vec<u8>, width: i32, height: i32) -> gl::types::GLuint {

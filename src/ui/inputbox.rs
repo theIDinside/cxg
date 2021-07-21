@@ -20,7 +20,6 @@ use crate::{
     ui::eventhandling::event::InputResponse,
 };
 
-#[allow(unused)]
 pub struct TextRenderSetting {
     scale: f32,
     text_color: RGBColor,
@@ -70,7 +69,6 @@ impl ListBox {
     }
 }
 
-#[allow(unused)]
 pub struct InputBox<'app> {
     /// Contains the user input. Might as well use String, input won't be long and this is just easier
     pub visible: bool,
@@ -206,8 +204,7 @@ impl<'app> InputBox<'app> {
 }
 
 impl<'app> Input for InputBox<'app> {
-    #[allow(unused)]
-    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
+    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
         let key_pressed = || action == glfw::Action::Press;
         match key {
             glfw::Key::Backspace if key_pressed() => {
