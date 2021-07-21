@@ -7,6 +7,7 @@ use crate::ui::eventhandling::event::{Input, InvalidInput};
 use crate::ui::frame::Frame;
 use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::PanelId;
+use crate::ui::statusbar::StatusBarContent;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
     font::Font,
@@ -434,6 +435,12 @@ impl<'app> Application<'app> {
 
         if self.popup.visible {
             self.popup.view.draw();
+        }
+
+        {
+            let v = unsafe { &mut (*self.active_view) };
+            self.status_bar
+                .update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
         }
 
         self.status_bar.draw();

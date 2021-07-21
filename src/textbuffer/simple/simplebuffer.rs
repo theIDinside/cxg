@@ -621,6 +621,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         .unwrap_or(BufferCursor::default());
                     self.size = self.data.len();
                     self.meta_data.set_buffer_size(self.size);
+                    self.meta_data.file_name = Some(path.to_path_buf());
                 }
                 Err(e) => println!("failed to read data: {}", e),
             },

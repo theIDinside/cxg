@@ -8,7 +8,7 @@ use crate::textbuffer::metadata::{Column, Line};
 
 #[derive(Debug)]
 pub enum StatusBarContent<'a> {
-    FileEdit(&'a std::path::Path, (Line, Column)),
+    FileEdit(Option<&'a std::path::PathBuf>, (Line, Column)),
     Message(Vec<char>),
 }
 
@@ -16,7 +16,7 @@ impl<'a> StatusBarContent<'a> {
     pub fn to_str(&self) -> String {
         match self {
             StatusBarContent::FileEdit(path, (line, column)) => {
-                format!("{}:{}:{}", path.display(), **line, **column)
+                format!("{}:{}:{}", path.map(|p| p.display().to_string()).unwrap_or("unnamed_file".into()), **line, **column)
             }
             StatusBarContent::Message(msg) => msg.iter().collect(),
         }
@@ -30,6 +30,7 @@ pub struct StatusBar<'app> {
     pub anchor: Anchor,
     pub display_data: StatusBarContent<'app>,
     pub bg_color: RGBAColor,
+    pub needs_update: bool,
 }
 
 impl<'app> StatusBar<'app> {
@@ -41,11 +42,13 @@ impl<'app> StatusBar<'app> {
             anchor,
             display_data: StatusBarContent::Message("<cxgledit>".chars().into_iter().collect()),
             bg_color,
+            needs_update: true,
         }
     }
 
     pub fn update_text_content(&mut self, bar_content: StatusBarContent<'app>) {
         self.display_data = bar_content;
+        self.needs_update = true;
     }
 
     pub fn update_string_contents(&mut self, data: &str) {
@@ -62,6 +65,9 @@ impl<'app> StatusBar<'app> {
     }
 
     pub fn draw(&mut self) {
+        if self.needs_update {
+            self.update();
+        }
         self.window_renderer.draw();
         self.text_renderer.draw();
     }
