@@ -17,7 +17,6 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
-
 use self::glfw::Context;
 use opengl::glinit;
 
@@ -56,7 +55,6 @@ pub fn foo() {
         libc::signal(libc::SIGTRAP, code as _);
     }
 }
-
 
 fn main() -> Main {
     let width = 1024;

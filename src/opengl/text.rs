@@ -1,5 +1,16 @@
-use super::{Primitive, types::{RGBColor, TextVertex as TVertex}};
-use crate::{datastructure::generic::Vec2i, debugger_catch, ui::{coordinate::{Anchor, PointArithmetic, Size}, font::{Font, GlyphInfo}, frame::Frame}};
+use super::{
+    types::{RGBColor, TextVertex as TVertex},
+    Primitive,
+};
+use crate::{
+    datastructure::generic::Vec2i,
+    debugger_catch,
+    ui::{
+        coordinate::{Anchor, PointArithmetic, Size},
+        font::{Font, GlyphInfo},
+        frame::Frame,
+    },
+};
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct RendererId(pub u32);

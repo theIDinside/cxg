@@ -1,4 +1,12 @@
-use crate::{opengl::types::{RGBAColor, RGBColor}, ui::{ACTIVE_VIEW_BACKGROUND, coordinate::Anchor, frame::{Frame, make_inner_frame}, inputbox::TextRenderSetting}};
+use crate::{
+    opengl::types::{RGBAColor, RGBColor},
+    ui::{
+        coordinate::Anchor,
+        frame::{make_inner_frame, Frame},
+        inputbox::TextRenderSetting,
+        ACTIVE_VIEW_BACKGROUND,
+    },
+};
 
 /// POD data type LineTextBox. These do not define behavior in any real sense. They just hold the data
 /// that InputBox displays. Therefore the behaviors is defined in that struct impl.
@@ -21,7 +29,7 @@ impl LineTextBox {
             outer_frame,
             inner_frame,
             text_render_settings,
-            background_color
+            background_color,
         }
     }
 

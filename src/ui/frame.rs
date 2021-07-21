@@ -5,7 +5,7 @@ use super::coordinate::{Anchor, Margin, PointArithmetic, Size};
 #[derive(Copy, Clone)]
 pub struct Frame {
     pub anchor: Anchor,
-    pub size: Size
+    pub size: Size,
 }
 
 pub fn make_inner_frame(outer_frame: &Frame, margin: i32) -> Frame {

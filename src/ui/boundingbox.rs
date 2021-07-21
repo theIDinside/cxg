@@ -43,17 +43,17 @@ impl BoundingBox {
             Margin::Vertical(margin) => {
                 b.min.y += margin;
                 b.max.y -= margin;
-            },
+            }
             Margin::Horizontal(margin) => {
                 b.min.x += margin;
                 b.max.x -= margin;
-            },
+            }
             Margin::Perpendicular { h: horizontal, v: vertical } => {
                 b.min.y += vertical;
                 b.max.y -= vertical;
                 b.min.x += horizontal;
                 b.max.x -= horizontal;
-            },
+            }
         }
         b
     }
@@ -64,17 +64,17 @@ impl BoundingBox {
             Margin::Vertical(margin) => {
                 b.min.y -= margin;
                 b.max.y += margin;
-            },
+            }
             Margin::Horizontal(margin) => {
                 b.min.x -= margin;
                 b.max.x += margin;
-            },
+            }
             Margin::Perpendicular { h: horizontal, v: vertical } => {
                 b.min.y -= vertical;
                 b.max.y += vertical;
                 b.min.x -= horizontal;
                 b.max.x += horizontal;
-            },
+            }
         }
         b
     }

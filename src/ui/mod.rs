@@ -1,21 +1,20 @@
 use crate::{datastructure::generic::Vec2i, opengl::types::RGBAColor};
 use glfw::{Action, Key, Modifiers};
 
-
-/// Widgets that do user input 
+/// Widgets that do user input
 pub mod input;
 
-pub mod eventhandling;
 pub mod boundingbox;
 pub mod coordinate;
+pub mod eventhandling;
 pub mod font;
 
 pub mod frame;
+pub mod inputbox;
+pub mod listview;
 pub mod panel;
 pub mod statusbar;
 pub mod view;
-pub mod inputbox;
-pub mod listview;
 
 pub mod debug_view;
 

@@ -3,7 +3,7 @@ use walkdir::WalkDir;
 use super::{
     boundingbox::BoundingBox,
     coordinate::*,
-    eventhandling::event::{Input},
+    eventhandling::event::Input,
     font::Font,
     frame::{make_inner_frame, Frame},
     input::line_text_box::LineTextBox,
@@ -113,17 +113,20 @@ impl<'app> InputBox<'app> {
         self.frame.anchor = anchor;
 
         let margin = 4;
-        let input_box_frame = Frame { anchor: self.frame.anchor, size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4) };
+        let input_box_frame = Frame {
+            anchor: self.frame.anchor,
+            size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4),
+        };
         let input_inner_frame = make_inner_frame(&input_box_frame, margin);
         self.input_box.outer_frame = input_box_frame;
         self.input_box.inner_frame = input_inner_frame;
-        
+
         let list_box_frame = Frame {
             anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
             size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
         };
         self.selection_list.frame = list_box_frame;
-        
+
         self.needs_update = true;
     }
 
@@ -155,7 +158,7 @@ impl<'app> InputBox<'app> {
         if self.needs_update {
             self.rect_renderer.clear_data();
             let frame_bb = BoundingBox::from_frame(&self.frame);
-            let frame_border_bb = BoundingBox::expand(&frame_bb, Margin::Perpendicular{ v: 2, h: 2 });
+            let frame_border_bb = BoundingBox::expand(&frame_bb, Margin::Perpendicular { v: 2, h: 2 });
             self.rect_renderer.add_rect(frame_border_bb, RGBAColor::white());
             self.rect_renderer.add_rect(frame_bb, self.selection_list.background_color);
             let ltb_frame = BoundingBox::from_frame(&self.input_box.outer_frame);
@@ -227,26 +230,14 @@ impl<'app> Input for InputBox<'app> {
                 if self.input_box.data.is_empty() {
                     self.selection_list.data.clear();
                 }
+            }
+            glfw::Key::Up => {}
+            glfw::Key::Down => {}
+            glfw::Key::Enter => match self.mode {
+                InputBoxMode::Command => {}
+                InputBoxMode::FileList => {}
             },
-            glfw::Key::Up => {
-                
-            }
-            glfw::Key::Down => {
-
-            }
-            glfw::Key::Enter => {
-                match self.mode {
-                    InputBoxMode::Command => {
-
-                    }
-                    InputBoxMode::FileList => {
-
-                    }
-                }
-            }
-            _ => {
-
-            }
+            _ => {}
         }
         self.needs_update = true;
         InputResponse::None
@@ -257,9 +248,7 @@ impl<'app> Input for InputBox<'app> {
         self.input_box.cursor += 1;
 
         match self.mode {
-            InputBoxMode::Command => {
-
-            }
+            InputBoxMode::Command => {}
             InputBoxMode::FileList => {
                 let found_files: Vec<Vec<char>> = WalkDir::new(".")
                     .into_iter()

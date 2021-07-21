@@ -1,7 +1,7 @@
 use crate::{debugger_catch, ui::UID};
 
 pub enum InputResponse {
-    None
+    None,
 }
 
 pub trait Input {

@@ -14,7 +14,6 @@ use crate::ui::{
     UID,
 };
 
-
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
@@ -108,16 +107,11 @@ impl<'app> Application<'app> {
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view);
 
-
-        let ib_frame = Frame {
-            anchor: Anchor(250, 700),
-            size: Size { width: 500, height: 650 }
-        };
+        let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 650 } };
 
         let input_box = InputBox::new(ib_frame, &fonts[0], &font_shader, &rect_shader);
 
-        let mut res = 
-        Application {
+        let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
             panel_space_size: Size::new(1024, 768 - sb_size.height),
@@ -137,7 +131,7 @@ impl<'app> Application<'app> {
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn Input };
-        
+
         match res.active_ui_element {
             UID::View(id) => {
                 if let Some(v) = res.panels.last_mut().unwrap().get_view(id.into()) {
@@ -356,18 +350,20 @@ impl<'app> Application<'app> {
             Key::Q if modifier == Modifiers::Control => {
                 self.close_requested = true;
             }
-            Key::F1 => if action == Action::Press {
-                if modifier == Modifiers::Control {
-                    self.active_input.handle_key(key, action, modifier);
-                } else {
-                    self.set_debug(!self.debug);
-                    // self.debug = !self.debug;
-                    println!("Opening debug interface...");
-                    println!("Application window: {:?}", &self.window_size);
-                    for p in self.panels.iter() {
-                        println!("{:?}", p);
-                        for c in p.children.iter() {
-                            c.debug_viewcursor();
+            Key::F1 => {
+                if action == Action::Press {
+                    if modifier == Modifiers::Control {
+                        self.active_input.handle_key(key, action, modifier);
+                    } else {
+                        self.set_debug(!self.debug);
+                        // self.debug = !self.debug;
+                        println!("Opening debug interface...");
+                        println!("Application window: {:?}", &self.window_size);
+                        for p in self.panels.iter() {
+                            println!("{:?}", p);
+                            for c in p.children.iter() {
+                                c.debug_viewcursor();
+                            }
                         }
                     }
                 }
@@ -467,13 +463,19 @@ impl<'app> Application<'app> {
     }
 }
 
-pub fn cast_ref_to_input<'app, T: Input>(t: &'app mut T) -> &'app mut dyn Input where T: 'app {
+pub fn cast_ref_to_input<'app, T: Input>(t: &'app mut T) -> &'app mut dyn Input
+where
+    T: 'app,
+{
     unsafe {
         let a = t as *mut T;
         &mut (*a) as &'app mut dyn Input
     }
 }
 
-pub fn cast_ptr_to_input<'app, T: Input>(t: *mut T) -> &'app mut dyn Input where T: 'app {
-        unsafe { &mut (*t) as &'app mut dyn Input }
+pub fn cast_ptr_to_input<'app, T: Input>(t: *mut T) -> &'app mut dyn Input
+where
+    T: 'app,
+{
+    unsafe { &mut (*t) as &'app mut dyn Input }
 }

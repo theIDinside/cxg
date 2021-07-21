@@ -19,7 +19,6 @@ impl Length {
     }
 }
 
-
 #[derive(Debug)]
 pub struct MetaData {
     pub file_name: Option<PathBuf>,
