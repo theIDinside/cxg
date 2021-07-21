@@ -205,7 +205,7 @@ impl<'app> InputBox<'app> {
 
 impl<'app> Input for InputBox<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
-        let key_pressed = || action == glfw::Action::Press;
+        let key_pressed = || action == glfw::Action::Press || action == glfw::Action::Repeat;
         match key {
             glfw::Key::Backspace if key_pressed() => {
                 if let Some(_) = self.input_box.data.pop() {

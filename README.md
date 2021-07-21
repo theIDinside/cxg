@@ -13,11 +13,20 @@ Key-bindings are not re-mappable right now, but obviously will be
 - Ctrl + Home:          Go to beginning of file
 - Ctrl + Left/Right:    Navigate cursor on word boundaries
 - Ctrl + P:             Show popup view (no other functionality than a normal view as of now)
+- Ctrl + shift + I:     Open Input box (screen shot below)
 
 ## Screenshots
 
 Editing while having 2 views open
 ![How regular editing looks right now](editing.png)
 
-Debug interface overlaid on the window, and the popup window also displayed
-![How regular editing looks right now](debug_interface_and_popup.png)
+Debug interface overlaid on the window
+![How regular editing looks right now](debug_interface.png)
+
+Input box, emulating the functionality of all modern IDE's or editors, like VSCode, or Clion etc. The design
+is bound to change, right now it's just about getting the functionality to work. Looks will come later.
+Right now, there's no actual functionality in it. When typing in it, it produces files & paths in the workspace
+folder, that contains the characters. The functionality isn't particularly hard. The UI is my absolute weakest side.
+
+Keyboard command
+![Input box for quick select of file browsing](inputbox.png)
