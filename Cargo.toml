@@ -12,6 +12,7 @@ gl = "*"
 libc = "*"
 freetype-rs = "*"
 png = "*"
+walkdir = "*"
 
 [profile.release]
 debug = true
