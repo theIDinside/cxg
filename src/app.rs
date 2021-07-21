@@ -292,6 +292,10 @@ impl<'app> Application<'app> {
         self.debug_view.view.size = Size { width: self.width() - 20, height: self.height() - 20 };
         self.debug_view.update();
 
+        let ib_center = self.input_box.frame.size.width / 2;
+        let app_window_width_center = width / 2;
+        self.input_box.set_anchor(Anchor(app_window_width_center - ib_center, height - 25));
+
         unsafe { gl::Viewport(0, 0, width, height) }
     }
 
