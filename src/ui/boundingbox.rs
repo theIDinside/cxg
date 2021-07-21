@@ -1,5 +1,8 @@
-use super::{coordinate::{Anchor, Size}, frame::Frame};
-use crate::{datastructure::generic::Vec2i};
+use super::{
+    coordinate::{Anchor, Margin, Size},
+    frame::Frame,
+};
+use crate::datastructure::generic::Vec2i;
 
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -30,8 +33,50 @@ impl BoundingBox {
     }
 
     pub fn from_frame(frame: &Frame) -> BoundingBox {
-        let (Anchor(x, y), Size{width, height}) = (frame.anchor, frame.size);
+        let (Anchor(x, y), Size { width, height }) = (frame.anchor, frame.size);
         BoundingBox::new(Vec2i::new(x, y - height), Vec2i::new(x + width, y))
+    }
+
+    pub fn shrink(bounding_box: &BoundingBox, margin: Margin) -> BoundingBox {
+        let mut b = bounding_box.clone();
+        match margin {
+            Margin::Vertical(margin) => {
+                b.min.y += margin;
+                b.max.y -= margin;
+            },
+            Margin::Horizontal(margin) => {
+                b.min.x += margin;
+                b.max.x -= margin;
+            },
+            Margin::Perpendicular { h: horizontal, v: vertical } => {
+                b.min.y += vertical;
+                b.max.y -= vertical;
+                b.min.x += horizontal;
+                b.max.x -= horizontal;
+            },
+        }
+        b
+    }
+
+    pub fn expand(bounding_box: &BoundingBox, margin: Margin) -> BoundingBox {
+        let mut b = bounding_box.clone();
+        match margin {
+            Margin::Vertical(margin) => {
+                b.min.y -= margin;
+                b.max.y += margin;
+            },
+            Margin::Horizontal(margin) => {
+                b.min.x -= margin;
+                b.max.x += margin;
+            },
+            Margin::Perpendicular { h: horizontal, v: vertical } => {
+                b.min.y -= vertical;
+                b.max.y += vertical;
+                b.min.x -= horizontal;
+                b.max.x += horizontal;
+            },
+        }
+        b
     }
 }
 
