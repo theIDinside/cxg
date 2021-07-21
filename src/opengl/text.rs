@@ -1,12 +1,5 @@
 use super::{Primitive, types::{RGBColor, TextVertex as TVertex}};
-use crate::{
-    datastructure::generic::Vec2i,
-    debugger_catch,
-    ui::{
-        coordinate::{PointArithmetic, Size},
-        font::{Font, GlyphInfo},
-    },
-};
+use crate::{datastructure::generic::Vec2i, debugger_catch, ui::{coordinate::{Anchor, PointArithmetic, Size}, font::{Font, GlyphInfo}, frame::Frame}};
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct RendererId(pub u32);
@@ -92,6 +85,18 @@ impl<'a> TextRenderer<'a> {
         self.gl_handle.bind();
         self.shader.bind();
         self.font.bind();
+    }
+
+    pub fn draw_clipped(&mut self, clip_frame: Frame) {
+        let Frame { anchor: Anchor(top_x, top_y), size } = clip_frame;
+        unsafe {
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(top_x, top_y - size.height, size.width, size.height);
+        }
+        self.draw();
+        unsafe {
+            gl::Disable(gl::SCISSOR_TEST);
+        }
     }
 
     pub fn draw(&mut self) {
