@@ -140,7 +140,8 @@ impl<'app> Panel<'app> {
 
     pub fn remove_view(&mut self, view_id: ViewId) -> Option<View<'app>> {
         if let Some(pos) = self.children.iter().position(|v| v.id == view_id) {
-            Some(self.children.remove(pos))
+            let v = self.children.remove(pos);
+            Some(v)
         } else {
             None
         }

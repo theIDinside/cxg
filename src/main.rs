@@ -11,11 +11,14 @@ extern crate walkdir;
 pub mod opengl;
 pub mod app;
 pub mod datastructure;
+pub mod debuginfo;
 pub mod textbuffer;
 pub mod ui;
 
 #[macro_use]
 pub mod utils;
+
+use crate::debuginfo::DebugInfo;
 
 use self::glfw::Context;
 use opengl::glinit;
@@ -57,6 +60,7 @@ pub fn foo() {
 }
 
 fn main() -> Main {
+    let debug_info = DebugInfo::begin();
     let width = 1024;
     let height = 768;
     let font_path = std::path::Path::new("fonts/SourceCodePro-Bold.ttf");
@@ -101,8 +105,7 @@ fn main() -> Main {
     let fonts = vec![font];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
-    let mut app = app::Application::create(&fonts, font_program, rectangle_program);
-
+    let mut app = app::Application::create(&fonts, font_program, rectangle_program, debug_info);
     let mut last_update = glfw_handle.get_time();
     let mut frame_counter = 0.0;
     let mut once_a_second_update = 10000.0;

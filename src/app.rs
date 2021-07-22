@@ -1,5 +1,6 @@
 use crate::datastructure::generic::Vec2d;
 use crate::debugger_catch;
+use crate::debuginfo::DebugInfo;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::CharBuffer;
@@ -64,7 +65,7 @@ pub struct Application<'app> {
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
+    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -108,7 +109,7 @@ impl<'app> Application<'app> {
         debug_view.set_anchor(Anchor(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
-        let debug_view = DebugView::new(debug_view);
+        let debug_view = DebugView::new(debug_view, debug_info);
 
         let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 650 } };
 
@@ -561,13 +562,10 @@ impl<'app> Application<'app> {
 
         let panel = self.panels.get_mut(*panel_id as usize).unwrap();
 
-        self.active_view = {
-            let v = panel.remove_view(view_id).unwrap();
-            drop(v);
-            panel.children.last_mut().unwrap() as _
-        };
+        let v = panel.remove_view(view_id);
+        drop(v);
+        self.active_view = panel.children.last_mut().unwrap() as _;
         self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-
         panel.layout();
         self.decorate_active_view();
         self.active_ui_element = UID::View(*self.get_active_view().id);
@@ -575,16 +573,6 @@ impl<'app> Application<'app> {
 
     pub fn set_debug(&mut self, set: bool) {
         self.debug = set;
-    }
-}
-
-pub fn cast_ref_to_input<'app, T: InputBehavior>(t: &'app mut T) -> &'app mut dyn InputBehavior
-where
-    T: 'app,
-{
-    unsafe {
-        let a = t as *mut T;
-        &mut (*a) as &'app mut dyn InputBehavior
     }
 }
 
