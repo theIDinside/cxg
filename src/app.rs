@@ -464,22 +464,23 @@ impl<'app> Application<'app> {
             return;
         }
         // todo: we need to ask user,  what to do with unsaved files etc.
-        if self.panels.iter().map(|p| p.children.len()).sum::<usize>() == 1 {
-            // We only have 1 view/window open. Close the program. In the future, we might have some file browser or whatever, that'll be a "main/unclosable" that will be displayed instead. Until then though
-            // we just shut shit down.
-            self.close_requested = true;
-            return;
-        }
 
         let view = unsafe { self.active_view.as_mut().unwrap() };
 
         let view_id = view.id;
         let panel_id = view.panel_id.unwrap();
+
+        if self.panels.last().unwrap().children.len() == 1 {
+            self.open_text_view(panel_id, None, self.window_size);
+        }
+
         let panel = self.panels.get_mut(*panel_id as usize).unwrap();
 
         self.active_view = {
             let v = panel.remove_view(view_id).unwrap();
+            let pid = v.panel_id;
             println!("Closing and dropping resources of view: {:?}", v);
+
             panel.children.last_mut().unwrap() as _
         };
         self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
