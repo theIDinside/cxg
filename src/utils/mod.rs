@@ -18,6 +18,7 @@ impl AsUsize for usize {
     }
 }
 
+/// Calculates difference; |a - b|
 pub fn difference<T>(a: T, b: T) -> usize
 where
     T: std::ops::Sub<Output = T> + std::ops::SubAssign + std::cmp::PartialEq + std::cmp::PartialOrd + AsUsize,

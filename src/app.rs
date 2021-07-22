@@ -3,21 +3,17 @@ use crate::debugger_catch;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::CharBuffer;
+use crate::ui::basic::{
+    coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
+    frame::Frame,
+};
 use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
-use crate::ui::frame::Frame;
 use crate::ui::inputbox::{InputBox, InputBoxMode};
-use crate::ui::panel::PanelId;
-use crate::ui::statusbar::StatusBarContent;
-use crate::ui::view::ViewId;
-use crate::ui::{
-    coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
-    font::Font,
-    panel::Panel,
-    statusbar::StatusBar,
-    view::{Popup, View},
-    UID,
-};
+use crate::ui::panel::{Panel, PanelId};
+use crate::ui::statusbar::{StatusBar, StatusBarContent};
+use crate::ui::view::{Popup, View, ViewId};
+use crate::ui::{font::Font, UID};
 use crate::ui::{MouseState, Viewable};
 
 use glfw::{Action, Key, Modifiers, Window};

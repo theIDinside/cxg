@@ -44,6 +44,13 @@ macro_rules! only_in_debug {
     };
 }
 
+#[macro_export]
+macro_rules! diff {
+    ($a:expr, $b:expr) => {
+        ($a as i64 - $b as i64).abs() as usize
+    };
+}
+
 /// Empty macro statement, so that our debugger_catch!() calls don't get compiled into the release binary. that would be completely
 /// unnecessary
 #[macro_export]
@@ -75,7 +82,7 @@ macro_rules! Assert {
 #[macro_export]
 macro_rules! IndexingType {
     ($(#[$attr:meta])*, $safe_type:ident, $wrapped_type:ty) => {
-        #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd)]
+        #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
         $(#[$attr])*
         pub struct $safe_type(pub $wrapped_type);
         impl std::ops::Deref for $safe_type {
@@ -116,7 +123,7 @@ macro_rules! IndexingType {
             type Output = Self;
             fn sub(self, rhs: Self) -> Self::Output {
                 let Self(this) = self;
-                let Self( that) = rhs;
+                let Self(that) = rhs;
                 Self(this - that)
             }
         }
@@ -156,4 +163,16 @@ macro_rules! IndexingType {
             }
         }
     };
+}
+
+#[cfg(test)]
+pub mod tests {
+    #[test]
+    pub fn test_equivalent_functionality_macro_and_fn() {
+        let v = vec!['f', 'o', 'o'];
+        let s = "hello world";
+        let fn_res = crate::utils::difference(v.len(), s.len());
+        let macro_res = diff!(v.len(), s.len());
+        assert_eq!(fn_res, macro_res);
+    }
 }

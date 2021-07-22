@@ -1,4 +1,4 @@
-use crate::ui::boundingbox::BoundingBox;
+use crate::ui::basic::boundingbox::BoundingBox;
 
 use super::{
     glinit::OpenGLHandle,

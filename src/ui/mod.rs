@@ -1,3 +1,7 @@
+/// Basic building blocks of UI elements
+pub mod basic;
+use basic::{boundingbox, coordinate, frame};
+
 use crate::{
     datastructure::generic::{Vec2d, Vec2i},
     opengl::types::RGBAColor,
@@ -10,12 +14,9 @@ use self::{
     view::ViewId,
 };
 
-pub mod boundingbox;
-pub mod coordinate;
 pub mod eventhandling;
 pub mod font;
 
-pub mod frame;
 pub mod inputbox;
 pub mod panel;
 pub mod statusbar;

@@ -326,8 +326,8 @@ impl SimpleBuffer {
             .and_then(|index| {
                 self.meta_data
                     .get_line_length_of(prior_line)
-                    .map(|len| {
-                        let pos = index.offset(min(len.offset(-1).as_usize() as _, *self.cursor_col() as _));
+                    .map(|prior_line_len| {
+                        let pos = index.offset(min(prior_line_len.offset(-1).as_usize() as _, self.cursor_col().as_usize() as _));
                         self.cursor_from_metadata(pos)
                     })
                     .unwrap_or(self.cursor_from_metadata(index))

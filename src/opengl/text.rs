@@ -6,9 +6,9 @@ use crate::{
     datastructure::generic::Vec2i,
     debugger_catch,
     ui::{
-        coordinate::{Anchor, PointArithmetic, Size},
+        basic::coordinate::{Anchor, PointArithmetic, Size},
+        basic::frame::Frame,
         font::{Font, GlyphInfo},
-        frame::Frame,
     },
 };
 
@@ -198,7 +198,8 @@ impl<'a> TextRenderer<'a> {
     pub fn prepare_data_from_iterator<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, text_color: RGBColor, x: i32, y: i32) {
         let color = text_color;
         self.clear_data();
-        self.vtx_data.reserve(crate::utils::difference(self.vtx_data.capacity(), text.len()));
+
+        self.vtx_data.reserve(crate::diff!(self.vtx_data.capacity(), text.len()));
 
         let mut current_x = x;
         let mut current_y = y - self.font.row_height();
