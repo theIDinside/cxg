@@ -75,6 +75,10 @@ fn main() -> Main {
     window.set_key_polling(true);
     window.set_framebuffer_size_polling(true);
     window.set_refresh_polling(true); // We need to redraw everything
+    window.set_mouse_button_polling(true);
+    window.set_scroll_polling(true);
+    window.set_cursor_pos_polling(true);
+
     glfw_handle.set_swap_interval(glfw::SwapInterval::None);
     gl::load_with(|sym| window.get_proc_address(sym) as *const _);
     unsafe {

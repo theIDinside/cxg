@@ -31,4 +31,4 @@ Right now, there's no actual functionality in it. When typing in it, it produces
 folder, that contains the characters. The functionality isn't particularly hard. The UI is my absolute weakest side.
 
 Keyboard command
-![Input box for quick select of file browsing](inputbox.png)
+![Input box for quick select of file browsing](example.png)

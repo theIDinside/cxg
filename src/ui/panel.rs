@@ -1,5 +1,7 @@
+use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size};
 use super::view::{View, ViewId};
+use super::Viewable;
 use crate::ui::Vec2i;
 
 use std::fmt::Formatter;
@@ -89,9 +91,6 @@ impl<'app> Panel<'app> {
     pub fn height(&self) -> i32 {
         self.size.y()
     }
-    pub fn set_anchor(&mut self, x: i32, y: i32) {
-        self.anchor = Anchor(x, y);
-    }
 
     pub fn layout(&mut self) {
         if self.children.len() == 1 {
@@ -147,12 +146,6 @@ impl<'app> Panel<'app> {
         }
     }
 
-    pub fn resize(&mut self, w: i32, h: i32) {
-        let old_size = self.size;
-        self.size = Size::new(w, h);
-        self.size_changed(old_size);
-    }
-
     pub fn get_view(&mut self, view_id: ViewId) -> Option<*mut View<'app>> {
         for v in self.children.iter_mut() {
             if *v.id() == *view_id {
@@ -206,5 +199,25 @@ impl<'app> Panel<'app> {
         for v in self.children.iter_mut() {
             v.update();
         }
+    }
+}
+
+impl<'app> Viewable for Panel<'app> {
+    fn resize(&mut self, size: Size) {
+        let old_size = self.size;
+        self.size = size;
+        self.size_changed(old_size);
+    }
+
+    fn set_anchor(&mut self, anchor: Anchor) {
+        self.anchor = anchor;
+    }
+
+    fn bounding_box(&self) -> super::boundingbox::BoundingBox {
+        BoundingBox::from_info(self.anchor, self.size)
+    }
+
+    fn mouse_clicked(&mut self, _pos: Vec2i) {
+        todo!()
     }
 }

@@ -1,13 +1,16 @@
+use crate::datastructure::generic::Vec2d;
 use crate::debugger_catch;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::CharBuffer;
+use crate::ui::coordinate::Margin;
 use crate::ui::debug_view::DebugView;
-use crate::ui::eventhandling::event::{Input, InvalidInput};
+use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
 use crate::ui::frame::Frame;
 use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::PanelId;
 use crate::ui::statusbar::StatusBarContent;
+use crate::ui::view::ViewId;
 use crate::ui::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
     font::Font,
@@ -16,13 +19,14 @@ use crate::ui::{
     view::{Popup, View},
     UID,
 };
+use crate::ui::{MouseState, Viewable};
 
 use glfw::{Action, Key, Modifiers, Window};
 use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
-static VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
+static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.102, b: 0.1242123, a: 1.0 };
 
 pub struct Application<'app> {
@@ -52,17 +56,17 @@ pub struct Application<'app> {
     pub active_view: *mut View<'app>,
     /// Pointer to the element that's currently receiving user input. This handle, handles the behavior of the application
     /// and dispatches accordingly to the right type, to determine what should be done when user inputs, key strokes or mouse movements, etc
-    pub active_input: &'app mut dyn Input,
+    pub active_input: &'app mut dyn InputBehavior,
     /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
     close_requested: bool,
-
     input_box: InputBox<'app>,
     pub debug_view: DebugView<'app>,
+    mouse_state: MouseState,
 }
 
-static mut INVALID_INPUT: InvalidInput = InvalidInput {};
+static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
     pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader) -> Application<'app> {
@@ -96,6 +100,7 @@ impl<'app> Application<'app> {
         // Create the popup UI
         let (tr, rr) = make_renderers();
         let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, ACTIVE_VIEW_BACKGROUND);
+
         popup.set_anchor((250, 768 - 250).into());
         popup.update();
         popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
@@ -127,13 +132,14 @@ impl<'app> Application<'app> {
             active_ui_element: UID::View(active_view_id),
             debug: false,
             active_view: std::ptr::null_mut(),
-            active_input: unsafe { &mut INVALID_INPUT as &mut dyn Input },
+            active_input: unsafe { &mut INVALID_INPUT as &mut dyn InputBehavior },
             close_requested: false,
             input_box,
             debug_view,
+            mouse_state: MouseState::None,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
-        res.active_input = unsafe { &mut (*v) as &'app mut dyn Input };
+        res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
 
         match res.active_ui_element {
             UID::View(id) => {
@@ -182,12 +188,12 @@ impl<'app> Application<'app> {
             self.active_ui_element = UID::View(*view.id);
             p.add_view(view);
             unsafe {
-                (*self.active_view).bg_color = VIEW_BACKGROUND;
-                (*self.active_view).window_renderer.set_color(VIEW_BACKGROUND);
+                (*self.active_view).bg_color = INACTIVE_VIEW_BACKGROUND;
+                (*self.active_view).window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
                 (*self.active_view).update();
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
-            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
+            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
         } else {
             panic!("panel with id {} was not found", *parent_panel);
         }
@@ -208,9 +214,9 @@ impl<'app> Application<'app> {
         }
         let id = {
             let view = self.get_active_view();
-            view.bg_color = VIEW_BACKGROUND;
+            view.bg_color = INACTIVE_VIEW_BACKGROUND;
             view.set_need_redraw();
-            view.window_renderer.set_color(VIEW_BACKGROUND);
+            view.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
             view.id
         };
 
@@ -229,7 +235,7 @@ impl<'app> Application<'app> {
         let id = unsafe { (*self.active_view).id };
         self.active_ui_element = UID::View(*id);
         self.decorate_active_view();
-        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
+        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
     }
 
     pub fn get_active_view(&mut self) -> &mut View<'app> {
@@ -273,8 +279,8 @@ impl<'app> Application<'app> {
         for p in self.panels.iter_mut() {
             let Anchor(x, y) = Anchor::vector_multiply(p.anchor, size_change_factor);
             let new_size = Size::vector_multiply(p.size, size_change_factor);
-            p.set_anchor(x, y);
-            p.resize(new_size.width, new_size.height);
+            p.set_anchor(Anchor(x, y));
+            p.resize(new_size);
             for v in p.children.iter_mut() {
                 v.update();
             }
@@ -310,9 +316,94 @@ impl<'app> Application<'app> {
                 glfw::WindowEvent::Key(key, _, action, m) => {
                     self.handle_key_event(window, key, action, m);
                 }
+                glfw::WindowEvent::MouseButton(mbtn, act, _mods) => {
+                    let (x, y) = window.get_cursor_pos();
+                    let pos = self.translate_screen_to_application_space(Vec2d::new(x, y));
+
+                    if act == glfw::Action::Press {
+                        let new_state = MouseState::Click(mbtn, pos);
+                        self.handle_mouse_input(new_state);
+                        self.mouse_state = new_state;
+                        // click only performs focus, whatever action that needs to be taken, happens at release
+                        // this is, so that we can click on something, and drag it
+                    } else {
+                        self.handle_mouse_input(MouseState::Released(mbtn, pos));
+                        self.mouse_state = MouseState::None;
+                    }
+                }
+                glfw::WindowEvent::CursorPos(_mposx, _mposy) => {
+                    match self.mouse_state {
+                        MouseState::Click(_, _) => { // Start drag, REMEMBER, MUST translate to Application coordinate space
+                        }
+                        MouseState::Drag(_, _, _) => { // Continue drag, REMEMBER, MUST translate to Application coordinate space
+                        }
+                        _ => { // Do nothing
+                        }
+                    }
+                }
                 _ => {}
             }
         }
+    }
+
+    fn translate_screen_to_application_space(&self, glfw_coordinate: Vec2d) -> Vec2d {
+        let Vec2d { x, y } = glfw_coordinate;
+        Vec2d::new(x, self.height() as f64 - y)
+    }
+
+    fn handle_mouse_input(&mut self, new_state: MouseState) {
+        match new_state {
+            MouseState::Click(btn, pos) => {
+                if btn == glfw::MouseButton::Button1 {
+                    let active_id = self.get_active_view_id();
+                    let pos = pos.to_i32();
+                    let de_activate_old = if let Some(view_clicked) = self
+                        .panels
+                        .iter_mut()
+                        .flat_map(|p| p.children.iter_mut())
+                        .find(|v| v.bounding_box().box_hit_check(pos))
+                    {
+                        let id = view_clicked.id;
+                        view_clicked.mouse_clicked(pos);
+                        self.active_view = &mut (*view_clicked) as *mut _;
+                        self.active_input = cast_ptr_to_input(self.active_view); // unsafe { self.active_view.as_mut().unwrap() as &'app mut dyn Input };
+                        self.decorate_active_view();
+                        // check if the clicked view, was the already active view
+                        id != active_id
+                    } else {
+                        false
+                    };
+                    // if the clicked view, was not the active view already, decorate the old view => inactive
+                    if de_activate_old {
+                        if let Some(v) = self
+                            .panels
+                            .iter_mut()
+                            .flat_map(|p| p.children.iter_mut())
+                            .find(|v| v.id == active_id)
+                        {
+                            // decorate view as an inactive one
+                            v.bg_color = INACTIVE_VIEW_BACKGROUND;
+                            v.set_need_redraw();
+                            v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                        }
+                    }
+                }
+            }
+            MouseState::Drag(_maybe_view, _btn, _pos) => {}
+            MouseState::Released(_btn, _pos) => match self.mouse_state {
+                MouseState::Drag(_maybe_view, _btn, _pos) => {
+                    // we only ever really want to do something if the previous state was "drag",
+                    // since we handle click immediately, when Release event is registered,
+                    // we check if user was clicking and dragging something, to handle behavior
+                }
+                _ => {}
+            },
+            MouseState::None => {}
+        }
+    }
+
+    fn get_active_view_id(&self) -> ViewId {
+        unsafe { self.active_view.as_ref().unwrap().id }
     }
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
@@ -333,7 +424,7 @@ impl<'app> Application<'app> {
                     } else {
                         self.input_box.mode = InputBoxMode::Command;
                         // self.active_input = &mut self.input_box as &'app mut dyn Input;
-                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn Input };
+                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
                         self.input_box.visible = true;
                     }
                 } else if modifier == (Modifiers::Control | Modifiers::Shift) {
@@ -342,7 +433,7 @@ impl<'app> Application<'app> {
                         self.input_box.visible = false;
                     } else {
                         self.input_box.mode = InputBoxMode::FileList;
-                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn Input };
+                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
                         self.input_box.visible = true;
                     }
                 }
@@ -385,7 +476,7 @@ impl<'app> Application<'app> {
                         v.buffer.load_file(&path);
                         v.set_need_redraw();
                         v.update();
-                        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
+                        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
                         self.input_box.visible = false;
                     } else {
                         let p_id = self.get_active_view().panel_id;
@@ -464,7 +555,6 @@ impl<'app> Application<'app> {
             return;
         }
         // todo: we need to ask user,  what to do with unsaved files etc.
-
         let view = unsafe { self.active_view.as_mut().unwrap() };
 
         let view_id = view.id;
@@ -478,12 +568,10 @@ impl<'app> Application<'app> {
 
         self.active_view = {
             let v = panel.remove_view(view_id).unwrap();
-            let pid = v.panel_id;
-            println!("Closing and dropping resources of view: {:?}", v);
-
+            drop(v);
             panel.children.last_mut().unwrap() as _
         };
-        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn Input };
+        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
 
         panel.layout();
         self.decorate_active_view();
@@ -495,19 +583,19 @@ impl<'app> Application<'app> {
     }
 }
 
-pub fn cast_ref_to_input<'app, T: Input>(t: &'app mut T) -> &'app mut dyn Input
+pub fn cast_ref_to_input<'app, T: InputBehavior>(t: &'app mut T) -> &'app mut dyn InputBehavior
 where
     T: 'app,
 {
     unsafe {
         let a = t as *mut T;
-        &mut (*a) as &'app mut dyn Input
+        &mut (*a) as &'app mut dyn InputBehavior
     }
 }
 
-pub fn cast_ptr_to_input<'app, T: Input>(t: *mut T) -> &'app mut dyn Input
+pub fn cast_ptr_to_input<'app, T: InputBehavior>(t: *mut T) -> &'app mut dyn InputBehavior
 where
     T: 'app,
 {
-    unsafe { &mut (*t) as &'app mut dyn Input }
+    unsafe { &mut (*t) as &'app mut dyn InputBehavior }
 }

@@ -1,3 +1,9 @@
+pub mod line_text_box;
+pub mod listbox;
+
+use line_text_box::LineTextBox;
+use listbox::ListBox;
+
 use std::{iter::FromIterator, path::Path};
 
 use walkdir::WalkDir;
@@ -5,11 +11,10 @@ use walkdir::WalkDir;
 use super::{
     boundingbox::BoundingBox,
     coordinate::*,
-    eventhandling::event::Input,
+    eventhandling::event::InputBehavior,
     font::Font,
     frame::{make_inner_frame, Frame},
-    input::line_text_box::LineTextBox,
-    ACTIVE_VIEW_BACKGROUND,
+    Viewable, ACTIVE_VIEW_BACKGROUND,
 };
 use crate::{
     datastructure::generic::Vec2i,
@@ -23,19 +28,19 @@ use crate::{
 };
 
 pub struct TextRenderSetting {
-    scale: f32,
+    _scale: f32,
     text_color: RGBColor,
 }
 
 impl TextRenderSetting {
     pub fn new(scale: f32, text_color: RGBColor) -> TextRenderSetting {
-        TextRenderSetting { scale, text_color }
+        TextRenderSetting { _scale: scale, text_color }
     }
 }
 
 impl Default for TextRenderSetting {
     fn default() -> Self {
-        TextRenderSetting { scale: 1.0, text_color: RGBColor { r: 0.0, g: 1.0, b: 1.0 } }
+        TextRenderSetting { _scale: 1.0, text_color: RGBColor { r: 0.0, g: 1.0, b: 1.0 } }
     }
 }
 
@@ -44,55 +49,6 @@ pub enum InputBoxMode {
     // todo(feature): add SymbolList
     Command,
     FileList,
-}
-
-/// POD data type ListBox. These do not define behavior in any real sense. They just hold the data
-/// that InputBox displays. Therefore the behaviors is defined in that struct impl.
-pub struct ListBox {
-    pub data: Vec<Vec<char>>,
-    pub selection: Option<usize>,
-    pub frame: Frame,
-    pub text_render_settings: TextRenderSetting,
-    pub background_color: RGBAColor,
-    pub item_height: i32,
-}
-
-impl ListBox {
-    pub fn new(frame: Frame, list_item_height: i32, render_config: Option<(TextRenderSetting, RGBAColor)>) -> ListBox {
-        let (text_render_settings, background_color) = render_config.unwrap_or((TextRenderSetting::default(), ACTIVE_VIEW_BACKGROUND));
-        ListBox {
-            data: Vec::with_capacity(10),
-            selection: None,
-            frame,
-            text_render_settings,
-            background_color,
-            item_height: list_item_height,
-        }
-    }
-
-    /// Returns selected item, if any selection has been made (and there's any available choices in the list)
-    pub fn get_selected(&self) -> Option<&Vec<char>> {
-        self.selection.and_then(|index| self.data.get(index))
-    }
-
-    pub fn pop_selected(&mut self) -> Option<Vec<char>> {
-        self.selection
-            .and_then(|index| if self.data.len() > index { Some(self.data.remove(index)) } else { None })
-    }
-
-    /// Resets the text input and the generated item choices
-    pub fn clear(&mut self) {
-        self.selection = None;
-        self.data.clear();
-    }
-
-    pub fn scroll_selection_up(&mut self) {
-        self.selection = self.selection.map(|f| if f == 0 { self.data.len() - 1 } else { f - 1 }).or(Some(0));
-    }
-
-    pub fn scroll_selection_down(&mut self) {
-        self.selection = self.selection.map(|f| if f + 1 >= self.data.len() { 0 } else { f + 1 }).or(Some(0));
-    }
 }
 
 pub struct InputBox<'app> {
@@ -132,27 +88,6 @@ impl<'app> InputBox<'app> {
             mode: InputBoxMode::Command,
             needs_update: true,
         }
-    }
-
-    pub fn set_anchor(&mut self, anchor: Anchor) {
-        self.frame.anchor = anchor;
-
-        let margin = 4;
-        let input_box_frame = Frame {
-            anchor: self.frame.anchor,
-            size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4),
-        };
-        let input_inner_frame = make_inner_frame(&input_box_frame, margin);
-        self.input_box.outer_frame = input_box_frame;
-        self.input_box.inner_frame = input_inner_frame;
-
-        let list_box_frame = Frame {
-            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
-            size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
-        };
-        self.selection_list.frame = list_box_frame;
-
-        self.needs_update = true;
     }
 
     pub fn open(&mut self, mode: InputBoxMode) {
@@ -254,7 +189,7 @@ impl<'app> InputBox<'app> {
                     .into_iter()
                     .filter_map(|e| {
                         let e = e.unwrap();
-                        if e.path().to_str().unwrap().contains(&self.input_box.data[..]) {
+                        if e.path().to_str().unwrap().to_ascii_uppercase().contains(&name.to_uppercase()) {
                             Some(e)
                         } else {
                             None
@@ -278,7 +213,7 @@ impl<'app> InputBox<'app> {
     }
 }
 
-impl<'app> Input for InputBox<'app> {
+impl<'app> InputBehavior for InputBox<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
         self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
         let key_pressed = || action == glfw::Action::Press || action == glfw::Action::Repeat;
@@ -331,13 +266,14 @@ impl<'app> Input for InputBox<'app> {
         match self.mode {
             InputBoxMode::Command => {}
             InputBoxMode::FileList => {
+                let name = &self.input_box.data.iter().collect::<String>();
                 let found_files: Vec<Vec<char>> = WalkDir::new(".")
                     .into_iter()
                     .filter_map(|e| {
                         let e = e.unwrap();
                         // this is *odd* behavior. When we pass in a slice to contains(...)
                         // it will return true if *any* of the elements in that slice, exists in the string
-                        if e.path().to_str().unwrap().contains(&self.input_box.data.iter().collect::<String>()) {
+                        if e.path().to_str().unwrap().to_ascii_uppercase().contains(&name.to_uppercase()) {
                             Some(e)
                         } else {
                             None
@@ -352,6 +288,56 @@ impl<'app> Input for InputBox<'app> {
     }
 
     fn get_uid(&self) -> Option<super::UID> {
+        todo!()
+    }
+}
+
+impl<'app> Viewable for InputBox<'app> {
+    fn resize(&mut self, size: Size) {
+        let margin = 4;
+        self.frame.size = size;
+
+        let input_box_frame = Frame {
+            anchor: self.frame.anchor,
+            size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4),
+        };
+        let input_inner_frame = make_inner_frame(&input_box_frame, margin);
+        self.input_box.outer_frame = input_box_frame;
+        self.input_box.inner_frame = input_inner_frame;
+
+        let list_box_frame = Frame {
+            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
+        };
+        self.selection_list.frame = list_box_frame;
+        self.needs_update = true;
+    }
+
+    fn set_anchor(&mut self, anchor: Anchor) {
+        self.frame.anchor = anchor;
+
+        let margin = 4;
+        let input_box_frame = Frame {
+            anchor: self.frame.anchor,
+            size: Size::new(self.frame.size.width, self.selection_list.item_height + margin * 4),
+        };
+        let input_inner_frame = make_inner_frame(&input_box_frame, margin);
+        self.input_box.outer_frame = input_box_frame;
+        self.input_box.inner_frame = input_inner_frame;
+
+        let list_box_frame = Frame {
+            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
+        };
+        self.selection_list.frame = list_box_frame;
+        self.needs_update = true;
+    }
+
+    fn bounding_box(&self) -> BoundingBox {
+        BoundingBox::from_info(self.frame.anchor, self.frame.size)
+    }
+
+    fn mouse_clicked(&mut self, screen_coordinate: Vec2i) {
         todo!()
     }
 }

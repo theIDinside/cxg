@@ -2,8 +2,9 @@ use glfw::{Action, Key, Modifiers};
 
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Anchor, Size};
-use super::eventhandling::event::{Input, InputResponse};
+use super::eventhandling::event::{InputBehavior, InputResponse};
 use super::panel::PanelId;
+use super::Viewable;
 use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
@@ -34,11 +35,6 @@ impl Into<ViewId> for u32 {
     fn into(self) -> ViewId {
         ViewId(self)
     }
-}
-
-pub trait Viewable {
-    fn resize(&mut self, size: Size);
-    fn set_anchor(&mut self, anchor: Anchor);
 }
 
 pub struct View<'a> {
@@ -94,7 +90,7 @@ impl<'a> std::fmt::Debug for View<'a> {
     }
 }
 
-impl<'app> Input for View<'app> {
+impl<'app> InputBehavior for View<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
         match key {
             Key::Home => match modifier {
@@ -270,15 +266,6 @@ impl<'a> View<'a> {
         }
     }
 
-    pub fn set_anchor(&mut self, anchor: Anchor) {
-        self.anchor = anchor;
-    }
-
-    pub fn resize(&mut self, size: Size) {
-        self.size = size;
-        self.displayable_lines = self.size.height / self.row_height;
-    }
-
     pub fn load_file(&mut self, path: &Path) {
         debugger_catch!(self.buffer.empty(), crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file")));
         if self.buffer.empty() {
@@ -435,4 +422,51 @@ fn input_not_valid(ch: char) -> bool {
         }
     }
     false
+}
+
+impl<'app> Viewable for View<'app> {
+    fn resize(&mut self, size: Size) {
+        self.size = size;
+        self.displayable_lines = self.size.height / self.row_height;
+    }
+
+    fn set_anchor(&mut self, anchor: Anchor) {
+        self.anchor = anchor;
+    }
+
+    fn bounding_box(&self) -> BoundingBox {
+        BoundingBox::from_info(self.anchor, self.size)
+    }
+
+    fn mouse_clicked(&mut self, pos: Vec2i) {
+        debugger_catch!(self.bounding_box().box_hit_check(pos), crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view")));
+
+        let Anchor(ax, ay) = self.anchor;
+        let Vec2i { x: mx, y: my } = pos;
+
+        let md = self.buffer.meta_data();
+        let view_line = ((ay - my) as f64 / self.row_height as f64).floor() as isize;
+        let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
+
+        let start_index = md
+            .get_line_start_index(line_clicked)
+            .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
+
+        let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
+
+        let line_contents = self.buffer.get_slice(*start_index..*end_index);
+        let mut rel_x = mx - ax;
+
+        let final_index_pos = line_contents
+            .iter()
+            .enumerate()
+            .find(|(_, ch)| {
+                rel_x -= self.text_renderer.get_glyph(**ch).unwrap().advance;
+                rel_x <= 0
+            })
+            .map(|(i, _)| start_index.offset(i as isize))
+            .unwrap_or(end_index.offset(-1));
+
+        self.cursor_goto(final_index_pos);
+    }
 }

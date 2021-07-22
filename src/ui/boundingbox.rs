@@ -19,6 +19,13 @@ impl BoundingBox {
         BoundingBox { min, max }
     }
 
+    pub fn translate_window_coordinate(bb: &BoundingBox, pos: Vec2i) -> Vec2i {
+        let Vec2i { x, y } = pos;
+        let res = Vec2i::new(x - bb.min.x, bb.max.y + (y - bb.max.y));
+        println!("translating pos {:?} into Bounding Box space {:?} => {:?}", pos, bb, res);
+        res
+    }
+
     /// Checks if parameter pos, is inside the bounding box coordinate space
     pub fn box_hit_check(&self, pos: Vec2i) -> bool {
         pos.x >= self.min.x && pos.y >= self.min.y && pos.x <= self.max.x && pos.y <= self.max.y
