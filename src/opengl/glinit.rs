@@ -53,9 +53,6 @@ pub fn screen_projection_matrix(width: u32, height: u32, scrolled: i32) -> Matri
 }
 
 pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<gl::types::GLuint, MainInitError> {
-    println!("Compiling shader:");
-    println!("{}", vertex_source);
-    println!("{}", frag_source);
     let program = unsafe {
         let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
         let v_src = CString::new(vertex_source.as_bytes()).unwrap();
