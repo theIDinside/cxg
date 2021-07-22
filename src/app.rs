@@ -3,7 +3,6 @@ use crate::debugger_catch;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::CharBuffer;
-use crate::ui::coordinate::Margin;
 use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
 use crate::ui::frame::Frame;
