@@ -18,13 +18,20 @@ impl<'app> DebugView<'app> {
         // draw filled rectangle, which will become border
         self.view
             .window_renderer
-            .add_rect(self.view.title_frame.to_bb(), self.view.bg_color.uniform_scale(0.15));
+            .add_rect(self.view.title_frame.to_bb(), self.view.bg_color.uniform_scale(-1.0));
         // fill out the inner, leaving the previous draw as border
         self.view
             .window_renderer
-            .add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: -2, v: -2 }), self.view.bg_color.uniform_scale(1.0));
-        // draw view rectangle, the background for the text editor
-        self.view.window_renderer.add_rect(self.view.view_frame.to_bb(), self.view.bg_color);
+            .add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color.uniform_scale(1.0));
+        // draw view rectangle, the background for the text editor,
+
+        self.view
+            .window_renderer
+            .add_rect(self.view.view_frame.to_bb(), self.view.bg_color.uniform_scale(-1.0));
+
+        self.view
+            .window_renderer
+            .add_rect(BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color);
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
@@ -32,10 +39,11 @@ impl<'app> DebugView<'app> {
             let Anchor(top_x, top_y) = self.view.view_frame.anchor;
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
-
+            let title = "Debug Information".chars().collect();
+            self.update();
+            self.view.draw_title(&title);
             let r: Vec<_> = format!(
                 "
-Debug Information
  |  Application 
  |  > name                          [{}] 
  |  > pid:                          [{}]
@@ -60,7 +68,8 @@ Debug Information
             )
             .chars()
             .collect();
-            self.view.text_renderer.prepare_data_from_iter(r.iter(), top_x, top_y);
+            self.view.text_renderer.append_data(r.iter(), top_x, top_y);
+            // self.view.text_renderer.prepare_data_from_iter(r.iter(), top_x, top_y);
             self.view.set_need_redraw();
         }
     }

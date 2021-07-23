@@ -64,6 +64,7 @@ fn main() -> Main {
     let width = 1024;
     let height = 768;
     let font_path = std::path::Path::new("fonts/SourceCodePro-Bold.ttf");
+    let menu_font_path = std::path::Path::new("fonts/SourceCodePro-Light.ttf");
     assert_eq!(font_path.exists(), true);
     let mut glfw_handle = glfw::init(glfw::FAIL_ON_ERRORS)?;
     foo();
@@ -101,8 +102,9 @@ fn main() -> Main {
         .chain(crate::utils::convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265]))
         .collect();
 
-    let font = ui::font::Font::new(font_path, 18, char_range).expect("Failed to create font");
-    let fonts = vec![font];
+    let font = ui::font::Font::new(font_path, 18, &char_range).expect("Failed to create font");
+    let menu_font = ui::font::Font::new(menu_font_path, 14, &char_range).expect("Failed to create font");
+    let fonts = vec![font, menu_font];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
     let mut app = app::Application::create(&fonts, font_program, rectangle_program, debug_info);

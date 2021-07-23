@@ -67,7 +67,7 @@ impl<'app> InputBox<'app> {
     pub fn new(frame: Frame, font: &'app Font, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox<'app> {
         let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), &font, 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
-        let margin = 4;
+        let margin = 2;
         let input_box_frame = Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
         let input_inner_frame = make_inner_frame(&input_box_frame, margin);
         let ltb = LineTextBox::new(input_box_frame, input_inner_frame, None);

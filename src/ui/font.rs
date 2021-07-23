@@ -70,7 +70,7 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
 // fn debug_write_font_texture_to_file(_font_path: &Path, _pixels: &Vec<u8>, _pixel_size: i32, _tex_width: u32, _tex_height: u32) {}
 
 impl Font {
-    pub fn new(font_path: &Path, pixel_size: i32, characters: Vec<char>) -> Result<Font, ft::Error> {
+    pub fn new(font_path: &Path, pixel_size: i32, characters: &Vec<char>) -> Result<Font, ft::Error> {
         let lib = ft::Library::init()?;
         let face = lib.new_face(font_path, 0)?;
         face.set_pixel_sizes(pixel_size as u32, pixel_size as u32)?;
@@ -91,7 +91,7 @@ impl Font {
         let mut max_bearing_size_diff = 0;
         let mut glyph_cache: HashMap<char, GlyphInfo> = HashMap::new();
 
-        for c in characters {
+        for &c in characters {
             face.load_char(
                 c as usize,
                 ft::face::LoadFlag::RENDER | ft::face::LoadFlag::FORCE_AUTOHINT | ft::face::LoadFlag::TARGET_LIGHT | ft::face::LoadFlag::COLOR,

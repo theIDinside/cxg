@@ -240,6 +240,12 @@ impl<'a> View<'a> {
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
 
+    pub fn draw_title(&mut self, title: &Vec<char>) {
+        let Anchor(tx, ty) = self.title_frame.anchor;
+        self.text_renderer
+            .append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
+    }
+
     pub fn draw(&mut self) {
         if !self.visible {
             return;
@@ -247,8 +253,6 @@ impl<'a> View<'a> {
         let total_size = self.total_size();
         if self.view_changed {
             self.text_renderer.clear_data();
-            let Anchor(tx, ty) = self.title_frame.anchor;
-
             let BufferCursor { pos, row, col } = self.buffer.cursor();
             let title: Vec<char> = format!(
                 "{}:{}:{}",
@@ -262,9 +266,7 @@ impl<'a> View<'a> {
             .chars()
             .collect();
 
-            self.text_renderer
-                .append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
-
+            self.draw_title(&title);
             unsafe {
                 let Anchor(top_x, top_y) = self.title_frame.anchor;
                 gl::Enable(gl::SCISSOR_TEST);

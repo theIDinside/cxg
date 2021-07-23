@@ -119,9 +119,9 @@ impl<'app> Application<'app> {
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view, debug_info);
 
-        let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 650 } };
+        let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 500 } };
 
-        let input_box = InputBox::new(ib_frame, &fonts[0], &font_shader, &rect_shader);
+        let input_box = InputBox::new(ib_frame, &fonts[1], &font_shader, &rect_shader);
 
         let mut res = Application {
             _title_bar: "cxgledit".into(),
