@@ -332,7 +332,7 @@ impl<'a> TextRenderer<'a> {
         }
     }
 
-    fn clear_data(&mut self) {
+    pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
     }

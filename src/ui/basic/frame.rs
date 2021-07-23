@@ -1,11 +1,24 @@
 use crate::datastructure::generic::Vec2i;
 
-use super::coordinate::{Anchor, Margin, PointArithmetic, Size};
+use super::{
+    boundingbox::BoundingBox,
+    coordinate::{Anchor, Margin, PointArithmetic, Size},
+};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Frame {
     pub anchor: Anchor,
     pub size: Size,
+}
+
+impl Frame {
+    pub fn new(anchor: Anchor, size: Size) -> Frame {
+        Frame { anchor, size }
+    }
+
+    pub fn to_bb(&self) -> BoundingBox {
+        BoundingBox::from_frame(&self)
+    }
 }
 
 pub fn make_inner_frame(outer_frame: &Frame, margin: i32) -> Frame {

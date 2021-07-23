@@ -85,6 +85,13 @@ impl BoundingBox {
         }
         b
     }
+
+    pub fn height(&self) -> i32 {
+        self.max.y - self.min.y
+    }
+    pub fn width(&self) -> i32 {
+        self.max.x - self.min.x
+    }
 }
 
 impl From<(Anchor, Size)> for BoundingBox {

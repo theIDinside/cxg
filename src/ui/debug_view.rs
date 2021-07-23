@@ -1,6 +1,6 @@
 use crate::debuginfo::{process_info::ProcessInfo, DebugInfo};
 
-use super::{boundingbox::BoundingBox, coordinate::Anchor, view::View};
+use super::{basic::coordinate::Margin, boundingbox::BoundingBox, coordinate::Anchor, view::View};
 
 pub struct DebugView<'app> {
     pub view: View<'app>,
@@ -15,14 +15,21 @@ impl<'app> DebugView<'app> {
 
     pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
+        // draw filled rectangle, which will become border
         self.view
             .window_renderer
-            .add_rect(BoundingBox::from((self.view.anchor, self.view.size)), self.view.bg_color);
+            .add_rect(self.view.title_frame.to_bb(), self.view.bg_color.uniform_scale(0.15));
+        // fill out the inner, leaving the previous draw as border
+        self.view
+            .window_renderer
+            .add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: -2, v: -2 }), self.view.bg_color.uniform_scale(1.0));
+        // draw view rectangle, the background for the text editor
+        self.view.window_renderer.add_rect(self.view.view_frame.to_bb(), self.view.bg_color);
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
         if self.visibile {
-            let Anchor(top_x, top_y) = self.view.anchor;
+            let Anchor(top_x, top_y) = self.view.view_frame.anchor;
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
 

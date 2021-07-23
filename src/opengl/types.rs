@@ -68,6 +68,11 @@ impl RGBAColor {
     pub fn blue() -> RGBAColor {
         RGBAColor { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }
     }
+
+    pub fn uniform_scale(&self, value: f32) -> RGBAColor {
+        let &RGBAColor { r, g, b, a } = self;
+        Self::new(r + value, g + value, b + value, a)
+    }
 }
 
 pub struct RectVertex {

@@ -23,8 +23,8 @@ use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
-static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.52, b: 0.742123, a: 1.0 };
-static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.102, b: 0.1242123, a: 1.0 };
+static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742123, a: 1.0 };
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.3242123, a: 1.0 };
 
 pub struct Application<'app> {
     /// Window Title
@@ -92,7 +92,7 @@ impl<'app> Application<'app> {
         let mut buffers = Buffers::new();
 
         // Create default 1st panel to hold views in
-        let panel = Panel::new(0, Layout::Horizontal(5.into()), Some(5), None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
+        let panel = Panel::new(0, Layout::Horizontal(0.into()), None, None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
         let mut panels = vec![panel];
 
         // Create the default 1st view
@@ -195,7 +195,7 @@ impl<'app> Application<'app> {
             p.add_view(view);
             unsafe {
                 (*self.active_view).bg_color = INACTIVE_VIEW_BACKGROUND;
-                (*self.active_view).window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                // (*self.active_view).window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
                 (*self.active_view).update();
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
@@ -221,8 +221,8 @@ impl<'app> Application<'app> {
         let id = {
             let view = self.get_active_view();
             view.bg_color = INACTIVE_VIEW_BACKGROUND;
-            view.set_need_redraw();
             view.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+            view.update();
             view.id
         };
 
@@ -291,9 +291,7 @@ impl<'app> Application<'app> {
             let new_size = Size::vector_multiply(p.size, size_change_factor);
             p.set_anchor(Anchor(x, y));
             p.resize(new_size);
-            for v in p.children.iter_mut() {
-                v.update();
-            }
+            p.layout();
         }
 
         Application::set_dimensions(self, width, height);
@@ -302,7 +300,9 @@ impl<'app> Application<'app> {
         self.status_bar.update();
 
         self.debug_view.view.set_anchor(Anchor(10, self.height() - 10));
-        self.debug_view.view.size = Size { width: self.width() - 20, height: self.height() - 20 };
+        self.debug_view
+            .view
+            .resize(Size { width: self.width() - 20, height: self.height() - 20 });
         self.debug_view.update();
 
         let ib_center = self.input_box.frame.size.width / 2;
@@ -395,6 +395,7 @@ impl<'app> Application<'app> {
                             v.bg_color = INACTIVE_VIEW_BACKGROUND;
                             v.set_need_redraw();
                             v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                            v.update();
                         }
                     }
                     self.mouse_state = MouseState::Clicked(id, MouseButton::Button1, p);
@@ -404,26 +405,39 @@ impl<'app> Application<'app> {
             MouseState::Drag(_maybe_view, _btn, _pos) => {}
             MouseState::Released(_btn, pos) => {
                 match self.mouse_state {
-                    MouseState::Drag(maybe_view, _, _) => {
+                    MouseState::Drag(dragged_view_id, _, _) => {
                         let view_dropped_on = self
                             .panels
                             .iter_mut()
                             .flat_map(|p| p.children.iter_mut())
                             .find(|v| v.bounding_box().box_hit_check(pos.to_i32()))
                             .map(|v| v.id);
-                        if let Some(true) = maybe_view.zip(view_dropped_on).map(|(a, b)| a != b) {
+                        if let Some(true) = dragged_view_id.zip(view_dropped_on).map(|(a, b)| a != b) {
                             let p_a = self
                                 .panels
                                 .iter_mut()
-                                .position(|p| p.children.iter().any(|f| f.id == maybe_view.unwrap()));
+                                .position(|p| p.children.iter().any(|f| f.id == dragged_view_id.unwrap()));
                             let mut panel_a = self.panels.swap_remove(p_a.unwrap());
-                            let va = panel_a.children.iter().position(|v| v.id == maybe_view.unwrap());
+                            let va = panel_a.children.iter().position(|v| v.id == dragged_view_id.unwrap());
 
                             let coexist = panel_a.children.iter().any(|v| v.id == view_dropped_on.unwrap());
                             if coexist {
                                 let vb = panel_a.children.iter().position(|v| v.id == view_dropped_on.unwrap());
                                 panel_a.children.swap(va.unwrap(), vb.unwrap());
                                 panel_a.layout();
+                                for v in panel_a.children.iter_mut() {
+                                    if v.id == dragged_view_id.unwrap() {
+                                        v.bg_color = ACTIVE_VIEW_BACKGROUND;
+                                        v.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+                                        v.update();
+                                        self.active_view = v as *mut _;
+                                        self.active_input = cast_ptr_to_input(self.active_view);
+                                    } else {
+                                        v.bg_color = INACTIVE_VIEW_BACKGROUND;
+                                        v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                                        v.update();
+                                    }
+                                }
                                 self.panels.insert(p_a.unwrap(), panel_a);
                             } else {
                                 let p_b = self
@@ -432,7 +446,7 @@ impl<'app> Application<'app> {
                                     .position(|p| p.children.iter().any(|f| f.id == view_dropped_on.unwrap()));
                                 let mut panel_b = self.panels.swap_remove(p_b.unwrap());
 
-                                let vb = panel_b.children.iter().position(|v| v.id == maybe_view.unwrap());
+                                let vb = panel_b.children.iter().position(|v| v.id == dragged_view_id.unwrap());
                                 std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
                                 self.panels.insert(p_a.unwrap(), panel_a);
                                 self.panels.insert(p_b.unwrap(), panel_b);

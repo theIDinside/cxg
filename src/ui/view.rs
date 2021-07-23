@@ -1,20 +1,24 @@
 use glfw::{Action, Key, Modifiers};
 
+use super::basic::{
+    coordinate::{Anchor, Margin, Size},
+    frame::Frame,
+};
 use super::boundingbox::BoundingBox;
-use super::coordinate::{Anchor, Size};
 use super::eventhandling::event::{InputBehavior, InputResponse};
 use super::panel::PanelId;
 use super::Viewable;
-use crate::app::TEST_DATA;
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
-use crate::opengl::rect::RectRenderer;
-use crate::opengl::text::TextRenderer;
-use crate::opengl::types::RGBAColor;
-use crate::textbuffer::cursor::BufferCursor;
-use crate::textbuffer::metadata::{Index, Line};
-use crate::textbuffer::simple::simplebuffer::SimpleBuffer;
-use crate::textbuffer::{CharBuffer, Movement, TextKind};
+use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::{app::TEST_DATA, opengl::types::RGBColor};
+
+use crate::textbuffer::{
+    cursor::BufferCursor,
+    metadata::{Index, Line},
+    simple::simplebuffer::SimpleBuffer,
+    CharBuffer, Movement, TextKind,
+};
 
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
@@ -43,8 +47,8 @@ pub struct View<'a> {
     pub text_renderer: TextRenderer<'a>,
     pub window_renderer: RectRenderer,
     pub cursor_renderer: RectRenderer,
-    pub size: Size,
-    pub anchor: Anchor,
+    pub title_frame: Frame,
+    pub view_frame: Frame,
     pub topmost_line_in_buffer: i32,
     row_height: i32,
     pub panel_id: Option<PanelId>,
@@ -81,8 +85,9 @@ impl<'a> std::fmt::Debug for View<'a> {
         f.debug_struct("View")
             .field("id", &self.id)
             .field("name", &self.name)
-            .field("size", &self.size)
-            .field("anchor", &self.anchor)
+            .field("title_frame", &self.title_frame)
+            .field("view_frame", &self.view_frame)
+            .field("size", &self.total_size())
             .field("top buffer line", &self.topmost_line_in_buffer)
             .field("displayable lines", &self.rows_displayable())
             .field("layout by", &self.panel_id)
@@ -171,6 +176,19 @@ impl<'a> View<'a> {
         let row_height = text_renderer.font.row_height();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
+
+        let title_height = row_height + 5;
+
+        let tmp_anchor = Anchor(0, height);
+        let title_size = Size::new(width, title_height);
+
+        let title_frame = Frame::new(tmp_anchor, title_size);
+
+        let view_anchor = Anchor(0, height - title_height);
+        let view_size = Size::new(width, height - title_height);
+
+        let view_frame = Frame::new(view_anchor, view_size);
+
         cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
         let mut v = View {
             name: name.to_string(),
@@ -178,8 +196,8 @@ impl<'a> View<'a> {
             text_renderer,
             window_renderer,
             cursor_renderer,
-            size: Size::new(width, height),
-            anchor: Anchor(0, 0),
+            title_frame,
+            view_frame,
             topmost_line_in_buffer: 0,
             row_height,
             panel_id: None,
@@ -189,7 +207,8 @@ impl<'a> View<'a> {
             bg_color,
             visible: true,
         };
-        v.window_renderer.add_rect(BoundingBox::from_info(v.anchor, v.size), bg_color);
+
+        v.update();
         v
     }
 
@@ -204,28 +223,66 @@ impl<'a> View<'a> {
 
     /// Prepares the renderable data, so that upon next draw() call, it renders the new content
     pub fn update(&mut self) {
+        self.window_renderer.clear_data();
+        // draw filled rectangle, which will become border
         self.window_renderer
-            .set_rect(BoundingBox::from_info(self.anchor, self.size), self.bg_color);
+            .add_rect(self.title_frame.to_bb(), self.bg_color.uniform_scale(-1.0));
+        // fill out the inner, leaving the previous draw as border
+        self.window_renderer
+            .add_rect(BoundingBox::shrink(&self.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.bg_color.uniform_scale(1.0));
+        // draw view rectangle, the background for the text editor
+
+        self.window_renderer
+            .add_rect(self.view_frame.to_bb(), self.bg_color.uniform_scale(-1.0));
+        self.window_renderer
+            .add_rect(BoundingBox::shrink(&self.view_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.bg_color);
         self.set_need_redraw();
+        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
 
     pub fn draw(&mut self) {
         if !self.visible {
             return;
         }
-        let Anchor(top_x, top_y) = self.anchor;
-        unsafe {
-            gl::Enable(gl::SCISSOR_TEST);
-            gl::Scissor(top_x, top_y - self.size.height, self.size.width, self.size.height);
-        }
+        let total_size = self.total_size();
         if self.view_changed {
+            self.text_renderer.clear_data();
+            let Anchor(tx, ty) = self.title_frame.anchor;
+
+            let BufferCursor { pos, row, col } = self.buffer.cursor();
+            let title: Vec<char> = format!(
+                "{}:{}:{}",
+                self.buffer
+                    .file_name()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or("unnamed_file".into()),
+                *row,
+                *col
+            )
+            .chars()
+            .collect();
+
+            self.text_renderer
+                .append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
+
+            unsafe {
+                let Anchor(top_x, top_y) = self.title_frame.anchor;
+                gl::Enable(gl::SCISSOR_TEST);
+                gl::Scissor(top_x, top_y - total_size.height, total_size.width, total_size.height);
+            }
+            // draw title bar, NOT DONE
+            // FIXME: draw title bar
+
+            // draw text view
+            let Anchor(top_x, top_y) = self.view_frame.anchor;
+
             unsafe {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             // either way of these two works
             self.text_renderer
-                .prepare_data_from_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
+                .append_data(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
             // self.text_renderer.prepare_data_iter(self.buffer.iter().skip(self.buffer_in_view.start).take(self.buffer_in_view.len()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
@@ -242,7 +299,7 @@ impl<'a> View<'a> {
             let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
             line_bounding_box.min.x = top_x;
-            line_bounding_box.max.x = top_x + self.size.width;
+            line_bounding_box.max.x = top_x + total_size.width;
 
             cursor_bound_box.min.y += 2;
             cursor_bound_box.max.y -= 2;
@@ -258,6 +315,11 @@ impl<'a> View<'a> {
 
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
         self.window_renderer.draw();
+        unsafe {
+            let Anchor(top_x, top_y) = self.title_frame.anchor;
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(top_x + 2, top_y - total_size.height, total_size.width - 4, total_size.height);
+        }
         self.text_renderer.draw();
         self.cursor_renderer.draw();
 
@@ -372,7 +434,7 @@ impl<'a> View<'a> {
     }
 
     pub fn debug_viewcursor(&self) {
-        let Anchor(top_x, top_y) = self.anchor;
+        let Anchor(top_x, top_y) = self.view_frame.anchor;
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
 
@@ -413,7 +475,20 @@ impl<'a> View<'a> {
     }
 
     pub fn rows_displayable(&self) -> i32 {
-        self.size.height / self.row_height
+        self.view_frame.size.height / self.row_height
+    }
+
+    pub fn total_boundingbox(&self) -> BoundingBox {
+        let title_bb = BoundingBox::from_frame(&self.title_frame);
+        let view_bb = BoundingBox::from_frame(&self.view_frame);
+        BoundingBox::new(Vec2i::new(view_bb.min.x, view_bb.min.y), Vec2i::new(title_bb.max.x, title_bb.max.y))
+    }
+
+    pub fn total_size(&self) -> Size {
+        Size {
+            width: self.view_frame.size.width,
+            height: self.view_frame.size.height + self.title_frame.size.height,
+        }
     }
 }
 
@@ -429,47 +504,61 @@ fn input_not_valid(ch: char) -> bool {
 }
 
 impl<'app> Viewable for View<'app> {
-    fn resize(&mut self, size: Size) {
-        self.size = size;
+    fn resize(&mut self, mut size: Size) {
+        debug_assert!(size.height > 20, "resize size invalid. Must be larger than 20");
+        size.height -= self.row_height + 5;
+        self.title_frame.size.width = size.width;
+        self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
+        self.view_frame.size = size;
+        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
+        assert_eq!(self.view_frame.size.width, self.title_frame.size.width);
     }
 
     fn set_anchor(&mut self, anchor: Anchor) {
-        self.anchor = anchor;
+        self.title_frame.anchor = anchor;
+        self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -(self.row_height + 5));
+        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
 
     fn bounding_box(&self) -> BoundingBox {
-        BoundingBox::from_info(self.anchor, self.size)
+        self.total_boundingbox()
     }
 
-    fn mouse_clicked(&mut self, pos: Vec2i) {
-        debugger_catch!(self.bounding_box().box_hit_check(pos), crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view")));
+    fn mouse_clicked(&mut self, validated_inside_pos: Vec2i) {
+        debugger_catch!(
+            self.bounding_box().box_hit_check(validated_inside_pos),
+            crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view"))
+        );
+        // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
+        if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
+        } else {
+            let Anchor(ax, ay) = self.view_frame.anchor;
+            let Vec2i { x: mx, y: my } = validated_inside_pos;
 
-        let Anchor(ax, ay) = self.anchor;
-        let Vec2i { x: mx, y: my } = pos;
+            let md = self.buffer.meta_data();
+            let view_line = ((ay - my) as f64 / self.row_height as f64).floor() as isize;
+            let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
 
-        let md = self.buffer.meta_data();
-        let view_line = ((ay - my) as f64 / self.row_height as f64).floor() as isize;
-        let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
+            let start_index = md
+                .get_line_start_index(line_clicked)
+                .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
 
-        let start_index = md
-            .get_line_start_index(line_clicked)
-            .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
+            let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
 
-        let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
+            let line_contents = self.buffer.get_slice(*start_index..*end_index);
+            let mut rel_x = mx - ax;
 
-        let line_contents = self.buffer.get_slice(*start_index..*end_index);
-        let mut rel_x = mx - ax;
+            let final_index_pos = line_contents
+                .iter()
+                .enumerate()
+                .find(|(_, ch)| {
+                    rel_x -= self.text_renderer.get_glyph(**ch).unwrap().advance;
+                    rel_x <= 0
+                })
+                .map(|(i, _)| start_index.offset(i as isize))
+                .unwrap_or(end_index.offset(-1));
 
-        let final_index_pos = line_contents
-            .iter()
-            .enumerate()
-            .find(|(_, ch)| {
-                rel_x -= self.text_renderer.get_glyph(**ch).unwrap().advance;
-                rel_x <= 0
-            })
-            .map(|(i, _)| start_index.offset(i as isize))
-            .unwrap_or(end_index.offset(-1));
-
-        self.cursor_goto(final_index_pos);
+            self.cursor_goto(final_index_pos);
+        }
     }
 }

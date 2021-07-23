@@ -44,8 +44,24 @@ impl Deref for Spacing {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Anchor(pub i32, pub i32);
+
+impl std::ops::Add<Vec2i> for Anchor {
+    type Output = Anchor;
+
+    fn add(self, rhs: Vec2i) -> Self::Output {
+        Anchor::vector_add(self, rhs)
+    }
+}
+
+impl std::ops::AddAssign<Vec2i> for Anchor {
+    fn add_assign(&mut self, rhs: Vec2i) {
+        let Anchor(x, y) = self;
+        *x += rhs.x;
+        *y += rhs.y;
+    }
+}
 
 impl std::fmt::Debug for Anchor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -229,5 +245,29 @@ impl std::fmt::Debug for Layout {
             Layout::Horizontal(Spacing(s)) => ("Horizontal", s),
         };
         f.write_fmt(format_args!("{} {}px", style, space))
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::Anchor;
+    use crate::datastructure::generic::Vec2i;
+
+    #[test]
+    fn test_anchor_vector_add() {
+        let anchor = Anchor(100, 100);
+        let v = Vec2i::new(0, -20);
+        let result = anchor + v;
+        assert_eq!(result, Anchor(100, 80), "Vector add to Anchor failed");
+    }
+
+    #[test]
+    fn test_anchor_vector_add_assign() {
+        let mut anchor = Anchor(100, 100);
+        let v = Vec2i::new(15, -20);
+        anchor += v;
+        assert_eq!(anchor, Anchor(115, 80), "Vector add to Anchor failed");
+        anchor += Vec2i::new(-50, 30);
+        assert_eq!(anchor, Anchor(65, 110), "Vector add to Anchor failed");
     }
 }

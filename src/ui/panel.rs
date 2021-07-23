@@ -115,16 +115,12 @@ impl<'app> Panel<'app> {
                     }
                 }
                 Layout::Horizontal(space) => {
-                    let init_anchor = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
-                    self.children
-                        .iter_mut()
-                        .filter(|v| v.visible)
-                        .zip(child_sizes.iter())
-                        .fold(init_anchor, |anchor, (c, size)| {
-                            c.resize(*size);
-                            c.set_anchor(anchor);
-                            Anchor::vector_add(anchor, Vec2i::new(size.width + *space as i32, 0))
-                        });
+                    let mut anchor = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
+                    for (c, size) in self.children.iter_mut().filter(|v| v.visible).zip(child_sizes.iter()) {
+                        c.set_anchor(anchor);
+                        c.resize(*size);
+                        anchor += Vec2i::new(size.width + *space as i32, 0);
+                    }
                 }
             }
         }
@@ -177,10 +173,11 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    let size = Size::new(self.size.width - margin * 2, view.size.height + dh);
+                    let view_size = view.total_size();
+                    let size = Size::new(self.size.width - margin * 2, view_size.height + dh);
                     view.resize(size);
                     view.set_anchor((edge_left, anchor_y_shift).into());
-                    anchor_y_shift -= view.size.height + *spacing as i32;
+                    anchor_y_shift -= view_size.height + *spacing as i32;
                 }
             }
             Layout::Horizontal(spacing) => {
@@ -189,12 +186,13 @@ impl<'app> Panel<'app> {
                     .iter_mut()
                     .zip(views_width_changes.into_iter().zip(views_height_changes))
                 {
-                    let size = Size::new(view.size.width + dw, self.size.height - margin * 2);
+                    let view_size = view.total_size();
+                    let size = Size::new(view_size.width + dw, self.size.height - margin * 2);
                     // let size = Size::new(view.size.width + dw, self.size.height);
                     view.resize(size);
                     // view.resize(Size::shrink_by_margin(size, margin));
                     view.set_anchor((anchor_x_shift, edge_top).into());
-                    anchor_x_shift += view.size.width + *spacing as i32;
+                    anchor_x_shift += view_size.width + *spacing as i32;
                 }
             }
         }
