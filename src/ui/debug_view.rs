@@ -1,6 +1,12 @@
 use crate::debuginfo::{process_info::ProcessInfo, DebugInfo};
 
-use super::{basic::coordinate::Margin, boundingbox::BoundingBox, coordinate::Anchor, view::View};
+use super::{
+    basic::coordinate::{Margin, Size},
+    boundingbox::BoundingBox,
+    coordinate::Anchor,
+    view::View,
+    Viewable,
+};
 
 pub struct DebugView<'app> {
     pub view: View<'app>,
@@ -13,8 +19,14 @@ impl<'app> DebugView<'app> {
         DebugView { view, visibile: false, debug_info }
     }
 
+    pub fn resize(&mut self, size: Size) {
+        self.view.resize(size);
+    }
+
     pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
+        self.view.menu_text_renderer.clear_data();
+        self.view.text_renderer.clear_data();
         // draw filled rectangle, which will become border
         self.view
             .window_renderer
@@ -40,9 +52,7 @@ impl<'app> DebugView<'app> {
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
             let title = "Debug Information".chars().collect();
-            self.update();
-            self.view.draw_title(&title);
-            let r: Vec<_> = format!(
+            let r = format!(
                 "
  |  Application 
  |  > name                          [{}] 
@@ -65,10 +75,15 @@ impl<'app> DebugView<'app> {
                 self.debug_info.heap_increase_since_start() as f64 / (1024.0 * 1024.0), // we read *actual* heap addresses, and these obviously are measured in bytes. The others are values from syscall proc, and they return in KB
                 frame_time,
                 fps
-            )
-            .chars()
-            .collect();
-            self.view.text_renderer.append_data(r.iter(), top_x, top_y);
+            );
+
+            let it: Vec<char> = r.chars().collect();
+            let mut size = self.view.text_renderer.calculate_text_dimensions(&it);
+            size.height += self.view.title_frame.size.height + 40;
+            self.resize(size);
+            self.update();
+            self.view.draw_title(&title);
+            self.view.text_renderer.append_data(it.iter(), top_x, top_y);
             // self.view.text_renderer.prepare_data_from_iter(r.iter(), top_x, top_y);
             self.view.set_need_redraw();
         }
@@ -80,5 +95,6 @@ impl<'app> DebugView<'app> {
         }
         self.view.window_renderer.draw();
         self.view.text_renderer.draw();
+        self.view.menu_text_renderer.draw();
     }
 }

@@ -280,7 +280,48 @@ impl<'a> TextRenderer<'a> {
         self.font.get_glyph(ch)
     }
 
-    pub fn calculate_text_line_dimensions(&self, text: &[char]) -> Size {
+    pub fn calculate_text_dimensions(&self, text: &[char]) -> Size {
+        let mut size = Size { width: 0, height: self.font.row_height() };
+        let mut max_x = 0;
+        for (index, &c) in text.iter().enumerate() {
+            if c == '\n' {
+                size.height += self.font.row_height();
+                size.width = 0;
+            } else {
+                let c = if c == '<' || c == '>' || c == '!' {
+                    if let Some('=') = text.get(index + 1) {
+                        let resulting_unicode_char = if c == '<' {
+                            unsafe { std::char::from_u32_unchecked(0x2264) }
+                        } else if c == '>' {
+                            unsafe { std::char::from_u32_unchecked(0x2265) }
+                        } else {
+                            unsafe { std::char::from_u32_unchecked(0x2260) }
+                        };
+                        resulting_unicode_char
+                    } else {
+                        c
+                    }
+                } else {
+                    c
+                };
+                if c == '=' {
+                    let g = match text.get(index - 1) {
+                        Some('<') | Some('>') | Some('!') => None,
+                        _ => self.get_glyph(c),
+                    };
+                    size.width += g.unwrap().advance;
+                } else {
+                    size.width += self.get_glyph(c).unwrap().advance;
+                }
+            }
+            max_x = std::cmp::max(size.width, max_x);
+        }
+
+        size.width = max_x + 20;
+        size
+    }
+
+    pub fn dimensions_of_text_line(&self, text: &[char]) -> Size {
         // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
         debugger_catch!(
             !text.contains(&'\n'),

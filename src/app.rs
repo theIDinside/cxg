@@ -34,7 +34,7 @@ pub struct Application<'app> {
     /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
     panel_space_size: Size,
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
-    fonts: &'app Vec<Font>,
+    fonts: &'app Vec<Box<Font>>,
     /// The statusbar, displays different short info about whatever element we're using, or some other user message/debug data
     status_bar: StatusBar<'app>,
     /// The shader for the font
@@ -70,7 +70,7 @@ pub struct Application<'app> {
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(fonts: &'app Vec<Font>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
+    pub fn create(fonts: &'app Vec<Box<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -479,6 +479,7 @@ impl<'app> Application<'app> {
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         match key {
+            Key::KpAdd => {}
             Key::W if modifier == Modifiers::Control && action == Action::Press => {
                 self.close_active_view();
             }

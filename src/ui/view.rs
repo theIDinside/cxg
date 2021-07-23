@@ -257,7 +257,7 @@ impl<'a> View<'a> {
         if self.view_changed {
             self.text_renderer.clear_data();
             self.menu_text_renderer.clear_data();
-            let BufferCursor { pos, row, col } = self.buffer.cursor();
+            let BufferCursor { row, col, .. } = self.buffer.cursor();
             let title: Vec<char> = format!(
                 "{}:{}:{}",
                 self.buffer
@@ -279,7 +279,7 @@ impl<'a> View<'a> {
 
             // draw text view
             let Anchor(top_x, top_y) = self.view_frame.anchor;
-
+            let top_x = top_x + 2;
             unsafe {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -287,16 +287,14 @@ impl<'a> View<'a> {
             // either way of these two works
             self.text_renderer
                 .append_data(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
-            // self.text_renderer.prepare_data_iter(self.buffer.iter().skip(self.buffer_in_view.start).take(self.buffer_in_view.len()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
 
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-            crate::only_in_debug!(crate::debugger_catch!(nl_buf_idx + (cols_in as usize) <= self.buffer.len(), "range is outside of buffer"));
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
 
-            let min_x = top_x + self.text_renderer.calculate_text_line_dimensions(line_contents).x();
+            let min_x = top_x + self.text_renderer.dimensions_of_text_line(line_contents).x();
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
             let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size() - 2, top_y - (rows_down * self.row_height));
 
@@ -305,8 +303,11 @@ impl<'a> View<'a> {
             line_bounding_box.min.x = top_x;
             line_bounding_box.max.x = top_x + total_size.width;
 
-            cursor_bound_box.min.y += 2;
-            cursor_bound_box.max.y -= 2;
+            line_bounding_box.min.y += 2;
+            line_bounding_box.max.y -= 2;
+
+            cursor_bound_box.min.y += 3;
+            cursor_bound_box.max.y -= 3;
 
             self.cursor_renderer.clear_data();
 
