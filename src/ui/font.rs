@@ -172,6 +172,7 @@ impl Font {
         self.texture_dimensions.y
     }
 
+    /// Returns the row height, which is the maximum height of any glyph in the cache.
     pub fn row_height(&self) -> i32 {
         self.row_height
     }
