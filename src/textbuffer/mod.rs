@@ -4,6 +4,7 @@ use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
 use self::metadata::MetaData;
 
+pub mod buffers;
 pub mod cursor;
 pub mod gb;
 pub mod metadata;

@@ -43,14 +43,15 @@ pub struct View<'a> {
     pub text_renderer: TextRenderer<'a>,
     pub window_renderer: RectRenderer,
     pub cursor_renderer: RectRenderer,
-    pub buffer_id: u32,
     pub size: Size,
     pub anchor: Anchor,
     pub topmost_line_in_buffer: i32,
     displayable_lines: i32,
     row_height: i32,
     pub panel_id: Option<PanelId>,
-    pub buffer: SimpleBuffer,
+    /// The currently edited buffer. We have sole ownership over it. If we want to edit another buffer in this view, (and thus hide the contents of this buffer)
+    /// we return it back to the Buffers type, which manages live buffers and we replace this one with another Box<SimpleBuffer>, taking ownership of that
+    pub buffer: Box<SimpleBuffer>,
     buffer_in_view: std::ops::Range<usize>,
     pub view_changed: bool,
     cursor_width: i32,
@@ -166,8 +167,8 @@ impl<'app> InputBehavior for View<'app> {
 
 impl<'a> View<'a> {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, buffer_id: u32, width: i32, height: i32,
-        bg_color: RGBAColor,
+        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
+        buffer: Box<SimpleBuffer>,
     ) -> View<'a> {
         let row_height = text_renderer.font.row_height();
         let cursor_width = text_renderer.get_cursor_width_size();
@@ -180,7 +181,6 @@ impl<'a> View<'a> {
             text_renderer,
             window_renderer,
             cursor_renderer,
-            buffer_id,
             size: Size::new(width, height),
             anchor: Anchor(0, 0),
             topmost_line_in_buffer: 0,
@@ -188,7 +188,7 @@ impl<'a> View<'a> {
             row_height,
             cursor_width,
             panel_id: None,
-            buffer: SimpleBuffer::new(*view_id, 1000),
+            buffer,
             buffer_in_view: 0..0,
             view_changed: true,
             bg_color,

@@ -3,13 +3,14 @@ use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
 use crate::opengl::shaders;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::textbuffer::buffers::Buffers;
 use crate::textbuffer::CharBuffer;
 use crate::ui::basic::{
     coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
 use crate::ui::debug_view::DebugView;
-use crate::ui::eventhandling::event::{InputBehavior, InputElement, InvalidInputElement};
+use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
 use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::{Panel, PanelId};
 use crate::ui::statusbar::{StatusBar, StatusBarContent};
@@ -42,6 +43,10 @@ pub struct Application<'app> {
     rect_shader: shaders::RectShader,
     /// The panels, which hold the different views, and manages their layout and size
     pub panels: Vec<Panel<'app>>,
+
+    /// buffers we're editing and is live, yet not open in any view currently
+    buffers: Buffers,
+
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
     popup: Popup<'app>,
     /// The active element's id
@@ -60,7 +65,6 @@ pub struct Application<'app> {
     input_box: InputBox<'app>,
     pub debug_view: DebugView<'app>,
     mouse_state: MouseState,
-    input_type: InputElement,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -85,18 +89,21 @@ impl<'app> Application<'app> {
         let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         status_bar.update();
 
+        let mut buffers = Buffers::new();
+
         // Create default 1st panel to hold views in
         let panel = Panel::new(0, Layout::Horizontal(5.into()), Some(5), None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
         let mut panels = vec![panel];
 
         // Create the default 1st view
         let (tr, rr) = make_renderers();
-        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 0, 1024, 768, ACTIVE_VIEW_BACKGROUND);
+        let buffer = buffers.request_new_buffer();
+        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer);
         panels[0].add_view(view);
 
         // Create the popup UI
         let (tr, rr) = make_renderers();
-        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 0, 524, 518, ACTIVE_VIEW_BACKGROUND);
+        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, rr, 524, 518, ACTIVE_VIEW_BACKGROUND, Buffers::free_buffer());
 
         popup.set_anchor((250, 768 - 250).into());
         popup.update();
@@ -106,7 +113,7 @@ impl<'app> Application<'app> {
         // Creating the Debug View UI
         let (tr, rr) = make_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 0, 1014, 758, dbg_view_bg_color);
+        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer());
         debug_view.set_anchor(Anchor(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
@@ -125,6 +132,7 @@ impl<'app> Application<'app> {
             font_shader,
             rect_shader,
             panels,
+            buffers,
             popup,
             active_ui_element: UID::View(active_view_id),
             debug: false,
@@ -134,7 +142,6 @@ impl<'app> Application<'app> {
             input_box,
             debug_view,
             mouse_state: MouseState::None,
-            input_type: InputElement::TextView,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -178,11 +185,12 @@ impl<'app> Application<'app> {
                 view_id.into(),
                 TextRenderer::create(self.font_shader.clone(), font, 1024 * 10),
                 RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
-                0,
                 width,
                 height,
                 ACTIVE_VIEW_BACKGROUND,
+                self.buffers.request_new_buffer(),
             );
+
             self.active_ui_element = UID::View(*view.id);
             p.add_view(view);
             unsafe {
@@ -335,7 +343,7 @@ impl<'app> Application<'app> {
                 }
                 glfw::WindowEvent::CursorPos(mposx, mposy) => {
                     match self.mouse_state {
-                        MouseState::Clicked(view, btn, pos) => {
+                        MouseState::Clicked(view, btn, _pos) => {
                             // Start drag, REMEMBER, MUST translate to Application coordinate space
                             self.mouse_state = MouseState::Drag(view, btn, Vec2d::new(mposx, mposy))
                         }
@@ -392,9 +400,9 @@ impl<'app> Application<'app> {
                     self.mouse_state = MouseState::Clicked(id, MouseButton::Button1, p);
                 }
             }
-            MouseState::Clicked(viewId, btn, pos) => {}
+            MouseState::Clicked(_view_id, _btn, _pos) => {}
             MouseState::Drag(_maybe_view, _btn, _pos) => {}
-            MouseState::Released(btn, pos) => {
+            MouseState::Released(_btn, pos) => {
                 match self.mouse_state {
                     MouseState::Drag(maybe_view, _, _) => {
                         let view_dropped_on = self

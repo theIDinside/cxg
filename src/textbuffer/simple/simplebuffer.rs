@@ -24,7 +24,7 @@ pub enum Operation {
 }
 
 pub struct SimpleBuffer {
-    _id: u32,
+    pub id: u32,
     pub data: Vec<char>,
     cursor: BufferCursor,
     size: usize,
@@ -34,7 +34,7 @@ pub struct SimpleBuffer {
 impl SimpleBuffer {
     pub fn new(id: u32, capacity: usize) -> SimpleBuffer {
         SimpleBuffer {
-            _id: id,
+            id: id,
             data: Vec::with_capacity(capacity),
             cursor: BufferCursor::default(),
             size: 0,
