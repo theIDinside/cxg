@@ -9,7 +9,7 @@ use crate::ui::basic::{
     frame::Frame,
 };
 use crate::ui::debug_view::DebugView;
-use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
+use crate::ui::eventhandling::event::{InputBehavior, InputElement, InvalidInputElement};
 use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::{Panel, PanelId};
 use crate::ui::statusbar::{StatusBar, StatusBarContent};
@@ -17,7 +17,7 @@ use crate::ui::view::{Popup, View, ViewId};
 use crate::ui::{font::Font, UID};
 use crate::ui::{MouseState, Viewable};
 
-use glfw::{Action, Key, Modifiers, Window};
+use glfw::{Action, Key, Modifiers, MouseButton, Window};
 use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
@@ -60,6 +60,7 @@ pub struct Application<'app> {
     input_box: InputBox<'app>,
     pub debug_view: DebugView<'app>,
     mouse_state: MouseState,
+    input_type: InputElement,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -133,6 +134,7 @@ impl<'app> Application<'app> {
             input_box,
             debug_view,
             mouse_state: MouseState::None,
+            input_type: InputElement::TextView,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -216,7 +218,7 @@ impl<'app> Application<'app> {
             view.id
         };
 
-        let mut iter = self.panels.iter().flat_map(|p| p.children.iter()).cycle();
+        let mut iter = self.panels.iter().flat_map(|p| p.children.iter()).filter(|v| v.visible).cycle();
         let mut next = false;
         while let Some(it) = iter.next() {
             if next {
@@ -232,6 +234,10 @@ impl<'app> Application<'app> {
         self.active_ui_element = UID::View(*id);
         self.decorate_active_view();
         self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+        let v = unsafe { self.active_view.as_mut().unwrap() };
+        if !v.visible {
+            v.visible = true;
+        }
     }
 
     pub fn get_active_view(&mut self) -> &mut View<'app> {
@@ -319,19 +325,23 @@ impl<'app> Application<'app> {
                     if act == glfw::Action::Press {
                         let new_state = MouseState::Click(mbtn, pos);
                         self.handle_mouse_input(new_state);
-                        self.mouse_state = new_state;
+                        // self.mouse_state = new_state;
                         // click only performs focus, whatever action that needs to be taken, happens at release
                         // this is, so that we can click on something, and drag it
                     } else {
                         self.handle_mouse_input(MouseState::Released(mbtn, pos));
-                        self.mouse_state = MouseState::None;
+                        // self.mouse_state = MouseState::None;
                     }
                 }
-                glfw::WindowEvent::CursorPos(_mposx, _mposy) => {
+                glfw::WindowEvent::CursorPos(mposx, mposy) => {
                     match self.mouse_state {
-                        MouseState::Click(_, _) => { // Start drag, REMEMBER, MUST translate to Application coordinate space
+                        MouseState::Clicked(view, btn, pos) => {
+                            // Start drag, REMEMBER, MUST translate to Application coordinate space
+                            self.mouse_state = MouseState::Drag(view, btn, Vec2d::new(mposx, mposy))
                         }
-                        MouseState::Drag(_, _, _) => { // Continue drag, REMEMBER, MUST translate to Application coordinate space
+                        MouseState::Drag(view, btn, _) => {
+                            // Continue drag, REMEMBER, MUST translate to Application coordinate space
+                            self.mouse_state = MouseState::Drag(view, btn, Vec2d::new(mposx, mposy))
                         }
                         _ => { // Do nothing
                         }
@@ -342,23 +352,19 @@ impl<'app> Application<'app> {
         }
     }
 
-    fn translate_screen_to_application_space(&self, glfw_coordinate: Vec2d) -> Vec2d {
-        let Vec2d { x, y } = glfw_coordinate;
-        Vec2d::new(x, self.height() as f64 - y)
-    }
-
     fn handle_mouse_input(&mut self, new_state: MouseState) {
         match new_state {
-            MouseState::Click(btn, pos) => {
+            MouseState::Click(btn, p) => {
                 if btn == glfw::MouseButton::Button1 {
                     let active_id = self.get_active_view_id();
-                    let pos = pos.to_i32();
-                    let de_activate_old = if let Some(view_clicked) = self
+                    let pos = p.to_i32();
+                    let clicked_view = self
                         .panels
                         .iter_mut()
                         .flat_map(|p| p.children.iter_mut())
-                        .find(|v| v.bounding_box().box_hit_check(pos))
-                    {
+                        .find(|v| v.bounding_box().box_hit_check(pos));
+                    let id = clicked_view.as_ref().map(|v| v.id.clone());
+                    let de_activate_old = if let Some(view_clicked) = clicked_view {
                         let id = view_clicked.id;
                         view_clicked.mouse_clicked(pos);
                         self.active_view = &mut (*view_clicked) as *mut _;
@@ -383,17 +389,54 @@ impl<'app> Application<'app> {
                             v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
                         }
                     }
+                    self.mouse_state = MouseState::Clicked(id, MouseButton::Button1, p);
                 }
             }
+            MouseState::Clicked(viewId, btn, pos) => {}
             MouseState::Drag(_maybe_view, _btn, _pos) => {}
-            MouseState::Released(_btn, _pos) => match self.mouse_state {
-                MouseState::Drag(_maybe_view, _btn, _pos) => {
-                    // we only ever really want to do something if the previous state was "drag",
-                    // since we handle click immediately, when Release event is registered,
-                    // we check if user was clicking and dragging something, to handle behavior
+            MouseState::Released(btn, pos) => {
+                match self.mouse_state {
+                    MouseState::Drag(maybe_view, _, _) => {
+                        let view_dropped_on = self
+                            .panels
+                            .iter_mut()
+                            .flat_map(|p| p.children.iter_mut())
+                            .find(|v| v.bounding_box().box_hit_check(pos.to_i32()))
+                            .map(|v| v.id);
+                        if let Some(true) = maybe_view.zip(view_dropped_on).map(|(a, b)| a != b) {
+                            let p_a = self
+                                .panels
+                                .iter_mut()
+                                .position(|p| p.children.iter().any(|f| f.id == maybe_view.unwrap()));
+                            let mut panel_a = self.panels.swap_remove(p_a.unwrap());
+                            let va = panel_a.children.iter().position(|v| v.id == maybe_view.unwrap());
+
+                            let coexist = panel_a.children.iter().any(|v| v.id == view_dropped_on.unwrap());
+                            if coexist {
+                                let vb = panel_a.children.iter().position(|v| v.id == view_dropped_on.unwrap());
+                                panel_a.children.swap(va.unwrap(), vb.unwrap());
+                                panel_a.layout();
+                                self.panels.insert(p_a.unwrap(), panel_a);
+                            } else {
+                                let p_b = self
+                                    .panels
+                                    .iter_mut()
+                                    .position(|p| p.children.iter().any(|f| f.id == view_dropped_on.unwrap()));
+                                let mut panel_b = self.panels.swap_remove(p_b.unwrap());
+
+                                let vb = panel_b.children.iter().position(|v| v.id == maybe_view.unwrap());
+                                std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
+                                self.panels.insert(p_a.unwrap(), panel_a);
+                                self.panels.insert(p_b.unwrap(), panel_b);
+                            }
+                        }
+                    }
+                    _ => {
+                        self.mouse_state = MouseState::None;
+                    }
                 }
-                _ => {}
-            },
+                self.mouse_state = MouseState::None;
+            }
             MouseState::None => {}
         }
     }
@@ -406,6 +449,23 @@ impl<'app> Application<'app> {
         match key {
             Key::W if modifier == Modifiers::Control && action == Action::Press => {
                 self.close_active_view();
+            }
+            Key::H if modifier == Modifiers::Control && action == Action::Press => {
+                let v_ptr = unsafe { &mut (*self.active_view) };
+                self.cycle_focus();
+                v_ptr.visible = false;
+                for p in self.panels.iter_mut() {
+                    p.layout();
+                }
+            }
+            Key::S if modifier == Modifiers::Control && action == Action::Press => {
+                self.panels
+                    .iter_mut()
+                    .flat_map(|p| p.children.iter_mut())
+                    .for_each(|v| v.visible = true);
+                for p in self.panels.iter_mut() {
+                    p.layout();
+                }
             }
             Key::P if modifier == Modifiers::Control => {
                 if action == Action::Press {
@@ -492,6 +552,11 @@ impl<'app> Application<'app> {
         }
     }
 
+    fn translate_screen_to_application_space(&self, glfw_coordinate: Vec2d) -> Vec2d {
+        let Vec2d { x, y } = glfw_coordinate;
+        Vec2d::new(x, self.height() as f64 - y)
+    }
+
     pub fn set_dimensions(&mut self, width: i32, height: i32) {
         self.window_size = Size::new(width, height);
         self.panel_space_size = Size::new(width, height - self.status_bar.size.height);
@@ -524,22 +589,14 @@ impl<'app> Application<'app> {
             self.popup.view.draw();
         }
 
-        {
-            let v = unsafe { &mut (*self.active_view) };
-            self.status_bar
-                .update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
-        }
+        let v = unsafe { &mut (*self.active_view) };
+        self.status_bar
+            .update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
 
         self.status_bar.draw();
-
-        if self.input_box.visible {
-            self.input_box.draw();
-        }
-
+        self.input_box.draw();
         // always draw the debug interface last, as it should overlay everything
-        if self.debug_view.visibile {
-            self.debug_view.draw();
-        }
+        self.debug_view.draw();
     }
 
     pub fn close_active_view(&mut self) {

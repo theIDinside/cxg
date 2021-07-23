@@ -102,13 +102,13 @@ impl<'app> Panel<'app> {
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
             view.set_anchor(adjusted_anchor);
         } else {
-            let sub_space_count = self.children.len();
+            let sub_space_count = self.children.iter().filter(|v| v.visible).count();
             let margin = self.margin.unwrap_or(0);
             let child_sizes = self.size.divide(sub_space_count as _, margin, self.layout);
             match self.layout {
                 Layout::Vertical(space) => {
                     let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
-                    for (c, size) in self.children.iter_mut().zip(child_sizes.into_iter()) {
+                    for (c, size) in self.children.iter_mut().filter(|v| v.visible).zip(child_sizes.into_iter()) {
                         c.resize(size);
                         c.set_anchor(anchor_iter);
                         anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -size.height - *space as i32));
@@ -118,6 +118,7 @@ impl<'app> Panel<'app> {
                     let init_anchor = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
                     self.children
                         .iter_mut()
+                        .filter(|v| v.visible)
                         .zip(child_sizes.iter())
                         .fold(init_anchor, |anchor, (c, size)| {
                             c.resize(*size);
@@ -127,7 +128,7 @@ impl<'app> Panel<'app> {
                 }
             }
         }
-        for v in self.children.iter_mut() {
+        for v in self.children.iter_mut().filter(|v| v.visible) {
             v.update();
         }
     }

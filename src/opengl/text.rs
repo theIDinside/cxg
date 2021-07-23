@@ -267,7 +267,7 @@ impl<'a> TextRenderer<'a> {
         self.pristine = false;
     }
 
-    pub fn prepare_data_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
+    pub fn prepare_data_from_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
         let color = super::types::RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
         self.prepare_data_from_iterator(text, color, x, y);
     }

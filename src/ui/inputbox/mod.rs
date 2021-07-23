@@ -102,6 +102,9 @@ impl<'app> InputBox<'app> {
     }
 
     pub fn draw(&mut self) {
+        if !self.visible {
+            return;
+        }
         /*
             Steps of drawing:
                 1. Draw the outer frame box

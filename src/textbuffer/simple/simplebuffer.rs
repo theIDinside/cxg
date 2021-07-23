@@ -13,6 +13,16 @@ use crate::{
 #[cfg(debug_assertions)]
 use crate::DebuggerCatch;
 
+pub enum OperationParameter {
+    Char(char),
+    Range(String),
+}
+
+pub enum Operation {
+    Insert(metadata::Index, OperationParameter),
+    Delete(metadata::Index, OperationParameter),
+}
+
 pub struct SimpleBuffer {
     _id: u32,
     pub data: Vec<char>,

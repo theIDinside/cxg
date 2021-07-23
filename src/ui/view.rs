@@ -55,6 +55,7 @@ pub struct View<'a> {
     pub view_changed: bool,
     cursor_width: i32,
     pub bg_color: RGBAColor,
+    pub visible: bool,
 }
 
 pub struct Popup<'app> {
@@ -191,6 +192,7 @@ impl<'a> View<'a> {
             buffer_in_view: 0..0,
             view_changed: true,
             bg_color,
+            visible: true,
         };
         v.window_renderer.add_rect(BoundingBox::from_info(v.anchor, v.size), bg_color);
         v
@@ -213,6 +215,9 @@ impl<'a> View<'a> {
     }
 
     pub fn draw(&mut self) {
+        if !self.visible {
+            return;
+        }
         let Anchor(top_x, top_y) = self.anchor;
         unsafe {
             gl::Enable(gl::SCISSOR_TEST);
@@ -225,7 +230,7 @@ impl<'a> View<'a> {
             }
             // either way of these two works
             self.text_renderer
-                .prepare_data_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
+                .prepare_data_from_iter(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
             // self.text_renderer.prepare_data_iter(self.buffer.iter().skip(self.buffer_in_view.start).take(self.buffer_in_view.len()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;

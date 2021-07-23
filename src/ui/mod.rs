@@ -34,6 +34,7 @@ pub enum UID {
 #[derive(Debug, Clone, Copy)]
 pub enum MouseState {
     Click(glfw::MouseButton, Vec2d),
+    Clicked(Option<ViewId>, glfw::MouseButton, Vec2d),
     Drag(Option<ViewId>, glfw::MouseButton, Vec2d),
     Released(glfw::MouseButton, Vec2d),
     None,
@@ -42,9 +43,10 @@ pub enum MouseState {
 impl MouseState {
     pub fn position(&self) -> Option<Vec2i> {
         match self {
-            MouseState::Click(_, pos) => Some(pos.to_i32()),
+            MouseState::Click(.., pos) => Some(pos.to_i32()),
             MouseState::Drag(_, _, pos) => Some(pos.to_i32()),
             MouseState::Released(_, pos) => Some(pos.to_i32()),
+            MouseState::Clicked(.., pos) => Some(pos.to_i32()),
             MouseState::None => None,
         }
     }

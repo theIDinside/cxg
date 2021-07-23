@@ -55,12 +55,15 @@ Debug Information
             )
             .chars()
             .collect();
-            self.view.text_renderer.prepare_data_iter(r.iter(), top_x, top_y);
+            self.view.text_renderer.prepare_data_from_iter(r.iter(), top_x, top_y);
             self.view.set_need_redraw();
         }
     }
 
     pub fn draw(&mut self) {
+        if !self.visibile {
+            return;
+        }
         self.view.window_renderer.draw();
         self.view.text_renderer.draw();
     }

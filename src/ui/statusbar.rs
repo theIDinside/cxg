@@ -61,7 +61,7 @@ impl<'app> StatusBar<'app> {
         self.window_renderer
             .add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
         let t: Vec<_> = self.display_data.to_str().chars().map(|c| c).collect();
-        self.text_renderer.prepare_data_iter(t.iter(), x, y);
+        self.text_renderer.prepare_data_from_iter(t.iter(), x, y);
     }
 
     pub fn draw(&mut self) {

@@ -8,6 +8,12 @@ pub enum InputResponse {
     None,
 }
 
+pub enum InputElement {
+    PopUp,
+    InputBox,
+    TextView,
+}
+
 pub trait InputBehavior {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse;
     fn handle_char(&mut self, ch: char);
