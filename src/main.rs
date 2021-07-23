@@ -102,7 +102,7 @@ fn main() -> Main {
         .chain(crate::utils::convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265]))
         .collect();
 
-    let font = ui::font::Font::new(font_path, 18, &char_range).expect("Failed to create font");
+    let font = ui::font::Font::new(font_path, 14, &char_range).expect("Failed to create font");
     let menu_font = ui::font::Font::new(menu_font_path, 14, &char_range).expect("Failed to create font");
     let fonts = vec![font, menu_font];
 

@@ -45,6 +45,7 @@ pub struct View<'a> {
     pub name: String,
     pub id: ViewId,
     pub text_renderer: TextRenderer<'a>,
+    pub menu_text_renderer: TextRenderer<'a>,
     pub window_renderer: RectRenderer,
     pub cursor_renderer: RectRenderer,
     pub title_frame: Frame,
@@ -170,8 +171,8 @@ impl<'app> InputBehavior for View<'app> {
 
 impl<'a> View<'a> {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
-        buffer: Box<SimpleBuffer>,
+        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, menu_text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32,
+        height: i32, bg_color: RGBAColor, buffer: Box<SimpleBuffer>,
     ) -> View<'a> {
         let row_height = text_renderer.font.row_height();
         let cursor_shader = window_renderer.shader.clone();
@@ -193,6 +194,7 @@ impl<'a> View<'a> {
         let mut v = View {
             name: name.to_string(),
             id: view_id,
+            menu_text_renderer,
             text_renderer,
             window_renderer,
             cursor_renderer,
@@ -242,8 +244,9 @@ impl<'a> View<'a> {
 
     pub fn draw_title(&mut self, title: &Vec<char>) {
         let Anchor(tx, ty) = self.title_frame.anchor;
-        self.text_renderer
-            .append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
+        self.menu_text_renderer
+            .prepare_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty);
+        // self.text_renderer.append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
     }
 
     pub fn draw(&mut self) {
@@ -253,6 +256,7 @@ impl<'a> View<'a> {
         let total_size = self.total_size();
         if self.view_changed {
             self.text_renderer.clear_data();
+            self.menu_text_renderer.clear_data();
             let BufferCursor { pos, row, col } = self.buffer.cursor();
             let title: Vec<char> = format!(
                 "{}:{}:{}",
@@ -272,8 +276,6 @@ impl<'a> View<'a> {
                 gl::Enable(gl::SCISSOR_TEST);
                 gl::Scissor(top_x, top_y - total_size.height, total_size.width, total_size.height);
             }
-            // draw title bar, NOT DONE
-            // FIXME: draw title bar
 
             // draw text view
             let Anchor(top_x, top_y) = self.view_frame.anchor;
@@ -296,7 +298,7 @@ impl<'a> View<'a> {
 
             let min_x = top_x + self.text_renderer.calculate_text_line_dimensions(line_contents).x();
             let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
-            let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size(), top_y - (rows_down * self.row_height));
+            let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size() - 2, top_y - (rows_down * self.row_height));
 
             let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
@@ -324,6 +326,7 @@ impl<'a> View<'a> {
         }
         self.text_renderer.draw();
         self.cursor_renderer.draw();
+        self.menu_text_renderer.draw();
 
         unsafe {
             gl::Disable(gl::SCISSOR_TEST);

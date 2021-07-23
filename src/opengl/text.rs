@@ -42,7 +42,7 @@ pub struct TextRenderer<'a> {
 
 /// Public interface
 impl<'a> TextRenderer<'a> {
-    pub fn create(shader: super::shaders::TextShader, font: &Font, reserve_quads: usize) -> TextRenderer {
+    pub fn create(shader: super::shaders::TextShader, font: &'a Font, reserve_quads: usize) -> TextRenderer<'a> {
         use std::mem::size_of;
         let stride = size_of::<TVertex>() as gl::types::GLsizei;
 
