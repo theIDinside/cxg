@@ -46,7 +46,6 @@ pub struct View<'a> {
     pub size: Size,
     pub anchor: Anchor,
     pub topmost_line_in_buffer: i32,
-    displayable_lines: i32,
     row_height: i32,
     pub panel_id: Option<PanelId>,
     /// The currently edited buffer. We have sole ownership over it. If we want to edit another buffer in this view, (and thus hide the contents of this buffer)
@@ -54,7 +53,6 @@ pub struct View<'a> {
     pub buffer: Box<SimpleBuffer>,
     buffer_in_view: std::ops::Range<usize>,
     pub view_changed: bool,
-    cursor_width: i32,
     pub bg_color: RGBAColor,
     pub visible: bool,
 }
@@ -86,7 +84,7 @@ impl<'a> std::fmt::Debug for View<'a> {
             .field("size", &self.size)
             .field("anchor", &self.anchor)
             .field("top buffer line", &self.topmost_line_in_buffer)
-            .field("displayable lines", &self.displayable_lines)
+            .field("displayable lines", &self.rows_displayable())
             .field("layout by", &self.panel_id)
             .finish()
     }
@@ -171,7 +169,6 @@ impl<'a> View<'a> {
         buffer: Box<SimpleBuffer>,
     ) -> View<'a> {
         let row_height = text_renderer.font.row_height();
-        let cursor_width = text_renderer.get_cursor_width_size();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
         cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
@@ -184,9 +181,7 @@ impl<'a> View<'a> {
             size: Size::new(width, height),
             anchor: Anchor(0, 0),
             topmost_line_in_buffer: 0,
-            displayable_lines: height / row_height,
             row_height,
-            cursor_width,
             panel_id: None,
             buffer,
             buffer_in_view: 0..0,
@@ -285,7 +280,7 @@ impl<'a> View<'a> {
         }
 
         self.buffer.insert(ch);
-        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
+        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
             self.adjust_view_range();
         } else {
             self.buffer_in_view.end += 1;
@@ -295,11 +290,11 @@ impl<'a> View<'a> {
 
     pub fn adjust_view_range(&mut self) {
         let md = self.buffer.meta_data();
-        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.displayable_lines) as _) {
-            let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.displayable_lines) as i32, 1);
+        if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
+            let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.rows_displayable()) as i32, 1);
             self.topmost_line_in_buffer += diff;
             if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
             {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
@@ -308,13 +303,13 @@ impl<'a> View<'a> {
         } else if self.buffer.cursor_row() < Line(self.topmost_line_in_buffer as _) {
             self.topmost_line_in_buffer = *self.buffer.cursor_row() as _;
             if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
             {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         } else {
             if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.displayable_lines) as _))
+                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
             {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
@@ -386,7 +381,7 @@ impl<'a> View<'a> {
             .get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
         let cursor_width = g
             .map(|glyph| if glyph.width() == 0 as _ { glyph.advance } else { glyph.width() as _ })
-            .unwrap_or(self.cursor_width);
+            .unwrap_or(self.text_renderer.get_cursor_width_size());
 
         let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
         let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
@@ -416,6 +411,10 @@ impl<'a> View<'a> {
     pub fn get_file_info(&self) -> (Option<&Path>, BufferCursor) {
         self.buffer.buffer_info()
     }
+
+    pub fn rows_displayable(&self) -> i32 {
+        self.size.height / self.row_height
+    }
 }
 
 fn input_not_valid(ch: char) -> bool {
@@ -432,7 +431,6 @@ fn input_not_valid(ch: char) -> bool {
 impl<'app> Viewable for View<'app> {
     fn resize(&mut self, size: Size) {
         self.size = size;
-        self.displayable_lines = self.size.height / self.row_height;
     }
 
     fn set_anchor(&mut self, anchor: Anchor) {
