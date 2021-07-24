@@ -44,6 +44,13 @@ impl BoundingBox {
         BoundingBox::new(Vec2i::new(x, y - height), Vec2i::new(x + width, y))
     }
 
+    pub fn center_align_around(&mut self, pos: Vec2i) {
+        let min = pos + Vec2i::new(self.width() / -2, self.height() / -2);
+        let max = pos + Vec2i::new(self.width() / 2, self.height() / 2);
+        self.min = min;
+        self.max = max;
+    }
+
     pub fn shrink(bounding_box: &BoundingBox, margin: Margin) -> BoundingBox {
         let mut b = bounding_box.clone();
         match margin {
@@ -84,6 +91,10 @@ impl BoundingBox {
             }
         }
         b
+    }
+
+    pub fn size(&self) -> Size {
+        Size { width: self.width(), height: self.height() }
     }
 
     pub fn height(&self) -> i32 {

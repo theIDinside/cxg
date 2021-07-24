@@ -65,6 +65,7 @@ pub struct Application<'app> {
     input_box: InputBox<'app>,
     pub debug_view: DebugView<'app>,
     mouse_state: MouseState,
+    rect_animation_renderer: RectRenderer,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -130,7 +131,7 @@ impl<'app> Application<'app> {
         let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 500 } };
 
         let input_box = InputBox::new(ib_frame, &fonts[1], &font_shader, &rect_shader);
-
+        let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -150,6 +151,7 @@ impl<'app> Application<'app> {
             input_box,
             debug_view,
             mouse_state: MouseState::None,
+            rect_animation_renderer,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -637,6 +639,20 @@ impl<'app> Application<'app> {
         self.input_box.draw();
         // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();
+
+        if let MouseState::Drag(.., pos) = self.mouse_state {
+            let pos = self.translate_screen_to_application_space(pos).to_i32();
+            let v = unsafe { self.active_view.as_mut().unwrap() };
+            let mut bb = v.bounding_box();
+
+            bb.center_align_around(pos);
+
+            self.rect_animation_renderer
+                .set_rect(bb, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.25 });
+            self.rect_animation_renderer.draw();
+        } else {
+            self.rect_animation_renderer.clear_data();
+        }
     }
 
     pub fn close_active_view(&mut self) {
