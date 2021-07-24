@@ -1,9 +1,11 @@
-use crate::debuginfo::{process_info::ProcessInfo, DebugInfo};
+use crate::{
+    datastructure::generic::Vec2i,
+    debuginfo::{process_info::ProcessInfo, DebugInfo},
+};
 
 use super::{
     basic::coordinate::{Margin, Size},
     boundingbox::BoundingBox,
-    coordinate::Anchor,
     view::View,
     Viewable,
 };
@@ -48,7 +50,7 @@ impl<'app> DebugView<'app> {
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
         if self.visibile {
-            let Anchor(top_x, top_y) = self.view.view_frame.anchor;
+            let Vec2i { x: top_x, y: top_y } = self.view.view_frame.anchor;
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
             let title = "Debug Information".chars().collect();

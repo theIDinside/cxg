@@ -1,7 +1,7 @@
 use crate::{
+    datastructure::generic::Vec2i,
     opengl::types::{RGBAColor, RGBColor},
     ui::{
-        coordinate::Anchor,
         frame::{make_inner_frame, Frame},
         inputbox::TextRenderSetting,
         ACTIVE_VIEW_BACKGROUND,
@@ -33,7 +33,7 @@ impl LineTextBox {
         }
     }
 
-    pub fn set_anchor(&mut self, anchor: Anchor) {
+    pub fn set_anchor(&mut self, anchor: Vec2i) {
         self.outer_frame.anchor = anchor;
         self.inner_frame = make_inner_frame(&self.outer_frame, 4);
     }

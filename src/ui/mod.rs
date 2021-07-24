@@ -8,11 +8,7 @@ use crate::{
 };
 use glfw::{Action, Key, Modifiers};
 
-use self::{
-    boundingbox::BoundingBox,
-    coordinate::{Anchor, Size},
-    view::ViewId,
-};
+use self::{boundingbox::BoundingBox, coordinate::Size, view::ViewId};
 
 pub mod eventhandling;
 pub mod font;
@@ -64,7 +60,7 @@ pub static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.102, b
 
 pub trait Viewable {
     fn resize(&mut self, size: Size);
-    fn set_anchor(&mut self, anchor: Anchor);
+    fn set_anchor(&mut self, anchor: Vec2i);
     fn bounding_box(&self) -> BoundingBox;
     fn mouse_clicked(&mut self, screen_coordinate: Vec2i);
 }

@@ -1,7 +1,7 @@
 pub mod generic {
-    use std::ops::{Add, AddAssign};
+    use std::ops::{Add, AddAssign, Mul, MulAssign};
 
-    #[derive(Copy, Clone, Debug)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct Vec2<T> {
         pub x: T,
         pub y: T,
@@ -32,6 +32,27 @@ pub mod generic {
         fn add(self, rhs: Self) -> Self::Output {
             let Vec2 { x, y } = self;
             Vec2::new(x + rhs.x, y + rhs.y)
+        }
+    }
+
+    impl<T> std::ops::AddAssign for Vec2<T>
+    where
+        T: Add + AddAssign,
+    {
+        fn add_assign(&mut self, rhs: Self) {
+            self.x += rhs.x;
+            self.y += rhs.y;
+        }
+    }
+
+    impl<T> std::ops::Mul for Vec2<T>
+    where
+        T: Mul + MulAssign,
+    {
+        type Output = Vec2<<T as Mul>::Output>;
+
+        fn mul(self, rhs: Self) -> Self::Output {
+            Vec2::new(self.x * rhs.x, self.y * rhs.y)
         }
     }
 }

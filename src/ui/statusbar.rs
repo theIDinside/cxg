@@ -1,9 +1,9 @@
-use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
-
-use super::{
-    boundingbox::BoundingBox,
-    coordinate::{Anchor, Size},
+use crate::{
+    datastructure::generic::Vec2i,
+    opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor},
 };
+
+use super::{boundingbox::BoundingBox, coordinate::Size};
 use crate::textbuffer::metadata::{Column, Line};
 
 #[derive(Debug)]
@@ -27,14 +27,14 @@ pub struct StatusBar<'app> {
     pub text_renderer: TextRenderer<'app>,
     pub window_renderer: RectRenderer,
     pub size: Size,
-    pub anchor: Anchor,
+    pub anchor: Vec2i,
     pub display_data: StatusBarContent<'app>,
     pub bg_color: RGBAColor,
     pub needs_update: bool,
 }
 
 impl<'app> StatusBar<'app> {
-    pub fn new(text_renderer: TextRenderer<'app>, window_renderer: RectRenderer, anchor: Anchor, size: Size, bg_color: RGBAColor) -> StatusBar<'app> {
+    pub fn new(text_renderer: TextRenderer<'app>, window_renderer: RectRenderer, anchor: Vec2i, size: Size, bg_color: RGBAColor) -> StatusBar<'app> {
         StatusBar {
             text_renderer,
             window_renderer,
@@ -56,7 +56,7 @@ impl<'app> StatusBar<'app> {
     }
 
     pub fn update(&mut self) {
-        let Anchor(x, y) = self.anchor;
+        let Vec2i { x, y } = self.anchor;
         self.window_renderer.clear_data();
         self.window_renderer
             .add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);

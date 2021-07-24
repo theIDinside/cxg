@@ -1,7 +1,7 @@
 use glfw::{Action, Key, Modifiers};
 
 use super::basic::{
-    coordinate::{Anchor, Margin, Size},
+    coordinate::{Margin, Size},
     frame::Frame,
 };
 use super::boundingbox::BoundingBox;
@@ -180,12 +180,12 @@ impl<'a> View<'a> {
 
         let title_height = row_height + 5;
 
-        let tmp_anchor = Anchor(0, height);
+        let tmp_anchor = Vec2i::new(0, height);
         let title_size = Size::new(width, title_height);
 
         let title_frame = Frame::new(tmp_anchor, title_size);
 
-        let view_anchor = Anchor(0, height - title_height);
+        let view_anchor = Vec2i::new(0, height - title_height);
         let view_size = Size::new(width, height - title_height);
 
         let view_frame = Frame::new(view_anchor, view_size);
@@ -243,7 +243,7 @@ impl<'a> View<'a> {
     }
 
     pub fn draw_title(&mut self, title: &Vec<char>) {
-        let Anchor(tx, ty) = self.title_frame.anchor;
+        let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
         self.menu_text_renderer
             .prepare_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty);
         // self.text_renderer.append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
@@ -272,13 +272,13 @@ impl<'a> View<'a> {
 
             self.draw_title(&title);
             unsafe {
-                let Anchor(top_x, top_y) = self.title_frame.anchor;
+                let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
                 gl::Enable(gl::SCISSOR_TEST);
                 gl::Scissor(top_x, top_y - total_size.height, total_size.width, total_size.height);
             }
 
             // draw text view
-            let Anchor(top_x, top_y) = self.view_frame.anchor;
+            let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
             let top_x = top_x + 2;
             unsafe {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
@@ -321,7 +321,7 @@ impl<'a> View<'a> {
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
         self.window_renderer.draw();
         unsafe {
-            let Anchor(top_x, top_y) = self.title_frame.anchor;
+            let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x + 2, top_y - total_size.height, total_size.width - 4, total_size.height);
         }
@@ -440,7 +440,7 @@ impl<'a> View<'a> {
     }
 
     pub fn debug_viewcursor(&self) {
-        let Anchor(top_x, top_y) = self.view_frame.anchor;
+        let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
 
@@ -520,7 +520,7 @@ impl<'app> Viewable for View<'app> {
         assert_eq!(self.view_frame.size.width, self.title_frame.size.width);
     }
 
-    fn set_anchor(&mut self, anchor: Anchor) {
+    fn set_anchor(&mut self, anchor: Vec2i) {
         self.title_frame.anchor = anchor;
         self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -(self.row_height + 5));
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
@@ -538,7 +538,7 @@ impl<'app> Viewable for View<'app> {
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
         } else {
-            let Anchor(ax, ay) = self.view_frame.anchor;
+            let Vec2i { x: ax, y: ay } = self.view_frame.anchor;
             let Vec2i { x: mx, y: my } = validated_inside_pos;
 
             let md = self.buffer.meta_data();

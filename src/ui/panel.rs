@@ -1,5 +1,5 @@
 use super::boundingbox::BoundingBox;
-use super::coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size};
+use super::coordinate::{Coordinate, Layout, Size};
 use super::view::{View, ViewId};
 use super::Viewable;
 use crate::ui::Vec2i;
@@ -32,7 +32,7 @@ pub struct Panel<'app> {
     pub margin: Option<i32>,
     pub border: Option<i32>,
     pub size: Size,
-    pub anchor: Anchor,
+    pub anchor: Vec2i,
     pub children: Vec<View<'app>>,
 }
 
@@ -73,7 +73,7 @@ pub fn divide_scatter(number: i32, spread_count: usize) -> Vec<i32> {
 }
 
 impl<'app> Panel<'app> {
-    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Anchor) -> Panel<'app> {
+    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Vec2i) -> Panel<'app> {
         Panel {
             id: id.into(),
             layout: layout,
@@ -96,7 +96,7 @@ impl<'app> Panel<'app> {
         if self.children.len() == 1 {
             let adjusted_anchor = self
                 .margin
-                .map(|margin| Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin)))
+                .map(|margin| self.anchor + Vec2i::new(margin, -margin))
                 .unwrap_or(self.anchor);
             let view = self.children.first_mut().unwrap();
             view.resize(Size::shrink_by_margin(self.size, self.margin.unwrap_or(0)));
@@ -107,15 +107,15 @@ impl<'app> Panel<'app> {
             let child_sizes = self.size.divide(sub_space_count as _, margin, self.layout);
             match self.layout {
                 Layout::Vertical(space) => {
-                    let mut anchor_iter = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
+                    let mut anchor_iter = self.anchor + Vec2i::new(margin, -margin);
                     for (c, size) in self.children.iter_mut().filter(|v| v.visible).zip(child_sizes.into_iter()) {
                         c.resize(size);
                         c.set_anchor(anchor_iter);
-                        anchor_iter = Anchor::vector_add(anchor_iter, Vec2i::new(0, -size.height - *space as i32));
+                        anchor_iter += Vec2i::new(0, -size.height - *space as i32);
                     }
                 }
                 Layout::Horizontal(space) => {
-                    let mut anchor = Anchor::vector_add(self.anchor, Vec2i::new(margin, -margin));
+                    let mut anchor = self.anchor + Vec2i::new(margin, -margin);
                     for (c, size) in self.children.iter_mut().filter(|v| v.visible).zip(child_sizes.iter()) {
                         c.set_anchor(anchor);
                         c.resize(*size);
@@ -154,7 +154,7 @@ impl<'app> Panel<'app> {
     }
 
     fn size_changed(&mut self, old_size: Size) {
-        let Anchor(ax, ay) = self.anchor;
+        let Vec2i { x: ax, y: ay } = self.anchor;
         let diff_width = self.size.width - old_size.width;
         let diff_height = self.size.height - old_size.height;
         let views_height_changes = divide_scatter(diff_height, self.children.len());
@@ -176,7 +176,7 @@ impl<'app> Panel<'app> {
                     let view_size = view.total_size();
                     let size = Size::new(self.size.width - margin * 2, view_size.height + dh);
                     view.resize(size);
-                    view.set_anchor((edge_left, anchor_y_shift).into());
+                    view.set_anchor(Vec2i::new(edge_left, anchor_y_shift));
                     anchor_y_shift -= view_size.height + *spacing as i32;
                 }
             }
@@ -191,7 +191,7 @@ impl<'app> Panel<'app> {
                     // let size = Size::new(view.size.width + dw, self.size.height);
                     view.resize(size);
                     // view.resize(Size::shrink_by_margin(size, margin));
-                    view.set_anchor((anchor_x_shift, edge_top).into());
+                    view.set_anchor(Vec2i::new(anchor_x_shift, edge_top));
                     anchor_x_shift += view_size.width + *spacing as i32;
                 }
             }
@@ -209,7 +209,7 @@ impl<'app> Viewable for Panel<'app> {
         self.size_changed(old_size);
     }
 
-    fn set_anchor(&mut self, anchor: Anchor) {
+    fn set_anchor(&mut self, anchor: Vec2i) {
         self.anchor = anchor;
     }
 

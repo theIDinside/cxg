@@ -1,5 +1,5 @@
 use super::{
-    coordinate::{Anchor, Margin, Size},
+    coordinate::{Margin, Size},
     frame::Frame,
 };
 use crate::datastructure::generic::Vec2i;
@@ -31,16 +31,16 @@ impl BoundingBox {
         pos.x >= self.min.x && pos.y >= self.min.y && pos.x <= self.max.x && pos.y <= self.max.y
     }
 
-    pub fn get_anchor(&self) -> Anchor {
-        Anchor(self.min.x, self.max.y)
+    pub fn get_anchor(&self) -> Vec2i {
+        Vec2i::new(self.min.x, self.max.y)
     }
 
-    pub fn from_info(anchor: Anchor, size: Size) -> BoundingBox {
+    pub fn from_info(anchor: Vec2i, size: Size) -> BoundingBox {
         BoundingBox::from((anchor, size))
     }
 
     pub fn from_frame(frame: &Frame) -> BoundingBox {
-        let (Anchor(x, y), Size { width, height }) = (frame.anchor, frame.size);
+        let (Vec2i { x, y }, Size { width, height }) = (frame.anchor, frame.size);
         BoundingBox::new(Vec2i::new(x, y - height), Vec2i::new(x + width, y))
     }
 
@@ -105,11 +105,10 @@ impl BoundingBox {
     }
 }
 
-impl From<(Anchor, Size)> for BoundingBox {
+impl From<(Vec2i, Size)> for BoundingBox {
     #[inline(always)]
-    fn from(tuple: (Anchor, Size)) -> Self {
-        let (anchor, size) = tuple;
-        let Anchor(x, y) = anchor;
+    fn from(tuple: (Vec2i, Size)) -> Self {
+        let (Vec2i { x, y }, size) = tuple;
         BoundingBox::new(Vec2i::new(x, y - size.height), Vec2i::new(x + size.width, y))
     }
 }

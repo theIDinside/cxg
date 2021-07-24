@@ -73,7 +73,7 @@ impl<'app> InputBox<'app> {
         let ltb = LineTextBox::new(input_box_frame, input_inner_frame, None);
 
         let list_box_frame = Frame {
-            anchor: Anchor::vector_add(frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            anchor: frame.anchor + Vec2i::new(0, -input_box_frame.size.height),
             size: Size { width: frame.size.width, height: frame.size.height - input_box_frame.size.height },
         };
         let lb = ListBox::new(list_box_frame, font.row_height(), Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)));
@@ -155,7 +155,7 @@ impl<'app> InputBox<'app> {
             let selected = self.selection_list.selection.unwrap_or(0);
             for (index, item) in items.into_iter().enumerate() {
                 if selected == index {
-                    let Anchor(x, _) = self.selection_list.frame.anchor;
+                    let Vec2i { x, .. } = self.selection_list.frame.anchor;
                     let min = Vec2i::new(x, t.min.y - displace_y - self.selection_list.item_height - 4);
                     let max = Vec2i::new(x + self.selection_list.frame.size.width, t.min.y - displace_y);
                     let selection_box = BoundingBox::new(min, max);
@@ -309,14 +309,14 @@ impl<'app> Viewable for InputBox<'app> {
         self.input_box.inner_frame = input_inner_frame;
 
         let list_box_frame = Frame {
-            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            anchor: self.frame.anchor + Vec2i::new(0, -input_box_frame.size.height),
             size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
         };
         self.selection_list.frame = list_box_frame;
         self.needs_update = true;
     }
 
-    fn set_anchor(&mut self, anchor: Anchor) {
+    fn set_anchor(&mut self, anchor: Vec2i) {
         self.frame.anchor = anchor;
 
         let margin = 4;
@@ -329,7 +329,7 @@ impl<'app> Viewable for InputBox<'app> {
         self.input_box.inner_frame = input_inner_frame;
 
         let list_box_frame = Frame {
-            anchor: Anchor::vector_add(self.frame.anchor, Vec2i::new(0, -input_box_frame.size.height)),
+            anchor: self.frame.anchor + Vec2i::new(0, -input_box_frame.size.height),
             size: Size { width: self.frame.size.width, height: self.frame.size.height - input_box_frame.size.height },
         };
         self.selection_list.frame = list_box_frame;

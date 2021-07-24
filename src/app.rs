@@ -1,4 +1,4 @@
-use crate::datastructure::generic::Vec2d;
+use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
 use crate::opengl::shaders;
@@ -6,7 +6,7 @@ use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::buffers::Buffers;
 use crate::textbuffer::CharBuffer;
 use crate::ui::basic::{
-    coordinate::{Anchor, Coordinate, Layout, PointArithmetic, Size},
+    coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
 use crate::ui::debug_view::DebugView;
@@ -94,14 +94,14 @@ impl<'app> Application<'app> {
         let (sb_tr, mut sb_wr) = make_renderers();
         sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         let sb_size = Size::new(1024, fonts[0].row_height() + 4);
-        let sb_anchor = Anchor(0, 768);
+        let sb_anchor = Vec2i::new(0, 768);
         let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
         status_bar.update();
 
         let mut buffers = Buffers::new();
 
         // Create default 1st panel to hold views in
-        let panel = Panel::new(0, Layout::Horizontal(0.into()), None, None, 1024, 768 - sb_size.height, (0, 768 - sb_size.height).into());
+        let panel = Panel::new(0, Layout::Horizontal(0.into()), None, None, 1024, 768 - sb_size.height, Vec2i::new(0i32, 768i32 - sb_size.height));
         let mut panels = vec![panel];
 
         // Create the default 1st view
@@ -114,7 +114,7 @@ impl<'app> Application<'app> {
         let (tr, mtr, rr) = make_view_renderers();
         let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, mtr, rr, 524, 518, ACTIVE_VIEW_BACKGROUND, Buffers::free_buffer());
 
-        popup.set_anchor((250, 768 - 250).into());
+        popup.set_anchor(Vec2i::new(250, 768 - 250));
         popup.update();
         popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
         let popup = Popup { visible: false, view: popup };
@@ -123,12 +123,12 @@ impl<'app> Application<'app> {
         let (tr, mtr, rr) = make_view_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
         let mut debug_view = View::new("debug_view", 10.into(), tr, mtr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer());
-        debug_view.set_anchor(Anchor(5, 763));
+        debug_view.set_anchor(Vec2i::new(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view, debug_info);
 
-        let ib_frame = Frame { anchor: Anchor(250, 700), size: Size { width: 500, height: 500 } };
+        let ib_frame = Frame { anchor: Vec2i::new(250, 700), size: Size { width: 500, height: 500 } };
 
         let input_box = InputBox::new(ib_frame, &fonts[1], &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
@@ -299,19 +299,20 @@ impl<'app> Application<'app> {
         let size_change_factor = new_panel_space_size / self.panel_space_size;
 
         for p in self.panels.iter_mut() {
-            let Anchor(x, y) = Anchor::vector_multiply(p.anchor, size_change_factor);
+            let v = Vec2d::new(p.anchor.x as _, p.anchor.y as _);
+            let Vec2 { x, y } = v * size_change_factor;
             let new_size = Size::vector_multiply(p.size, size_change_factor);
-            p.set_anchor(Anchor(x, y));
+            p.set_anchor(Vec2i::new(x.round() as _, y.round() as _));
             p.resize(new_size);
             p.layout();
         }
 
         Application::set_dimensions(self, width, height);
         self.status_bar.size.width = width;
-        self.status_bar.anchor = Anchor(0, height);
+        self.status_bar.anchor = Vec2i::new(0, height);
         self.status_bar.update();
 
-        self.debug_view.view.set_anchor(Anchor(10, self.height() - 10));
+        self.debug_view.view.set_anchor(Vec2i::new(10, self.height() - 10));
         self.debug_view
             .view
             .resize(Size { width: self.width() - 20, height: self.height() - 20 });
@@ -319,7 +320,8 @@ impl<'app> Application<'app> {
 
         let ib_center = self.input_box.frame.size.width / 2;
         let app_window_width_center = width / 2;
-        self.input_box.set_anchor(Anchor(app_window_width_center - ib_center, height - 25));
+        self.input_box
+            .set_anchor(Vec2i::new(app_window_width_center - ib_center, height - 25));
 
         unsafe { gl::Viewport(0, 0, width, height) }
     }

@@ -44,61 +44,6 @@ impl Deref for Spacing {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Anchor(pub i32, pub i32);
-
-impl std::ops::Add<Vec2i> for Anchor {
-    type Output = Anchor;
-
-    fn add(self, rhs: Vec2i) -> Self::Output {
-        Anchor::vector_add(self, rhs)
-    }
-}
-
-impl std::ops::AddAssign<Vec2i> for Anchor {
-    fn add_assign(&mut self, rhs: Vec2i) {
-        let Anchor(x, y) = self;
-        *x += rhs.x;
-        *y += rhs.y;
-    }
-}
-
-impl std::fmt::Debug for Anchor {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Anchor(x, y) = self;
-        f.write_fmt(format_args!("({}, {})", x, y))
-    }
-}
-
-impl Coordinate for Anchor {
-    #[inline(always)]
-    fn x(&self) -> i32 {
-        let Anchor(a, _) = self;
-        *a
-    }
-
-    fn y(&self) -> i32 {
-        let Anchor(.., b) = self;
-        *b
-    }
-
-    fn values(&self) -> (&i32, &i32) {
-        let Anchor(x, y) = self;
-        (x, y)
-    }
-
-    fn values_mut(&mut self) -> (&mut i32, &mut i32) {
-        let Anchor(x, y) = self;
-        (x, y)
-    }
-
-    fn new(a: i32, b: i32) -> Self {
-        Anchor(a, b)
-    }
-}
-
-impl PointArithmetic for Anchor {}
-
 impl Coordinate for Size {
     #[inline]
     fn x(&self) -> i32 {
@@ -202,28 +147,6 @@ impl Size {
     }
 }
 
-impl Anchor {
-    pub fn new(x: i32, y: i32) -> Anchor {
-        Anchor(x, y)
-    }
-}
-
-impl Into<Anchor> for (i32, i32) {
-    fn into(self) -> Anchor {
-        let (x, y) = self;
-        Anchor(x, y)
-    }
-}
-
-impl std::ops::Add<(i32, i32)> for &Anchor {
-    type Output = Anchor;
-    fn add(self, rhs: (i32, i32)) -> Self::Output {
-        let Anchor(x, y) = &self;
-        let (dx, dy) = rhs;
-        Anchor(x + dx, y + dy)
-    }
-}
-
 impl Into<Spacing> for i16 {
     fn into(self) -> Spacing {
         Spacing(self)
@@ -250,24 +173,23 @@ impl std::fmt::Debug for Layout {
 
 #[cfg(test)]
 pub mod tests {
-    use super::Anchor;
     use crate::datastructure::generic::Vec2i;
 
     #[test]
     fn test_anchor_vector_add() {
-        let anchor = Anchor(100, 100);
+        let anchor = Vec2i::new(100, 100);
         let v = Vec2i::new(0, -20);
         let result = anchor + v;
-        assert_eq!(result, Anchor(100, 80), "Vector add to Anchor failed");
+        assert_eq!(result, Vec2i::new(100, 80), "Vector add to Vec2i failed");
     }
 
     #[test]
     fn test_anchor_vector_add_assign() {
-        let mut anchor = Anchor(100, 100);
+        let mut anchor = Vec2i::new(100, 100);
         let v = Vec2i::new(15, -20);
         anchor += v;
-        assert_eq!(anchor, Anchor(115, 80), "Vector add to Anchor failed");
+        assert_eq!(anchor, Vec2i::new(115, 80), "Vector add to Vec2i failed");
         anchor += Vec2i::new(-50, 30);
-        assert_eq!(anchor, Anchor(65, 110), "Vector add to Anchor failed");
+        assert_eq!(anchor, Vec2i::new(65, 110), "Vector add to Vec2i failed");
     }
 }

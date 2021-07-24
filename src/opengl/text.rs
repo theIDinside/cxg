@@ -6,7 +6,7 @@ use crate::{
     datastructure::generic::Vec2i,
     debugger_catch,
     ui::{
-        basic::coordinate::{Anchor, PointArithmetic, Size},
+        basic::coordinate::{PointArithmetic, Size},
         basic::frame::Frame,
         font::{Font, GlyphInfo},
     },
@@ -99,7 +99,7 @@ impl<'a> TextRenderer<'a> {
     }
 
     pub fn draw_clipped(&mut self, clip_frame: Frame) {
-        let Frame { anchor: Anchor(top_x, top_y), size } = clip_frame;
+        let Frame { anchor: Vec2i { x: top_x, y: top_y }, size } = clip_frame;
         unsafe {
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x, top_y - size.height, size.width, size.height);
