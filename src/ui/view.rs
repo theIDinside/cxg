@@ -98,12 +98,16 @@ impl<'a> std::fmt::Debug for View<'a> {
 
 impl<'app> InputBehavior for View<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
+        #[cfg(debug_assertions)]
+        {
+            println!("key pressed: {:?}, modifier: {:?}", key, modifier);
+        }
         match key {
-            Key::Home => match modifier {
+            Key::Home | Key::Kp7 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
                 _ => self.move_cursor(Movement::Begin(TextKind::Line)),
             },
-            Key::End => match modifier {
+            Key::End | Key::Kp1 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(self.buffer.len())),
                 _ => self.move_cursor(Movement::End(TextKind::Line)),
             },
@@ -147,7 +151,7 @@ impl<'app> InputBehavior for View<'app> {
             }
             Key::F1 => {
                 if action == Action::Press {
-                    if modifier == Modifiers::Control {
+                    if modifier == Modifiers::Shift {
                         self.insert_str(TEST_DATA);
                     }
                 }

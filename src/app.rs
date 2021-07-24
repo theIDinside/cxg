@@ -546,7 +546,7 @@ impl<'app> Application<'app> {
             }
             Key::F1 => {
                 if action == Action::Press {
-                    if modifier == Modifiers::Control {
+                    if modifier == Modifiers::Shift {
                         self.active_input.handle_key(key, action, modifier);
                     } else {
                         self.set_debug(!self.debug);

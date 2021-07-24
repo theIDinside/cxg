@@ -51,6 +51,8 @@ pub enum InputBoxMode {
     FileList,
 }
 
+const INPUT_BOX_MSG: &str = "Search by file name in project folder...";
+
 pub struct InputBox<'app> {
     /// Contains the user input. Might as well use String, input won't be long and this is just easier
     pub visible: bool,
@@ -119,6 +121,9 @@ impl<'app> InputBox<'app> {
         */
 
         if self.needs_update {
+            if self.input_box.data.is_empty() {
+                self.text_renderer.clear_data();
+            }
             self.rect_renderer.clear_data();
             let frame_bb = BoundingBox::from_frame(&self.frame);
             let frame_border_bb = BoundingBox::expand(&frame_bb, Margin::Perpendicular { v: 2, h: 2 });
@@ -133,37 +138,43 @@ impl<'app> InputBox<'app> {
 
             // Testing the drawing of text, inside the input box
             let color = self.input_box.text_render_settings.text_color;
-            self.text_renderer
-                .prepare_data_from_iterator(self.input_box.data.iter(), color, t.min.x, t.max.y);
-            let color = self.selection_list.text_render_settings.text_color;
-
-            let mut displace_y = 3;
-
-            let height = self.selection_list.frame.size.height;
-            let step = self.selection_list.item_height;
-            let mut dy = 0;
-            let items: Vec<&Vec<char>> = self
-                .selection_list
-                .data
-                .iter()
-                .take_while(|_| {
-                    dy += step;
-                    height > dy
-                })
-                .collect();
-
-            let selected = self.selection_list.selection.unwrap_or(0);
-            for (index, item) in items.into_iter().enumerate() {
-                if selected == index {
-                    let Vec2i { x, .. } = self.selection_list.frame.anchor;
-                    let min = Vec2i::new(x, t.min.y - displace_y - self.selection_list.item_height - 4);
-                    let max = Vec2i::new(x + self.selection_list.frame.size.width, t.min.y - displace_y);
-                    let selection_box = BoundingBox::new(min, max);
-                    self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
-                }
+            if !self.input_box.data.is_empty() {
                 self.text_renderer
-                    .append_data_from_iterator(item.iter(), color, t.min.x, t.min.y - displace_y);
-                displace_y += self.selection_list.item_height;
+                    .prepare_data_from_iterator(self.input_box.data.iter(), color, t.min.x, t.max.y);
+                let color = self.selection_list.text_render_settings.text_color;
+
+                let mut displace_y = 3;
+
+                let height = self.selection_list.frame.size.height;
+                let step = self.selection_list.item_height;
+                let mut dy = 0;
+                let items: Vec<&Vec<char>> = self
+                    .selection_list
+                    .data
+                    .iter()
+                    .take_while(|_| {
+                        dy += step;
+                        height > dy
+                    })
+                    .collect();
+
+                let selected = self.selection_list.selection.unwrap_or(0);
+                for (index, item) in items.into_iter().enumerate() {
+                    if selected == index {
+                        let Vec2i { x, .. } = self.selection_list.frame.anchor;
+                        let min = Vec2i::new(x, t.min.y - displace_y - self.selection_list.item_height - 4);
+                        let max = Vec2i::new(x + self.selection_list.frame.size.width, t.min.y - displace_y);
+                        let selection_box = BoundingBox::new(min, max);
+                        self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
+                    }
+                    self.text_renderer
+                        .append_data_from_iterator(item.iter(), color, t.min.x, t.min.y - displace_y);
+                    displace_y += self.selection_list.item_height;
+                }
+            } else {
+                let color = RGBColor { r: 0.5, g: 0.5, b: 0.5 };
+                self.text_renderer
+                    .append_data_from_chars(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y);
             }
             self.needs_update = false;
         }
@@ -189,6 +200,7 @@ impl<'app> InputBox<'app> {
                 self.selection_list.selection = None;
 
                 let found_files: Vec<Vec<char>> = WalkDir::new(&self.input_box.data.iter().collect::<String>())
+                    .sort_by_file_name()
                     .into_iter()
                     .filter_map(|e| {
                         let e = e.unwrap();
@@ -225,6 +237,7 @@ impl<'app> InputBehavior for InputBox<'app> {
                 if let Some(_) = self.input_box.data.pop() {
                     self.input_box.cursor -= 1;
                     let found_files: Vec<Vec<char>> = WalkDir::new(".")
+                        .sort_by_file_name()
                         .into_iter()
                         .filter_map(|e| {
                             let e = e.unwrap();
@@ -271,6 +284,7 @@ impl<'app> InputBehavior for InputBox<'app> {
             InputBoxMode::FileList => {
                 let name = &self.input_box.data.iter().collect::<String>();
                 let found_files: Vec<Vec<char>> = WalkDir::new(".")
+                    .sort_by_file_name()
                     .into_iter()
                     .filter_map(|e| {
                         let e = e.unwrap();
