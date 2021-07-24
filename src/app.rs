@@ -1,10 +1,8 @@
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
-use crate::opengl::shaders;
-use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
-use crate::textbuffer::buffers::Buffers;
-use crate::textbuffer::CharBuffer;
+use crate::opengl::{rect::RectRenderer, shaders, text::TextRenderer, types::RGBAColor};
+use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
