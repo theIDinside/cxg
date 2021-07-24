@@ -84,12 +84,11 @@ fn main() -> Main {
     window.set_scroll_polling(true);
     window.set_cursor_pos_polling(true);
 
-    glfw_handle.set_swap_interval(glfw::SwapInterval::None);
+    glfw_handle.set_swap_interval(glfw::SwapInterval::Sync(1));
     gl::load_with(|sym| window.get_proc_address(sym) as *const _);
     unsafe {
         glinit::init_gl();
     };
-
     let font_program = opengl::shaders::TextShader::new();
     let rectangle_program = opengl::shaders::RectShader::new();
 
@@ -110,7 +109,7 @@ fn main() -> Main {
     let mut app = app::Application::create(&fonts, font_program, rectangle_program, debug_info);
     let mut last_update = glfw_handle.get_time();
     let mut frame_counter = 0.0;
-    let mut once_a_second_update = 10000.0;
+    let mut once_a_second_update = 60.0;
 
     let mut updatefps = move |glfw_handle: &mut glfw::Glfw| -> Option<f64> {
         if frame_counter > once_a_second_update {
