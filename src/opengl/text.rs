@@ -384,7 +384,7 @@ impl<'a> TextRenderer<'a> {
             max_x = std::cmp::max(size.width, max_x);
         }
 
-        size.width = max_x + 20;
+        size.width = max_x;
         size
     }
 
