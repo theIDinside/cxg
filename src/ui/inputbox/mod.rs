@@ -103,6 +103,27 @@ impl<'app> InputBox<'app> {
         self.draw();
     }
 
+    /// updates the list of possible selections that contains what the user has input into the
+    /// input box.
+    pub fn update_list(&mut self) {
+        let name = &self.input_box.data.iter().collect::<String>();
+        self.selection_list.data = WalkDir::new(".")
+            .sort_by_file_name()
+            .into_iter()
+            .filter_map(|e| {
+                let e = e.unwrap();
+                // this is *odd* behavior. When we pass in a slice to contains(...)
+                // it will return true if *any* of the elements in that slice, exists in the string
+                if e.path().to_str().unwrap().to_ascii_uppercase().contains(&name.to_uppercase()) {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .map(|de| de.path().display().to_string().chars().collect())
+            .collect();
+    }
+
     pub fn draw(&mut self) {
         if !self.visible {
             return;
@@ -198,21 +219,7 @@ impl<'app> InputBox<'app> {
                 self.input_box.data.push('/');
                 self.input_box.cursor = self.input_box.data.len();
                 self.selection_list.selection = None;
-
-                let found_files: Vec<Vec<char>> = WalkDir::new(&self.input_box.data.iter().collect::<String>())
-                    .sort_by_file_name()
-                    .into_iter()
-                    .filter_map(|e| {
-                        let e = e.unwrap();
-                        if e.path().to_str().unwrap().to_ascii_uppercase().contains(&name.to_uppercase()) {
-                            Some(e)
-                        } else {
-                            None
-                        }
-                    })
-                    .map(|de| de.path().display().to_string().chars().collect())
-                    .collect();
-                self.selection_list.data = found_files;
+                self.update_list();
                 self.needs_update = true;
                 InputResponse::None
             } else {
@@ -236,24 +243,11 @@ impl<'app> InputBehavior for InputBox<'app> {
             glfw::Key::Backspace if key_pressed() => {
                 if let Some(_) = self.input_box.data.pop() {
                     self.input_box.cursor -= 1;
-                    let found_files: Vec<Vec<char>> = WalkDir::new(".")
-                        .sort_by_file_name()
-                        .into_iter()
-                        .filter_map(|e| {
-                            let e = e.unwrap();
-                            if e.path().to_str().unwrap().contains(&self.input_box.data[..]) {
-                                Some(e)
-                            } else {
-                                None
-                            }
-                        })
-                        .map(|de| de.path().display().to_string().chars().collect())
-                        .collect();
-                    self.selection_list.data = found_files;
                 }
-
                 if self.input_box.data.is_empty() {
                     self.selection_list.data.clear();
+                } else {
+                    self.update_list();
                 }
                 InputResponse::None
             }
@@ -282,23 +276,7 @@ impl<'app> InputBehavior for InputBox<'app> {
         match self.mode {
             InputBoxMode::Command => {}
             InputBoxMode::FileList => {
-                let name = &self.input_box.data.iter().collect::<String>();
-                let found_files: Vec<Vec<char>> = WalkDir::new(".")
-                    .sort_by_file_name()
-                    .into_iter()
-                    .filter_map(|e| {
-                        let e = e.unwrap();
-                        // this is *odd* behavior. When we pass in a slice to contains(...)
-                        // it will return true if *any* of the elements in that slice, exists in the string
-                        if e.path().to_str().unwrap().to_ascii_uppercase().contains(&name.to_uppercase()) {
-                            Some(e)
-                        } else {
-                            None
-                        }
-                    })
-                    .map(|de| de.path().display().to_string().chars().collect())
-                    .collect();
-                self.selection_list.data = found_files;
+                self.update_list();
             }
         }
         self.needs_update = true;
