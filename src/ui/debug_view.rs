@@ -82,6 +82,7 @@ impl<'app> DebugView<'app> {
             let it: Vec<char> = r.chars().collect();
             let mut size = self.view.text_renderer.calculate_text_dimensions(&it);
             size.height += self.view.title_frame.size.height + 40;
+            size.width += 20;
             self.resize(size);
             self.update();
             self.view.draw_title(&title);
