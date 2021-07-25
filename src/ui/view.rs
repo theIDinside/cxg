@@ -10,7 +10,9 @@ use super::{
 };
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
+use crate::opengl::rect::RectangleType;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
 use crate::textbuffer::{
@@ -99,10 +101,6 @@ impl<'a> std::fmt::Debug for View<'a> {
 
 impl<'app> InputBehavior for View<'app> {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
-        #[cfg(debug_assertions)]
-        {
-            println!("key pressed: {:?}, modifier: {:?}", key, modifier);
-        }
         match key {
             Key::Home | Key::Kp7 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
@@ -234,12 +232,30 @@ impl<'a> View<'a> {
         self.window_renderer.clear_data();
         // draw filled rectangle, which will become border
 
-        self.window_renderer
-            .push_rect(self.title_frame.to_bb(), RGBAColor::new(0.5, 0.5, 0.5, 1.0), Some((2, RGBAColor::gray().uniform_scale(-0.2))));
+        self.window_renderer.push_rect(
+            BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
+            RGBAColor::new(0.5, 0.5, 0.5, 1.0),
+            Some((1, RGBAColor::black())),
+            RectangleType::Rounded { radius: 10.0 },
+        );
 
         self.window_renderer
-            .push_rect(self.view_frame.to_bb(), self.bg_color, Some((1, RGBAColor::gray().uniform_scale(-0.2))));
+            .push_rect(self.view_frame.to_bb(), self.bg_color, Some((2, RGBAColor::black())), RectangleType::Rounded { radius: 10.0 });
+        /*
+                self.window_renderer.push_rect(
+                    self.title_frame.to_bb(),
+                    RGBAColor::new(0.5, 0.5, 0.5, 1.0),
+                    Some((2, RGBAColor::gray().uniform_scale(-0.2))),
+                    RectangleType::Undecorated,
+                );
 
+                self.window_renderer.push_rect(
+                    self.view_frame.to_bb(),
+                    self.bg_color,
+                    Some((2, RGBAColor::gray().uniform_scale(-0.2))),
+                    RectangleType::Rounded { radius: 10.0 },
+                );
+        */
         self.set_need_redraw();
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
@@ -344,7 +360,7 @@ impl<'a> View<'a> {
         }
         self.text_renderer.draw_list();
         // self.text_renderer.draw();
-        self.cursor_renderer.draw();
+        // self.cursor_renderer.draw();
         //self.menu_text_renderer.draw();
 
         unsafe {

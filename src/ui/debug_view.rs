@@ -1,12 +1,14 @@
 use crate::{
     datastructure::generic::Vec2i,
     debuginfo::{process_info::ProcessInfo, DebugInfo},
-    opengl::types::RGBColor,
+    opengl::{rect::RectangleType, types::RGBColor},
 };
 
 use super::{
-    basic::coordinate::{Margin, Size},
-    boundingbox::BoundingBox,
+    basic::{
+        boundingbox::BoundingBox,
+        coordinate::{Margin, Size},
+    },
     view::View,
     Viewable,
 };
@@ -29,29 +31,20 @@ impl<'app> DebugView<'app> {
     pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
         self.view.text_renderer.clear_data();
-        // draw filled rectangle, which will become border
+        // draw title bar
         self.view.window_renderer.push_rect(
-            self.view.title_frame.to_bb(),
-            self.view.bg_color.uniform_scale(1.0),
-            Some((2, self.view.bg_color.uniform_scale(-1.0))),
+            BoundingBox::expand(&self.view.title_frame.to_bb(), Margin::Vertical(2)).translate_mut(Vec2i::new(0, -4)),
+            self.view.bg_color.uniform_scale(-0.1),
+            Some((1, self.view.bg_color.uniform_scale(-1.0))),
+            RectangleType::Undecorated,
         );
-        // fill out the inner, leaving the previous draw as border
-        // self.view.window_renderer.add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color.uniform_scale(1.0));
-        // draw view rectangle, the background for the text editor,
-
-        self.view
-            .window_renderer
-            .push_rect(self.view.view_frame.to_bb(), self.view.bg_color, Some((2, self.view.bg_color.uniform_scale(-1.0))));
-
-        /*
-        self.view
-            .window_renderer
-            .add_rect(self.view.view_frame.to_bb(), self.view.bg_color.uniform_scale(-1.0));
-
-        self.view
-            .window_renderer
-            .add_rect(BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color);
-             */
+        // draw content pane
+        self.view.window_renderer.push_rect(
+            self.view.view_frame.to_bb(),
+            self.view.bg_color,
+            Some((2, self.view.bg_color.uniform_scale(-1.0))),
+            RectangleType::Rounded { radius: 15.0 },
+        );
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
@@ -92,7 +85,10 @@ impl<'app> DebugView<'app> {
             self.resize(size);
             self.update();
 
-            self.view.draw_title(&title);
+            let Vec2i { x: tx, y: ty } = self.view.title_frame.anchor;
+            self.view
+                .text_renderer
+                .push_draw_command(title.chars().map(|c| c), RGBColor::black(), tx + 3, ty, self.view.title_font);
             let color = RGBColor::white();
             self.view
                 .text_renderer

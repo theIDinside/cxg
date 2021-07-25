@@ -19,6 +19,12 @@ pub mod generic {
         }
     }
 
+    impl Vec2i {
+        pub fn to_f32(&self) -> Vec2<gl::types::GLfloat> {
+            Vec2::new(self.x as gl::types::GLfloat, self.y as gl::types::GLfloat)
+        }
+    }
+
     pub type Vec2i = Vec2<i32>;
     pub type Vec2f = Vec2<f32>;
     pub type Vec2d = Vec2<f64>;

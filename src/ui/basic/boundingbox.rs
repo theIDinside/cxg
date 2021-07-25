@@ -2,7 +2,7 @@ use super::{
     coordinate::{Margin, Size},
     frame::Frame,
 };
-use crate::datastructure::generic::Vec2i;
+use crate::datastructure::generic::{Vec2f, Vec2i};
 
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -87,6 +87,10 @@ impl BoundingBox {
         Size { width: self.width(), height: self.height() }
     }
 
+    pub fn size_f32(&self) -> Vec2f {
+        Vec2f::new(self.width() as f32, self.height() as f32)
+    }
+
     pub fn height(&self) -> i32 {
         self.max.y - self.min.y
     }
@@ -98,6 +102,19 @@ impl BoundingBox {
         let sz = self.size();
         let add = Vec2i::new(sz.width / 2, sz.height / 2);
         self.min + add
+    }
+
+    pub fn translate(&self, vec: Vec2i) -> BoundingBox {
+        let mut bb = self.clone();
+        bb.min += vec;
+        bb.max += vec;
+        bb
+    }
+
+    pub fn translate_mut(mut self, vec: Vec2i) -> BoundingBox {
+        self.min += vec;
+        self.max += vec;
+        self
     }
 }
 

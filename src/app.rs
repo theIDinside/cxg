@@ -64,6 +64,7 @@ pub struct Application<'app> {
     pub debug_view: DebugView<'app>,
     mouse_state: MouseState,
     rect_animation_renderer: RectRenderer,
+    pub draw_test: bool,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -79,15 +80,6 @@ impl<'app> Application<'app> {
         rect_shader.set_projection(&mvp);
 
         let make_view_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
-        /*
-            // Create the status bar UI element
-            let (sb_tr, mut sb_wr) = make_renderers();
-            sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-            let sb_size = Size::new(1024, fonts[0].row_height() + 4);
-            let sb_anchor = Vec2i::new(0, 768);
-            let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-            status_bar.update();
-        */
 
         let mut buffers = Buffers::new();
 
@@ -124,6 +116,7 @@ impl<'app> Application<'app> {
 
         let input_box = InputBox::new(ib_frame, &fonts[1], &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
+
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -144,6 +137,7 @@ impl<'app> Application<'app> {
             debug_view,
             mouse_state: MouseState::None,
             rect_animation_renderer,
+            draw_test: false,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -638,11 +632,11 @@ impl<'app> Application<'app> {
             self.popup.view.draw();
         }
 
-        let v = unsafe { &mut (*self.active_view) };
+        /*  // uncommented... probably won't use a single status bar again, but individual ones per view
+            self.status_bar.update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
+            self.status_bar.draw();
+        */
 
-        // self.status_bar.update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
-
-        // self.status_bar.draw();
         self.input_box.draw();
         // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();

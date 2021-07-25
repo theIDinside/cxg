@@ -1,6 +1,6 @@
-use crate::ui::basic::{
-    boundingbox::BoundingBox,
-    coordinate::{Coordinate, Margin, Size},
+use crate::{
+    datastructure::generic::{Vec2, Vec2f},
+    ui::basic::{boundingbox::BoundingBox, coordinate::Margin},
 };
 
 use super::{
@@ -11,6 +11,7 @@ use super::{
     Primitive,
 };
 
+#[derive(Clone, Copy)]
 pub enum RectangleType {
     Undecorated,
     Rounded { radius: f32 },
@@ -23,6 +24,8 @@ pub enum RectDrawCommand {
     RoundedCorners {
         data_indices: BufferIndex,
         corner_radius: f32,
+        rect_size: Vec2f,
+        rect_pos: Vec2<gl::types::GLfloat>,
     },
 }
 
@@ -33,7 +36,6 @@ pub struct RectRenderer {
     pub shader: RectShader,
     reserved_vertex_count: isize,
     reserved_index_count: isize,
-    color: RGBAColor,
     pub needs_update: bool,
     pub draw_commands: Vec<RectDrawCommand>,
 }
@@ -81,7 +83,6 @@ impl RectRenderer {
             reserved_vertex_count: vertices_count.value() as _,
             reserved_index_count: reserved_indices.value() as _,
             // color: RGBAColor {r: 0.3,g: 0.34,b: 0.48,a: 1.0,},
-            color: RGBAColor { r: 0.21, g: 0.52, b: 0.742123, a: 1.0 },
             needs_update: true,
             draw_commands: Vec::with_capacity(10),
         }
@@ -106,9 +107,12 @@ impl RectRenderer {
         let data_indices = BufferIndex::new(ebo_idx, elem_count);
         match rect_type {
             RectangleType::Undecorated => self.draw_commands.push(RectDrawCommand::Undecorated { data_indices }),
-            RectangleType::Rounded { radius } => self
-                .draw_commands
-                .push(RectDrawCommand::RoundedCorners { data_indices, corner_radius: radius }),
+            RectangleType::Rounded { radius } => self.draw_commands.push(RectDrawCommand::RoundedCorners {
+                data_indices,
+                corner_radius: radius,
+                rect_size: rect.size_f32(),
+                rect_pos: rect.min.to_f32(),
+            }),
         }
     }
 
@@ -130,13 +134,13 @@ impl RectRenderer {
         self.needs_update = true;
     }
 
-    pub fn push_rect(&mut self, rect: BoundingBox, fill_color: RGBAColor, border: Option<(i32, RGBAColor)>) {
+    pub fn push_rect(&mut self, rect: BoundingBox, fill_color: RGBAColor, border: Option<(i32, RGBAColor)>, rect_type: RectangleType) {
         if let Some((border_thickness, border_color)) = border {
             let inner_rect = BoundingBox::shrink(&rect, Margin::Perpendicular { h: border_thickness, v: border_thickness });
-            self.push_draw_command(rect, border_color, RectangleType::Rounded { radius: 15.0 });
-            self.push_draw_command(inner_rect, fill_color, RectangleType::Rounded { radius: 15.0 });
+            self.push_draw_command(rect, border_color, rect_type);
+            self.push_draw_command(inner_rect, fill_color, rect_type);
         } else {
-            self.push_draw_command(rect, fill_color, RectangleType::Undecorated);
+            self.push_draw_command(rect, fill_color, rect_type);
         }
     }
 
@@ -146,7 +150,6 @@ impl RectRenderer {
     }
 
     pub fn set_color(&mut self, color: RGBAColor) {
-        self.color = color;
         for v in self.vtx_data.iter_mut() {
             v.color = color;
         }
@@ -162,10 +165,17 @@ impl RectRenderer {
         }
         for dc in self.draw_commands.iter() {
             let indices = match dc {
-                RectDrawCommand::Undecorated { data_indices } => data_indices,
-                RectDrawCommand::RoundedCorners { data_indices, .. } => {
+                RectDrawCommand::Undecorated { data_indices } => {
+                    self.shader.set_radius(0.0);
+                    data_indices
+                }
+                RectDrawCommand::RoundedCorners { data_indices, corner_radius, rect_size, rect_pos } => {
                     // todo(feature) handle different setup and options
                     // that we can pass to this draw command. right now it does nothing.
+                    self.shader.set_radius(*corner_radius);
+                    self.shader.set_rect_pos(*rect_pos);
+                    self.shader.set_rectangle_size(rect_size.clone());
+                    self.shader.set_window_dimensions(1024.0, 768.0);
                     data_indices
                 }
             };
@@ -178,7 +188,7 @@ impl RectRenderer {
 
     pub fn draw(&mut self) {
         self.bind();
-        self.shader.set_color(self.color);
+        self.shader.set_radius(0.0);
         if self.needs_update {
             self.reserve_gpu_memory_if_needed();
             self.upload_cpu_data();
