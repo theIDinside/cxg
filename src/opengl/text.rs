@@ -202,15 +202,12 @@ impl<'a> TextRenderer<'a> {
         }
         self.shader.bind();
         // todo(optimization): this means we can smash together consecutive DrawCommands that use the same settings & configurations, thus reducing the draw calls
-        let mut total = 0;
         for TextDrawCommand { font, data_indices: BufferIndex { idx_buffer_idx, idx_count }, .. } in self.draw_commands.iter() {
             font.bind();
             unsafe {
                 gl::DrawElements(gl::TRIANGLES, (*idx_count) as _, gl::UNSIGNED_INT, (std::mem::size_of::<u32>() * *idx_buffer_idx) as _);
             }
-            total += idx_count;
         }
-        assert_eq!(total, self.indices.len());
     }
 
     pub fn draw_clipped_list(&mut self, clip_frame: Frame) {
