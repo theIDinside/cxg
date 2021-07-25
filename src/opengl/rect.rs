@@ -1,11 +1,30 @@
-use crate::ui::basic::{boundingbox::BoundingBox, coordinate::Margin};
+use crate::ui::basic::{
+    boundingbox::BoundingBox,
+    coordinate::{Coordinate, Margin, Size},
+};
 
 use super::{
     glinit::OpenGLHandle,
     shaders::RectShader,
+    text::BufferIndex,
     types::{RGBAColor, RectVertex},
     Primitive,
 };
+
+pub enum RectangleType {
+    Undecorated,
+    Rounded { radius: f32 },
+}
+
+pub enum RectDrawCommand {
+    Undecorated {
+        data_indices: BufferIndex,
+    },
+    RoundedCorners {
+        data_indices: BufferIndex,
+        corner_radius: f32,
+    },
+}
 
 pub struct RectRenderer {
     gl_handle: OpenGLHandle,
@@ -16,6 +35,7 @@ pub struct RectRenderer {
     reserved_index_count: isize,
     color: RGBAColor,
     pub needs_update: bool,
+    pub draw_commands: Vec<RectDrawCommand>,
 }
 
 /// Public interface
@@ -63,6 +83,7 @@ impl RectRenderer {
             // color: RGBAColor {r: 0.3,g: 0.34,b: 0.48,a: 1.0,},
             color: RGBAColor { r: 0.21, g: 0.52, b: 0.742123, a: 1.0 },
             needs_update: true,
+            draw_commands: Vec::with_capacity(10),
         }
     }
 
@@ -74,7 +95,21 @@ impl RectRenderer {
     pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
+        self.draw_commands.clear();
         self.needs_update = true;
+    }
+
+    pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBAColor, rect_type: RectangleType) {
+        let ebo_idx = self.indices.len();
+        self.add_rect(rect.clone(), color);
+        let elem_count = self.indices.len() - ebo_idx;
+        let data_indices = BufferIndex::new(ebo_idx, elem_count);
+        match rect_type {
+            RectangleType::Undecorated => self.draw_commands.push(RectDrawCommand::Undecorated { data_indices }),
+            RectangleType::Rounded { radius } => self
+                .draw_commands
+                .push(RectDrawCommand::RoundedCorners { data_indices, corner_radius: radius }),
+        }
     }
 
     pub fn add_rect(&mut self, rect: BoundingBox, color: RGBAColor) {
@@ -98,10 +133,10 @@ impl RectRenderer {
     pub fn push_rect(&mut self, rect: BoundingBox, fill_color: RGBAColor, border: Option<(i32, RGBAColor)>) {
         if let Some((border_thickness, border_color)) = border {
             let inner_rect = BoundingBox::shrink(&rect, Margin::Perpendicular { h: border_thickness, v: border_thickness });
-            self.add_rect(rect, border_color);
-            self.add_rect(inner_rect, fill_color);
+            self.push_draw_command(rect, border_color, RectangleType::Rounded { radius: 15.0 });
+            self.push_draw_command(inner_rect, fill_color, RectangleType::Rounded { radius: 15.0 });
         } else {
-            self.add_rect(rect, fill_color);
+            self.push_draw_command(rect, fill_color, RectangleType::Undecorated);
         }
     }
 
@@ -116,6 +151,29 @@ impl RectRenderer {
             v.color = color;
         }
         self.needs_update = true;
+    }
+
+    pub fn draw_list(&mut self) {
+        self.bind();
+        if self.needs_update {
+            self.reserve_gpu_memory_if_needed();
+            self.upload_cpu_data();
+            self.needs_update = false;
+        }
+        for dc in self.draw_commands.iter() {
+            let indices = match dc {
+                RectDrawCommand::Undecorated { data_indices } => data_indices,
+                RectDrawCommand::RoundedCorners { data_indices, .. } => {
+                    // todo(feature) handle different setup and options
+                    // that we can pass to this draw command. right now it does nothing.
+                    data_indices
+                }
+            };
+            let BufferIndex { idx_buffer_idx, idx_count } = indices;
+            unsafe {
+                gl::DrawElements(gl::TRIANGLES, (*idx_count) as _, gl::UNSIGNED_INT, (std::mem::size_of::<u32>() * *idx_buffer_idx) as _);
+            }
+        }
     }
 
     pub fn draw(&mut self) {
