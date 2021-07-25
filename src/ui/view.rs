@@ -319,7 +319,6 @@ impl<'a> View<'a> {
                 top_y,
                 self.edit_font,
             );
-            // self.text_renderer.append_data(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
@@ -360,7 +359,7 @@ impl<'a> View<'a> {
         }
         self.text_renderer.draw_list();
         // self.text_renderer.draw();
-        // self.cursor_renderer.draw();
+        self.cursor_renderer.draw();
         //self.menu_text_renderer.draw();
 
         unsafe {
