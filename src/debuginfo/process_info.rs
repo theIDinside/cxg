@@ -32,7 +32,7 @@ impl ProcessInfo {
             data.parse().unwrap()
         };
 
-        let mut file = std::fs::File::open("/proc/self/status").expect("failed to open statm");
+        let mut file = std::fs::File::open("/proc/self/status").expect("failed to open status");
         let mut buf = String::with_capacity(1024);
         file.read_to_string(&mut buf)?; // .expect("failed to read data");
         let to_find = vec![0, 5, 16, 17, 28];

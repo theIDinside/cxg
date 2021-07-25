@@ -330,7 +330,7 @@ impl<'app> Viewable for InputBox<'app> {
     }
 
     fn bounding_box(&self) -> BoundingBox {
-        BoundingBox::from_info(self.frame.anchor, self.frame.size)
+        BoundingBox::from_frame(&self.frame)
     }
 
     fn mouse_clicked(&mut self, _screen_coordinate: Vec2i) {
