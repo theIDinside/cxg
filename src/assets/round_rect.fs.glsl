@@ -29,22 +29,28 @@ void main()
         // the pixel space location of the rectangle.
         vec2 location = rect_pos;
 
-        // How soft the edges should be (in pixels). Higher values could be used to simulate a drop shadow.
-        float edgeSoftness  = 1.0f;
-        
-        // The radius of the corners (in pixels).
-        
-        // Calculate distance to edge.   
-        float dist 		= roundedBoxSDF(texel_coords.xy - location - (size/2.0f), size / 2.0f, radius);
-        
-        // Smooth the result (free antialiasing).
-        float smoothedAlpha =  1.0f-smoothstep(0.0f, edgeSoftness * 2.0f,dist);
-        
-        // Return the resultant shape.
-        vec4 quadColor		= mix(vec4(0.0, 0.0, 0.0, 0.0), vec4(rect_color.rgb, smoothedAlpha), smoothedAlpha);
-    
-        FragColor 			 = quadColor;
-        // FragColor 			 = mix(quadColor, shadowColor, shadowAlpha - smoothedAlpha);
+        float boundary = texel_coords.y;
+        float cutoff = location.y + size.y / 2.0;
+        if(boundary > cutoff) {
+            // How soft the edges should be (in pixels). Higher values could be used to simulate a drop shadow.
+            float edgeSoftness  = 1.0f;
+            
+            // The radius of the corners (in pixels).
+            
+            // Calculate distance to edge.   
+            float dist 		= roundedBoxSDF(texel_coords.xy - location - (size/2.0f), size / 2.0f, radius);
+            
+            // Smooth the result (free antialiasing).
+            float smoothedAlpha =  1.0f-smoothstep(0.0f, edgeSoftness * 2.0f,dist);
+            
+            // Return the resultant shape.
+            vec4 quadColor		= mix(vec4(0.0, 0.0, 0.0, 0.0), vec4(rect_color.rgb, smoothedAlpha), smoothedAlpha);
+
+            FragColor 			 = quadColor;
+            // FragColor 			 = mix(quadColor, shadowColor, shadowAlpha - smoothedAlpha);
+        } else {
+            FragColor = rect_color;    
+        }
     } else {
         FragColor = rect_color;
     }    
