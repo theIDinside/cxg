@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use super::types::RGBAColor;
 
 /// Default shader sources, compiled into the binary
@@ -55,7 +57,19 @@ pub struct RectShader {
 
 impl RectShader {
     pub fn new() -> RectShader {
-        let font_program = match super::glinit::create_shader_program(source::RECT_VERTEX_SHADER, source::RECT_FRAGMENT_SHADER) {
+        let rvs = std::fs::File::open("./src/assets/rect.vs.glsl").and_then(|mut f| {
+            let mut s = String::new();
+            f.read_to_string(&mut s)?;
+            Ok(s)
+        });
+
+        let rfs = std::fs::File::open("./src/assets/rect.fs.glsl").and_then(|mut f| {
+            let mut s = String::new();
+            f.read_to_string(&mut s)?;
+            Ok(s)
+        });
+
+        let font_program = match super::glinit::create_shader_program(&rvs.expect("failed to read RVS code"), &rfs.expect("failed to read RFS code")) {
             Ok(program) => program,
             Err(_) => {
                 println!("Error creating font shader program. Exiting application.");
