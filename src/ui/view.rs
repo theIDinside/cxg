@@ -5,10 +5,7 @@ use super::eventhandling::event::{InputBehavior, InputResponse};
 use super::panel::PanelId;
 use super::Viewable;
 use super::{
-    basic::{
-        coordinate::{Margin, Size},
-        frame::Frame,
-    },
+    basic::{coordinate::Size, frame::Frame},
     font::Font,
 };
 use crate::datastructure::generic::Vec2i;
@@ -236,17 +233,13 @@ impl<'a> View<'a> {
     pub fn update(&mut self) {
         self.window_renderer.clear_data();
         // draw filled rectangle, which will become border
-        self.window_renderer
-            .add_rect(self.title_frame.to_bb(), self.bg_color.uniform_scale(-1.0));
-        // fill out the inner, leaving the previous draw as border
-        self.window_renderer
-            .add_rect(BoundingBox::shrink(&self.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.bg_color.uniform_scale(1.0));
-        // draw view rectangle, the background for the text editor
 
         self.window_renderer
-            .add_rect(self.view_frame.to_bb(), self.bg_color.uniform_scale(-1.0));
+            .push_rect(self.title_frame.to_bb(), RGBAColor::new(0.5, 0.5, 0.5, 1.0), Some((2, RGBAColor::gray().uniform_scale(-0.2))));
+
         self.window_renderer
-            .add_rect(BoundingBox::shrink(&self.view_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.bg_color);
+            .push_rect(self.view_frame.to_bb(), self.bg_color, Some((1, RGBAColor::gray().uniform_scale(-0.2))));
+
         self.set_need_redraw();
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
@@ -261,7 +254,7 @@ impl<'a> View<'a> {
     pub fn draw_title(&mut self, title: &str) {
         let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
         self.text_renderer
-            .push_draw_command(title.chars().map(|c| c), RGBColor::black(), tx + 3, ty, self.title_font);
+            .push_draw_command(title.chars().map(|c| c), RGBColor::white(), tx + 3, ty, self.title_font);
     }
 
     pub fn draw(&mut self) {
@@ -418,10 +411,9 @@ impl<'a> View<'a> {
     }
 
     pub fn insert_str(&mut self, s: &str) {
+        let d: Vec<_> = s.chars().collect();
         self.buffer_in_view = 0..s.len();
-        for c in s.chars() {
-            self.buffer.insert(c);
-        }
+        self.buffer.insert_slice(&d[..]);
         self.text_renderer.pristine = false;
         self.adjust_view_range();
     }
@@ -539,7 +531,8 @@ impl<'app> Viewable for View<'app> {
         debug_assert!(size.height > 20, "resize size invalid. Must be larger than 20");
         size.height -= self.row_height + 5;
         self.title_frame.size.width = size.width;
-        self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
+        self.view_frame.anchor.y = self.title_frame.anchor.y - self.title_frame.size.height;
+        // self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
         self.view_frame.size = size;
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
         assert_eq!(self.view_frame.size.width, self.title_frame.size.width);

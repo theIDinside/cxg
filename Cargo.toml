@@ -19,7 +19,7 @@ debug = true
 debug-assertions = false
 opt-level = 3
 overflow-checks = false
-lto = "fat"
+lto = false
 codegen-units = 16
 
 

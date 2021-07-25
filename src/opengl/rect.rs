@@ -1,4 +1,4 @@
-use crate::ui::basic::boundingbox::BoundingBox;
+use crate::ui::basic::{boundingbox::BoundingBox, coordinate::Margin};
 
 use super::{
     glinit::OpenGLHandle,
@@ -93,6 +93,16 @@ impl RectRenderer {
             vtx_index + 3,
         ]);
         self.needs_update = true;
+    }
+
+    pub fn push_rect(&mut self, rect: BoundingBox, fill_color: RGBAColor, border: Option<(i32, RGBAColor)>) {
+        if let Some((border_thickness, border_color)) = border {
+            let inner_rect = BoundingBox::shrink(&rect, Margin::Perpendicular { h: border_thickness, v: border_thickness });
+            self.add_rect(rect, border_color);
+            self.add_rect(inner_rect, fill_color);
+        } else {
+            self.add_rect(rect, fill_color);
+        }
     }
 
     pub fn set_rect(&mut self, rect: BoundingBox, color: RGBAColor) {

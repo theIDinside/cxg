@@ -54,10 +54,6 @@ impl<'a> CharBuffer<'a> for TextBuffer {
         todo!()
     }
 
-    fn str_view(&'a self, range: std::ops::Range<usize>) -> std::iter::Take<std::iter::Skip<Self::ItemIterator>> {
-        todo!()
-    }
-
     fn cursor_row(&self) -> metadata::Line {
         todo!()
     }

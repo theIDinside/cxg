@@ -95,8 +95,6 @@ pub trait CharBuffer<'a> {
     fn meta_data(&self) -> &MetaData;
     /// Get an iterator to the data of this buffer
     fn iter(&'a self) -> Self::ItemIterator;
-    /// A function where range _must_ be satifies to be within the buffer. If this goes kablooey - you have been warned dumbass.
-    fn str_view(&'a self, range: std::ops::Range<usize>) -> std::iter::Take<std::iter::Skip<Self::ItemIterator>>;
 
     /// Get current cursor line position
     fn cursor_row(&self) -> metadata::Line;

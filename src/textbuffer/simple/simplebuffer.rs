@@ -605,10 +605,6 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         }
     }
 
-    fn str_view(&'a self, range: std::ops::Range<usize>) -> std::iter::Take<std::iter::Skip<Self::ItemIterator>> {
-        self.iter_skip(range.start).take(range.len())
-    }
-
     fn set_cursor(&mut self, cursor: BufferCursor) {
         self.cursor = cursor;
     }

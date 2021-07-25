@@ -11,7 +11,6 @@ use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
 use crate::ui::inputbox::{InputBox, InputBoxMode};
 use crate::ui::panel::{Panel, PanelId};
-use crate::ui::statusbar::{StatusBar, StatusBarContent};
 use crate::ui::view::{Popup, View, ViewId};
 use crate::ui::{font::Font, UID};
 use crate::ui::{MouseState, Viewable};
@@ -34,7 +33,8 @@ pub struct Application<'app> {
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
     fonts: &'app Vec<Box<Font>>,
     /// The statusbar, displays different short info about whatever element we're using, or some other user message/debug data
-    status_bar: StatusBar<'app>,
+    // This is un unsed for now
+    // status_bar: StatusBar<'app>,
     /// The shader for the font
     font_shader: shaders::TextShader,
     /// Shaders for rectangles/windows/views
@@ -79,21 +79,20 @@ impl<'app> Application<'app> {
         rect_shader.set_projection(&mvp);
 
         let make_view_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
-
-        let make_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
-
-        // Create the status bar UI element
-        let (sb_tr, mut sb_wr) = make_renderers();
-        sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-        let sb_size = Size::new(1024, fonts[0].row_height() + 4);
-        let sb_anchor = Vec2i::new(0, 768);
-        let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
-        status_bar.update();
+        /*
+            // Create the status bar UI element
+            let (sb_tr, mut sb_wr) = make_renderers();
+            sb_wr.set_color(RGBAColor::new(0.5, 0.5, 0.5, 1.0));
+            let sb_size = Size::new(1024, fonts[0].row_height() + 4);
+            let sb_anchor = Vec2i::new(0, 768);
+            let mut status_bar = StatusBar::new(sb_tr, sb_wr, sb_anchor, sb_size, RGBAColor::new(0.5, 0.5, 0.5, 1.0));
+            status_bar.update();
+        */
 
         let mut buffers = Buffers::new();
 
         // Create default 1st panel to hold views in
-        let panel = Panel::new(0, Layout::Horizontal(0.into()), None, None, 1024, 768 - sb_size.height, Vec2i::new(0i32, 768i32 - sb_size.height));
+        let panel = Panel::new(0, Layout::Horizontal(0.into()), None, None, 1024, 768, Vec2i::new(0i32, 768i32));
         let mut panels = vec![panel];
 
         // Create the default 1st view
@@ -128,9 +127,9 @@ impl<'app> Application<'app> {
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
-            panel_space_size: Size::new(1024, 768 - sb_size.height),
+            panel_space_size: Size::new(1024, 768),
             fonts,
-            status_bar,
+            // status_bar,
             font_shader,
             rect_shader,
             panels,
@@ -274,11 +273,13 @@ impl<'app> Application<'app> {
         self.active_view = view as *const _ as *mut _;
     }
 
+    /*
     /// Updates the string contents of the status bar
     pub fn update_status_bar(&mut self, text: String) {
         self.status_bar.update_string_contents(&text);
-        self.status_bar.update();
+         self.status_bar.update();
     }
+     */
 
     fn sync_shader_uniform_projection(&mut self) {
         let (width, height) = self.window_size.values();
@@ -289,12 +290,19 @@ impl<'app> Application<'app> {
 
     fn handle_resize_event(&mut self, width: i32, height: i32) {
         println!("App window {:?} ===> {}x{}", self.window_size, width, height);
-        let new_panel_space_size = Size::new(width, height - self.status_bar.size.height);
+        let ps_x = self.panel_space_size.width;
+        let ps_y = self.panel_space_size.height;
+        let ax = width as f64 / ps_x as f64;
+        let ay = height as f64 / ps_y as f64;
+
+        let new_panel_space_size = Size::new(width, height);
         let size_change_factor = new_panel_space_size / self.panel_space_size;
+        assert_eq!(ax, size_change_factor.x as _);
+        assert_eq!(ay, size_change_factor.y as _);
 
         for p in self.panels.iter_mut() {
-            let v = Vec2d::new(p.anchor.x as _, p.anchor.y as _);
-            let Vec2 { x, y } = v * size_change_factor;
+            let panel_anchor = Vec2d::new(p.anchor.x as _, p.anchor.y as _);
+            let Vec2 { x, y } = panel_anchor * size_change_factor;
             let new_size = Size::vector_multiply(p.size, size_change_factor);
             p.set_anchor(Vec2i::new(x.round() as _, y.round() as _));
             p.resize(new_size);
@@ -302,10 +310,11 @@ impl<'app> Application<'app> {
         }
 
         Application::set_dimensions(self, width, height);
-        self.status_bar.size.width = width;
-        self.status_bar.anchor = Vec2i::new(0, height);
-        self.status_bar.update();
-
+        /* Status bar usage uncommented for now
+               self.status_bar.size.width = width;
+               self.status_bar.anchor = Vec2i::new(0, height);
+               self.status_bar.update();
+        */
         self.debug_view.view.set_anchor(Vec2i::new(10, self.height() - 10));
         self.debug_view
             .view
@@ -475,8 +484,25 @@ impl<'app> Application<'app> {
         unsafe { self.active_view.as_ref().unwrap().id }
     }
 
+    pub fn toggle_input_box(&mut self, mode: InputBoxMode) {
+        if self.input_box.visible {
+            self.active_input = cast_ptr_to_input(self.active_view);
+            self.input_box.visible = false;
+        } else {
+            self.input_box.mode = mode;
+            // self.active_input = &mut self.input_box as &'app mut dyn Input;
+            self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
+            self.input_box.visible = true;
+        }
+    }
+
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         match key {
+            Key::Escape => {
+                if self.input_box.visible {
+                    self.toggle_input_box(InputBoxMode::Command);
+                }
+            }
             Key::KpAdd => {}
             Key::W if modifier == Modifiers::Control && action == Action::Press => {
                 self.close_active_view();
@@ -505,24 +531,9 @@ impl<'app> Application<'app> {
             }
             Key::I if action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    if self.input_box.visible {
-                        self.active_input = cast_ptr_to_input(self.active_view);
-                        self.input_box.visible = false;
-                    } else {
-                        self.input_box.mode = InputBoxMode::Command;
-                        // self.active_input = &mut self.input_box as &'app mut dyn Input;
-                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
-                        self.input_box.visible = true;
-                    }
+                    self.toggle_input_box(InputBoxMode::Command);
                 } else if modifier == (Modifiers::Control | Modifiers::Shift) {
-                    if self.input_box.visible {
-                        self.active_input = cast_ptr_to_input(self.active_view);
-                        self.input_box.visible = false;
-                    } else {
-                        self.input_box.mode = InputBoxMode::FileList;
-                        self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
-                        self.input_box.visible = true;
-                    }
+                    self.toggle_input_box(InputBoxMode::FileList);
                 }
             }
             Key::Tab if action == Action::Press => {
@@ -597,7 +608,7 @@ impl<'app> Application<'app> {
 
     pub fn set_dimensions(&mut self, width: i32, height: i32) {
         self.window_size = Size::new(width, height);
-        self.panel_space_size = Size::new(width, height - self.status_bar.size.height);
+        self.panel_space_size = Size::new(width, height);
         self.sync_shader_uniform_projection();
     }
 
@@ -628,10 +639,10 @@ impl<'app> Application<'app> {
         }
 
         let v = unsafe { &mut (*self.active_view) };
-        self.status_bar
-            .update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
 
-        self.status_bar.draw();
+        // self.status_bar.update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
+
+        // self.status_bar.draw();
         self.input_box.draw();
         // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();

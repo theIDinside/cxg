@@ -15,7 +15,6 @@ pub mod font;
 
 pub mod inputbox;
 pub mod panel;
-pub mod statusbar;
 pub mod view;
 
 pub mod debug_view;
