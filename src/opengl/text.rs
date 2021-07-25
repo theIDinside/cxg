@@ -29,15 +29,38 @@ impl Into<RendererId> for u32 {
     }
 }
 
+pub struct BufferIndex {
+    pub idx_buffer_idx: usize,
+    pub idx_count: usize,
+}
+
+impl BufferIndex {
+    pub fn new(buffer_index: usize, index_count: usize) -> BufferIndex {
+        BufferIndex { idx_buffer_idx: buffer_index, idx_count: index_count }
+    }
+}
+
+pub struct TextDrawCommand<'a> {
+    font: &'a Font,
+    data_indices: BufferIndex,
+}
+
+impl<'a> TextDrawCommand<'a> {
+    pub fn new(font: &Font, data_indices: BufferIndex) -> TextDrawCommand {
+        TextDrawCommand { font, data_indices }
+    }
+}
+
 pub struct TextRenderer<'a> {
     gl_handle: super::glinit::OpenGLHandle,
     pub font: &'a Font,
     pub pristine: bool,
     vtx_data: Vec<TVertex>,
     indices: Vec<u32>,
-    shader: super::shaders::TextShader,
+    pub shader: super::shaders::TextShader,
     reserved_vertex_count: isize,
     reserved_index_count: isize,
+    pub draw_commands: Vec<TextDrawCommand<'a>>,
 }
 
 /// Public interface
@@ -88,6 +111,7 @@ impl<'a> TextRenderer<'a> {
             indices,
             reserved_vertex_count: vertices_count.value() as _,
             reserved_index_count: reserved_indices.value() as _,
+            draw_commands: Vec::with_capacity(10),
         };
         tdb
     }
@@ -98,245 +122,107 @@ impl<'a> TextRenderer<'a> {
         self.font.bind();
     }
 
-    pub fn draw_clipped(&mut self, clip_frame: Frame) {
-        let Frame { anchor: Vec2i { x: top_x, y: top_y }, size } = clip_frame;
-        unsafe {
-            gl::Enable(gl::SCISSOR_TEST);
-            gl::Scissor(top_x, top_y - size.height, size.width, size.height);
+    pub fn push_draw_command<'b>(&mut self, text: impl Iterator<Item = char>, color: RGBColor, x: i32, y: i32, font: &'a Font) {
+        use TextDrawCommand as DC;
+        let mut current_x = x;
+        let mut current_y = y - font.row_height();
+        // we need to be able to peek ahead
+        let mut text = text.peekable();
+        let ebo_idx = self.indices.len();
+        while let Some(c) = text.next() {
+            if c == '\n' {
+                current_x = x;
+                current_y -= font.row_height();
+                continue;
+            }
+
+            let c = {
+                let resulting_unicode = match text.peek() {
+                    Some('=') => match c {
+                        '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
+                        '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
+                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) },
+                        _ => c,
+                    },
+                    _ => c,
+                };
+                if resulting_unicode != c {
+                    text.next();
+                }
+                resulting_unicode
+            };
+
+            if let Some(g) = font.get_glyph(c) {
+                let RGBColor { r: red, g: green, b: blue } = color;
+                let xpos = current_x as f32 + g.bearing.x as f32;
+                let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
+                let x0 = g.x0 as f32 / font.texture_width() as f32;
+                let x1 = g.x1 as f32 / font.texture_width() as f32;
+                let y0 = g.y0 as f32 / font.texture_height() as f32;
+                let y1 = g.y1 as f32 / font.texture_height() as f32;
+
+                let w = g.width();
+                let h = g.height();
+
+                let vtx_index = self.vtx_data.len() as u32;
+                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
+
+                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
+                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
+
+                self.indices.extend_from_slice(&[
+                    vtx_index,
+                    vtx_index + 1,
+                    vtx_index + 2,
+                    vtx_index,
+                    vtx_index + 2,
+                    vtx_index + 3,
+                ]);
+                current_x += g.advance;
+            } else {
+                let mut buf = [0; 4];
+                c.encode_utf16(&mut buf);
+                panic!("Could not find glyph for {}, {:?}", c, buf);
+            }
         }
-        self.draw();
-        unsafe {
-            gl::Disable(gl::SCISSOR_TEST);
-        }
+
+        let elem_count = self.indices.len() - ebo_idx;
+        self.draw_commands.push(DC::new(font, BufferIndex::new(ebo_idx, elem_count)));
+        self.pristine = false;
     }
 
-    pub fn draw(&mut self) {
-        self.bind();
+    pub fn draw_list(&mut self) {
+        self.gl_handle.bind();
         if !self.pristine {
             self.reserve_gpu_memory_if_needed();
             self.upload_cpu_data();
             self.pristine = true;
         }
+        self.shader.bind();
+        // todo(optimization): this means we can smash together consecutive DrawCommands that use the same settings & configurations, thus reducing the draw calls
+        let mut total = 0;
+        for TextDrawCommand { font, data_indices: BufferIndex { idx_buffer_idx, idx_count }, .. } in self.draw_commands.iter() {
+            font.bind();
+            unsafe {
+                gl::DrawElements(gl::TRIANGLES, (*idx_count) as _, gl::UNSIGNED_INT, (std::mem::size_of::<u32>() * *idx_buffer_idx) as _);
+            }
+            total += idx_count;
+        }
+        assert_eq!(total, self.indices.len());
+    }
+
+    pub fn draw_clipped_list(&mut self, clip_frame: Frame) {
+        let Frame { anchor: Vec2i { x: top_x, y: top_y }, size } = clip_frame;
         unsafe {
-            gl::DrawElements(gl::TRIANGLES, self.indices.len() as _, gl::UNSIGNED_INT, std::ptr::null());
-            // gl::DrawArrays(gl::TRIANGLES, 0, self.vtx_data.len() as i32);
+            gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(top_x, top_y - size.height, size.width, size.height);
         }
-    }
-
-    pub fn append_data_from_iterator<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, color: RGBColor, x: i32, y: i32) {
-        let mut current_x = x;
-        let mut current_y = y - self.font.row_height();
-        // we need to be able to peek ahead
-        let mut text = text.peekable();
-        while let Some(c) = text.next() {
-            let c = *c;
-            if c == '\n' {
-                current_x = x;
-                current_y -= self.font.row_height();
-                continue;
-            }
-
-            let c = {
-                let resulting_unicode = match text.peek() {
-                    Some('=') => match c {
-                        '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
-                        '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
-                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) },
-                        _ => c,
-                    },
-                    _ => c,
-                };
-                if resulting_unicode != c {
-                    text.next();
-                }
-                resulting_unicode
-            };
-
-            if let Some(g) = self.font.get_glyph(c) {
-                let super::types::RGBColor { r: red, g: green, b: blue } = color;
-                let xpos = current_x as f32 + g.bearing.x as f32;
-                let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
-                let x0 = g.x0 as f32 / self.font.texture_width() as f32;
-                let x1 = g.x1 as f32 / self.font.texture_width() as f32;
-                let y0 = g.y0 as f32 / self.font.texture_height() as f32;
-                let y1 = g.y1 as f32 / self.font.texture_height() as f32;
-
-                let w = g.width();
-                let h = g.height();
-
-                let vtx_index = self.vtx_data.len() as u32;
-                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
-
-                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
-
-                self.indices.extend_from_slice(&[
-                    vtx_index,
-                    vtx_index + 1,
-                    vtx_index + 2,
-                    vtx_index,
-                    vtx_index + 2,
-                    vtx_index + 3,
-                ]);
-                current_x += g.advance;
-            } else {
-                let mut buf = [0; 4];
-                c.encode_utf16(&mut buf);
-                panic!("Could not find glyph for {}, {:?}", c, buf);
-            }
+        self.draw_list();
+        unsafe {
+            gl::Disable(gl::SCISSOR_TEST);
         }
-        self.pristine = false;
-    }
-
-    pub fn append_data<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
-        let color = super::types::RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
-        self.append_data_from_iterator(text, color, x, y);
-    }
-
-    pub fn prepare_data_from_iterator<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, text_color: RGBColor, x: i32, y: i32) {
-        let color = text_color;
-        self.clear_data();
-
-        self.vtx_data.reserve(crate::diff!(self.vtx_data.capacity(), text.len()));
-
-        let mut current_x = x;
-        let mut current_y = y - self.font.row_height();
-        // we need to be able to peek ahead
-        let mut text = text.peekable();
-        while let Some(c) = text.next() {
-            let c = *c;
-            if c == '\n' {
-                current_x = x;
-                current_y -= self.font.row_height();
-                continue;
-            }
-
-            let c = {
-                let resulting_unicode = match text.peek() {
-                    Some('=') => match c {
-                        '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
-                        '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
-                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) },
-                        _ => c,
-                    },
-                    _ => c,
-                };
-                if resulting_unicode != c {
-                    text.next();
-                }
-                resulting_unicode
-            };
-
-            if let Some(g) = self.font.get_glyph(c) {
-                let super::types::RGBColor { r: red, g: green, b: blue } = color;
-                let xpos = current_x as f32 + g.bearing.x as f32;
-                let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
-                let x0 = g.x0 as f32 / self.font.texture_width() as f32;
-                let x1 = g.x1 as f32 / self.font.texture_width() as f32;
-                let y0 = g.y0 as f32 / self.font.texture_height() as f32;
-                let y1 = g.y1 as f32 / self.font.texture_height() as f32;
-
-                let w = g.width();
-                let h = g.height();
-
-                let vtx_index = self.vtx_data.len() as u32;
-                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
-
-                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
-
-                self.indices.extend_from_slice(&[
-                    vtx_index,
-                    vtx_index + 1,
-                    vtx_index + 2,
-                    vtx_index,
-                    vtx_index + 2,
-                    vtx_index + 3,
-                ]);
-                current_x += g.advance;
-            } else {
-                let mut buf = [0; 4];
-                c.encode_utf16(&mut buf);
-                panic!("Could not find glyph for {}, {:?}", c, buf);
-            }
-        }
-        self.pristine = false;
-    }
-
-    pub fn append_data_from_chars<'b>(&mut self, text: impl Iterator<Item = char>, color: RGBColor, x: i32, y: i32) {
-        let mut current_x = x;
-        let mut current_y = y - self.font.row_height();
-        // we need to be able to peek ahead
-        let mut text = text.peekable();
-        while let Some(c) = text.next() {
-            let c = c;
-            if c == '\n' {
-                current_x = x;
-                current_y -= self.font.row_height();
-                continue;
-            }
-
-            let c = {
-                let resulting_unicode = match text.peek() {
-                    Some('=') => match c {
-                        '<' => unsafe { std::char::from_u32_unchecked(0x2264) },
-                        '>' => unsafe { std::char::from_u32_unchecked(0x2265) },
-                        '!' => unsafe { std::char::from_u32_unchecked(0x2260) },
-                        _ => c,
-                    },
-                    _ => c,
-                };
-                if resulting_unicode != c {
-                    text.next();
-                }
-                resulting_unicode
-            };
-
-            if let Some(g) = self.font.get_glyph(c) {
-                let super::types::RGBColor { r: red, g: green, b: blue } = color;
-                let xpos = current_x as f32 + g.bearing.x as f32;
-                let ypos = current_y as f32 - (g.size.y - g.bearing.y) as f32;
-                let x0 = g.x0 as f32 / self.font.texture_width() as f32;
-                let x1 = g.x1 as f32 / self.font.texture_width() as f32;
-                let y0 = g.y0 as f32 / self.font.texture_height() as f32;
-                let y1 = g.y1 as f32 / self.font.texture_height() as f32;
-
-                let w = g.width();
-                let h = g.height();
-
-                let vtx_index = self.vtx_data.len() as u32;
-                // Todo(optimization, avx, simd): TVertex has been padded with an extra float, (sizeof TVertex == 8 * 4 bytes == 128 bit. Should be *extremely* friendly for SIMD purposes now)
-
-                self.vtx_data.push(TVertex::new(xpos, ypos + h, x0, y0, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos, ypos, x0, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos, x1, y1, red, green, blue));
-                self.vtx_data.push(TVertex::new(xpos + w, ypos + h, x1, y0, red, green, blue));
-
-                self.indices.extend_from_slice(&[
-                    vtx_index,
-                    vtx_index + 1,
-                    vtx_index + 2,
-                    vtx_index,
-                    vtx_index + 2,
-                    vtx_index + 3,
-                ]);
-                current_x += g.advance;
-            } else {
-                let mut buf = [0; 4];
-                c.encode_utf16(&mut buf);
-                panic!("Could not find glyph for {}, {:?}", c, buf);
-            }
-        }
-        self.pristine = false;
-    }
-
-    pub fn prepare_data_from_iter<'b>(&mut self, text: impl ExactSizeIterator<Item = &'b char>, x: i32, y: i32) {
-        let color = super::types::RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
-        self.prepare_data_from_iterator(text, color, x, y);
     }
 
     pub fn get_cursor_width_size(&self) -> i32 {
@@ -443,6 +329,7 @@ impl<'a> TextRenderer<'a> {
     pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
+        self.draw_commands.clear();
     }
 
     fn reserve_gpu_memory_if_needed(&mut self) {

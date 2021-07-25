@@ -78,13 +78,7 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let make_view_renderers = || {
-            (
-                TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10),
-                TextRenderer::create(font_shader.clone(), &fonts[1], 1024 * 10),
-                RectRenderer::create(rect_shader.clone(), 8 * 60),
-            )
-        };
+        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let make_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
@@ -103,14 +97,15 @@ impl<'app> Application<'app> {
         let mut panels = vec![panel];
 
         // Create the default 1st view
-        let (tr, mtr, rr) = make_view_renderers();
+        let (tr, rr) = make_view_renderers();
         let buffer = buffers.request_new_buffer();
-        let view = View::new("Unnamed view", active_view_id.into(), tr, mtr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer);
+        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer, &fonts[0], &fonts[1]);
         panels[0].add_view(view);
 
         // Create the popup UI
-        let (tr, mtr, rr) = make_view_renderers();
-        let mut popup = View::new("Popup view", (active_view_id + 1).into(), tr, mtr, rr, 524, 518, ACTIVE_VIEW_BACKGROUND, Buffers::free_buffer());
+        let (tr, rr) = make_view_renderers();
+        let mut popup =
+            View::new("Popup view", (active_view_id + 1).into(), tr, rr, 524, 518, ACTIVE_VIEW_BACKGROUND, Buffers::free_buffer(), &fonts[0], &fonts[1]);
 
         popup.set_anchor(Vec2i::new(250, 768 - 250));
         popup.update();
@@ -118,9 +113,9 @@ impl<'app> Application<'app> {
         let popup = Popup { visible: false, view: popup };
 
         // Creating the Debug View UI
-        let (tr, mtr, rr) = make_view_renderers();
+        let (tr, rr) = make_view_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view = View::new("debug_view", 10.into(), tr, mtr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer());
+        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer(), &fonts[0], &fonts[1]);
         debug_view.set_anchor(Vec2i::new(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
@@ -193,12 +188,13 @@ impl<'app> Application<'app> {
                 view_name,
                 view_id.into(),
                 TextRenderer::create(self.font_shader.clone(), font, 1024 * 10),
-                TextRenderer::create(self.font_shader.clone(), menu_font, 1024 * 10),
                 RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
                 width,
                 height,
                 ACTIVE_VIEW_BACKGROUND,
                 self.buffers.request_new_buffer(),
+                font,
+                &menu_font,
             );
 
             self.active_ui_element = UID::View(*view.id);

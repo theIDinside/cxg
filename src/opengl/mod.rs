@@ -8,9 +8,6 @@ pub mod text;
 #[macro_use]
 pub mod glinit;
 
-/// Types of DrawCommands are declared & defined here
-pub mod drawlist;
-
 pub enum Primitive {
     /// used when dealing with TextVertex data quads
     CharacterQuad(isize),

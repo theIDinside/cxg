@@ -1,6 +1,10 @@
 use crate::{
     datastructure::generic::Vec2i,
-    opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor},
+    opengl::{
+        rect::RectRenderer,
+        text::TextRenderer,
+        types::{RGBAColor, RGBColor},
+    },
 };
 
 use super::{boundingbox::BoundingBox, coordinate::Size};
@@ -58,10 +62,14 @@ impl<'app> StatusBar<'app> {
     pub fn update(&mut self) {
         let Vec2i { x, y } = self.anchor;
         self.window_renderer.clear_data();
+        self.text_renderer.clear_data();
+
         self.window_renderer
             .add_rect(BoundingBox::from((self.anchor, self.size)), self.bg_color);
         let t: Vec<_> = self.display_data.to_str().chars().map(|c| c).collect();
-        self.text_renderer.prepare_data_from_iter(t.iter(), x, y);
+        let color = RGBColor { r: 1.0f32, g: 1.0, b: 1.3 };
+        let font = self.text_renderer.font;
+        self.text_renderer.push_draw_command(t.iter().map(|c| *c), color, x, y, font);
     }
 
     pub fn draw(&mut self) {
@@ -69,6 +77,6 @@ impl<'app> StatusBar<'app> {
             self.update();
         }
         self.window_renderer.draw();
-        self.text_renderer.draw();
+        self.text_renderer.draw_list();
     }
 }

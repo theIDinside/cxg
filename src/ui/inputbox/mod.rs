@@ -142,9 +142,7 @@ impl<'app> InputBox<'app> {
         */
 
         if self.needs_update {
-            if self.input_box.data.is_empty() {
-                self.text_renderer.clear_data();
-            }
+            self.text_renderer.clear_data();
             self.rect_renderer.clear_data();
             let frame_bb = BoundingBox::from_frame(&self.frame);
             let frame_border_bb = BoundingBox::expand(&frame_bb, Margin::Perpendicular { v: 2, h: 2 });
@@ -161,7 +159,7 @@ impl<'app> InputBox<'app> {
             let color = self.input_box.text_render_settings.text_color;
             if !self.input_box.data.is_empty() {
                 self.text_renderer
-                    .prepare_data_from_iterator(self.input_box.data.iter(), color, t.min.x, t.max.y);
+                    .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.text_renderer.font);
                 let color = self.selection_list.text_render_settings.text_color;
 
                 let mut displace_y = 3;
@@ -180,6 +178,7 @@ impl<'app> InputBox<'app> {
                     .collect();
 
                 let selected = self.selection_list.selection.unwrap_or(0);
+                let font = self.text_renderer.font;
                 for (index, item) in items.into_iter().enumerate() {
                     if selected == index {
                         let Vec2i { x, .. } = self.selection_list.frame.anchor;
@@ -188,20 +187,22 @@ impl<'app> InputBox<'app> {
                         let selection_box = BoundingBox::new(min, max);
                         self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
                     }
+
                     self.text_renderer
-                        .append_data_from_iterator(item.iter(), color, t.min.x, t.min.y - displace_y);
+                        .push_draw_command(item.iter().map(|c| *c), color, t.min.x, t.min.y - displace_y, font);
                     displace_y += self.selection_list.item_height;
                 }
             } else {
                 let color = RGBColor { r: 0.5, g: 0.5, b: 0.5 };
+                let font = self.text_renderer.font;
                 self.text_renderer
-                    .append_data_from_chars(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y);
+                    .push_draw_command(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y, font);
             }
             self.needs_update = false;
         }
 
         self.rect_renderer.draw();
-        self.text_renderer.draw_clipped(self.frame);
+        self.text_renderer.draw_clipped_list(self.frame);
     }
 
     pub fn clear(&mut self) {

@@ -1,13 +1,16 @@
 use glfw::{Action, Key, Modifiers};
 
-use super::basic::{
-    coordinate::{Margin, Size},
-    frame::Frame,
-};
 use super::boundingbox::BoundingBox;
 use super::eventhandling::event::{InputBehavior, InputResponse};
 use super::panel::PanelId;
 use super::Viewable;
+use super::{
+    basic::{
+        coordinate::{Margin, Size},
+        frame::Frame,
+    },
+    font::Font,
+};
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
@@ -44,8 +47,9 @@ impl Into<ViewId> for u32 {
 pub struct View<'a> {
     pub name: String,
     pub id: ViewId,
+    pub title_font: &'a Font,
+    pub edit_font: &'a Font,
     pub text_renderer: TextRenderer<'a>,
-    pub menu_text_renderer: TextRenderer<'a>,
     pub window_renderer: RectRenderer,
     pub cursor_renderer: RectRenderer,
     pub title_frame: Frame,
@@ -175,8 +179,8 @@ impl<'app> InputBehavior for View<'app> {
 
 impl<'a> View<'a> {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, menu_text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32,
-        height: i32, bg_color: RGBAColor, buffer: Box<SimpleBuffer>,
+        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
+        buffer: Box<SimpleBuffer>, edit_font: &'a Font, title_font: &'a Font,
     ) -> View<'a> {
         let row_height = text_renderer.font.row_height();
         let cursor_shader = window_renderer.shader.clone();
@@ -196,9 +200,10 @@ impl<'a> View<'a> {
 
         cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
         let mut v = View {
+            title_font,
+            edit_font,
             name: name.to_string(),
             id: view_id,
-            menu_text_renderer,
             text_renderer,
             window_renderer,
             cursor_renderer,
@@ -245,12 +250,18 @@ impl<'a> View<'a> {
         self.set_need_redraw();
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
-
-    pub fn draw_title(&mut self, title: &Vec<char>) {
+    /*
+       pub fn draw_title(&mut self, title: &Vec<char>) {
+           let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
+           self.menu_text_renderer
+               .prepare_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty);
+           // self.text_renderer.append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
+       }
+    */
+    pub fn draw_title(&mut self, title: &str) {
         let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
-        self.menu_text_renderer
-            .prepare_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty);
-        // self.text_renderer.append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
+        self.text_renderer
+            .push_draw_command(title.chars().map(|c| c), RGBColor::black(), tx + 3, ty, self.title_font);
     }
 
     pub fn draw(&mut self) {
@@ -260,9 +271,9 @@ impl<'a> View<'a> {
         let total_size = self.total_size();
         if self.view_changed {
             self.text_renderer.clear_data();
-            self.menu_text_renderer.clear_data();
+            // self.menu_text_renderer.clear_data();
             let BufferCursor { row, col, .. } = self.buffer.cursor();
-            let title: Vec<char> = format!(
+            let title = format!(
                 "{}:{}:{}",
                 self.buffer
                     .file_name()
@@ -270,11 +281,10 @@ impl<'a> View<'a> {
                     .unwrap_or("unnamed_file".into()),
                 *row,
                 *col
-            )
-            .chars()
-            .collect();
+            );
 
             self.draw_title(&title);
+
             unsafe {
                 let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
                 gl::Enable(gl::SCISSOR_TEST);
@@ -289,8 +299,18 @@ impl<'a> View<'a> {
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
             // either way of these two works
-            self.text_renderer
-                .append_data(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
+            self.text_renderer.push_draw_command(
+                self.buffer
+                    .iter()
+                    .skip(self.buffer_in_view.start)
+                    .take(self.buffer_in_view.len() + 100)
+                    .map(|c| *c),
+                RGBColor::white(),
+                top_x,
+                top_y,
+                self.edit_font,
+            );
+            // self.text_renderer.append_data(self.buffer.str_view(self.buffer_in_view.clone()), top_x, top_y);
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
@@ -329,9 +349,10 @@ impl<'a> View<'a> {
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x + 2, top_y - total_size.height, total_size.width - 4, total_size.height);
         }
-        self.text_renderer.draw();
+        self.text_renderer.draw_list();
+        // self.text_renderer.draw();
         self.cursor_renderer.draw();
-        self.menu_text_renderer.draw();
+        //self.menu_text_renderer.draw();
 
         unsafe {
             gl::Disable(gl::SCISSOR_TEST);

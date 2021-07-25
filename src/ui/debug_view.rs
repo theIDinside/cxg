@@ -1,6 +1,7 @@
 use crate::{
     datastructure::generic::Vec2i,
     debuginfo::{process_info::ProcessInfo, DebugInfo},
+    opengl::types::RGBColor,
 };
 
 use super::{
@@ -27,7 +28,6 @@ impl<'app> DebugView<'app> {
 
     pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
-        self.view.menu_text_renderer.clear_data();
         self.view.text_renderer.clear_data();
         // draw filled rectangle, which will become border
         self.view
@@ -53,7 +53,7 @@ impl<'app> DebugView<'app> {
             let Vec2i { x: top_x, y: top_y } = self.view.view_frame.anchor;
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
-            let title = "Debug Information".chars().collect();
+            let title = "Debug Information";
             let r = format!(
                 "
  |  Application 
@@ -85,9 +85,12 @@ impl<'app> DebugView<'app> {
             size.width += 20;
             self.resize(size);
             self.update();
+
             self.view.draw_title(&title);
-            self.view.text_renderer.append_data(it.iter(), top_x, top_y);
-            // self.view.text_renderer.prepare_data_from_iter(r.iter(), top_x, top_y);
+            let color = RGBColor::white();
+            self.view
+                .text_renderer
+                .push_draw_command(it.iter().map(|c| *c), color, top_x, top_y, self.view.edit_font);
             self.view.set_need_redraw();
         }
     }
@@ -97,7 +100,6 @@ impl<'app> DebugView<'app> {
             return;
         }
         self.view.window_renderer.draw();
-        self.view.text_renderer.draw();
-        self.view.menu_text_renderer.draw();
+        self.view.text_renderer.draw_list();
     }
 }
