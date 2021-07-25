@@ -30,15 +30,20 @@ impl<'app> DebugView<'app> {
         self.view.window_renderer.clear_data();
         self.view.text_renderer.clear_data();
         // draw filled rectangle, which will become border
-        self.view
-            .window_renderer
-            .add_rect(self.view.title_frame.to_bb(), self.view.bg_color.uniform_scale(-1.0));
+        self.view.window_renderer.push_rect(
+            self.view.title_frame.to_bb(),
+            self.view.bg_color.uniform_scale(1.0),
+            Some((2, self.view.bg_color.uniform_scale(-1.0))),
+        );
         // fill out the inner, leaving the previous draw as border
-        self.view
-            .window_renderer
-            .add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color.uniform_scale(1.0));
+        // self.view.window_renderer.add_rect(BoundingBox::shrink(&self.view.title_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color.uniform_scale(1.0));
         // draw view rectangle, the background for the text editor,
 
+        self.view
+            .window_renderer
+            .push_rect(self.view.view_frame.to_bb(), self.view.bg_color, Some((2, self.view.bg_color.uniform_scale(-1.0))));
+
+        /*
         self.view
             .window_renderer
             .add_rect(self.view.view_frame.to_bb(), self.view.bg_color.uniform_scale(-1.0));
@@ -46,6 +51,7 @@ impl<'app> DebugView<'app> {
         self.view
             .window_renderer
             .add_rect(BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 2, v: 2 }), self.view.bg_color);
+             */
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {
@@ -99,7 +105,7 @@ impl<'app> DebugView<'app> {
         if !self.visibile {
             return;
         }
-        self.view.window_renderer.draw();
+        self.view.window_renderer.draw_list();
         self.view.text_renderer.draw_list();
     }
 }

@@ -336,7 +336,7 @@ impl<'a> View<'a> {
         }
 
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
-        self.window_renderer.draw();
+        self.window_renderer.draw_list();
         unsafe {
             let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
             gl::Enable(gl::SCISSOR_TEST);

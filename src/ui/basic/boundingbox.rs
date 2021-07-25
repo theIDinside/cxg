@@ -93,6 +93,12 @@ impl BoundingBox {
     pub fn width(&self) -> i32 {
         self.max.x - self.min.x
     }
+
+    pub fn center_pos(&self) -> Vec2i {
+        let sz = self.size();
+        let add = Vec2i::new(sz.width / 2, sz.height / 2);
+        self.min + add
+    }
 }
 
 impl From<(Vec2i, Size)> for BoundingBox {
