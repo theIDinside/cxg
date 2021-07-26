@@ -18,6 +18,8 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
+use std::rc::Rc;
+
 use crate::debuginfo::DebugInfo;
 
 use self::glfw::Context;
@@ -103,10 +105,10 @@ fn main() -> Main {
 
     let font = ui::font::Font::new(font_path, 16, &char_range).expect("Failed to create font");
     let menu_font = ui::font::Font::new(menu_font_path, 14, &char_range).expect("Failed to create font");
-    let fonts = vec![Box::new(font), Box::new(menu_font)];
+    let fonts = vec![Rc::new(font), Rc::new(menu_font)];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
-    let mut app = app::Application::create(&fonts, font_program, rectangle_program, debug_info);
+    let mut app = app::Application::create(fonts, font_program, rectangle_program, debug_info);
     let mut last_update = glfw_handle.get_time();
     let mut frame_counter = 0.0;
     let mut once_a_second_update = 60.0;

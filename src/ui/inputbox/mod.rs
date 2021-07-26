@@ -4,7 +4,7 @@ pub mod listbox;
 use line_text_box::LineTextBox;
 use listbox::ListBox;
 
-use std::{iter::FromIterator, path::Path};
+use std::{iter::FromIterator, path::Path, rc::Rc};
 
 use walkdir::WalkDir;
 
@@ -45,7 +45,7 @@ impl Default for TextRenderSetting {
 }
 
 #[derive(PartialEq, Eq)]
-pub enum InputBoxMode {
+pub enum Mode {
     // todo(feature): add SymbolList
     Command,
     FileList,
@@ -53,25 +53,27 @@ pub enum InputBoxMode {
 
 const INPUT_BOX_MSG: &str = "Search by file name in project folder...";
 
-pub struct InputBox<'app> {
+pub struct InputBox {
     /// Contains the user input. Might as well use String, input won't be long and this is just easier
     pub visible: bool,
     input_box: LineTextBox,
     selection_list: ListBox,
     pub frame: Frame,
-    text_renderer: TextRenderer<'app>,
+    text_renderer: TextRenderer,
     rect_renderer: RectRenderer,
-    pub mode: InputBoxMode,
+    pub mode: Mode,
     needs_update: bool,
-    font: &'app Font,
+    font: Rc<Font>,
 }
 
-impl<'app> InputBox<'app> {
-    pub fn new(frame: Frame, font: &'app Font, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox<'app> {
-        let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+impl InputBox {
+    pub fn new(frame: Frame, font: Rc<Font>, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox {
+        let (text_renderer, rect_renderer) =
+            (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let margin = 2;
-        let input_box_frame = Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
+        let input_box_frame =
+            Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
         let input_inner_frame = make_inner_frame(&input_box_frame, margin);
         let ltb = LineTextBox::new(input_box_frame, input_inner_frame, None);
 
@@ -79,7 +81,11 @@ impl<'app> InputBox<'app> {
             anchor: frame.anchor + Vec2i::new(0, -input_box_frame.size.height),
             size: Size { width: frame.size.width, height: frame.size.height - input_box_frame.size.height },
         };
-        let lb = ListBox::new(list_box_frame, font.row_height(), Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)));
+        let lb = ListBox::new(
+            list_box_frame,
+            font.row_height(),
+            Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)),
+        );
 
         InputBox {
             input_box: ltb,
@@ -88,16 +94,16 @@ impl<'app> InputBox<'app> {
             frame,
             text_renderer,
             rect_renderer,
-            mode: InputBoxMode::Command,
+            mode: Mode::Command,
             needs_update: true,
             font,
         }
     }
 
-    pub fn open(&mut self, mode: InputBoxMode) {
+    pub fn open(&mut self, mode: Mode) {
         match mode {
-            InputBoxMode::Command => {}
-            InputBoxMode::FileList => {}
+            Mode::Command => {}
+            Mode::FileList => {}
         }
         if mode != self.mode {}
         self.mode = mode;
@@ -160,8 +166,13 @@ impl<'app> InputBox<'app> {
             // Testing the drawing of text, inside the input box
             let color = self.input_box.text_render_settings.text_color;
             if !self.input_box.data.is_empty() {
-                self.text_renderer
-                    .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.font);
+                self.text_renderer.push_draw_command(
+                    self.input_box.data.iter().map(|c| *c),
+                    color,
+                    t.min.x,
+                    t.max.y,
+                    self.font.clone(),
+                );
                 let color = self.selection_list.text_render_settings.text_color;
 
                 let mut displace_y = 3;
@@ -180,7 +191,6 @@ impl<'app> InputBox<'app> {
                     .collect();
 
                 let selected = self.selection_list.selection.unwrap_or(0);
-                let font = self.font;
                 for (index, item) in items.into_iter().enumerate() {
                     if selected == index {
                         let Vec2i { x, .. } = self.selection_list.frame.anchor;
@@ -190,15 +200,19 @@ impl<'app> InputBox<'app> {
                         self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
                     }
 
-                    self.text_renderer
-                        .push_draw_command(item.iter().map(|c| *c), color, t.min.x, t.min.y - displace_y, font);
+                    self.text_renderer.push_draw_command(
+                        item.iter().map(|c| *c),
+                        color,
+                        t.min.x,
+                        t.min.y - displace_y,
+                        self.font.clone(),
+                    );
                     displace_y += self.selection_list.item_height;
                 }
             } else {
                 let color = RGBColor { r: 0.5, g: 0.5, b: 0.5 };
-                let font = self.font;
                 self.text_renderer
-                    .push_draw_command(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y, font);
+                    .push_draw_command(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y, self.font.clone());
             }
             self.needs_update = false;
         }
@@ -238,7 +252,7 @@ impl<'app> InputBox<'app> {
     }
 }
 
-impl<'app> InputBehavior for InputBox<'app> {
+impl InputBehavior for InputBox {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
         self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
         let key_pressed = || action == glfw::Action::Press || action == glfw::Action::Repeat;
@@ -263,8 +277,8 @@ impl<'app> InputBehavior for InputBox<'app> {
                 InputResponse::None
             }
             glfw::Key::Enter if key_pressed() => match self.mode {
-                InputBoxMode::Command => InputResponse::None,
-                InputBoxMode::FileList => self.handle_file_selection(),
+                Mode::Command => InputResponse::None,
+                Mode::FileList => self.handle_file_selection(),
             },
             _ => InputResponse::None,
         };
@@ -277,8 +291,8 @@ impl<'app> InputBehavior for InputBox<'app> {
         self.input_box.cursor += 1;
         self.selection_list.selection = None;
         match self.mode {
-            InputBoxMode::Command => {}
-            InputBoxMode::FileList => {
+            Mode::Command => {}
+            Mode::FileList => {
                 self.update_list();
             }
         }
@@ -290,7 +304,7 @@ impl<'app> InputBehavior for InputBox<'app> {
     }
 }
 
-impl<'app> Viewable for InputBox<'app> {
+impl Viewable for InputBox {
     fn resize(&mut self, size: Size) {
         let margin = 4;
         self.frame.size = size;

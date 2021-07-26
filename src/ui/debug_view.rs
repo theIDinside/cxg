@@ -15,14 +15,14 @@ use super::{
     Viewable,
 };
 
-pub struct DebugView<'app> {
-    pub view: View<'app>,
+pub struct DebugView {
+    pub view: View,
     pub visibile: bool,
     debug_info: DebugInfo,
 }
 
-impl<'app> DebugView<'app> {
-    pub fn new(view: View<'app>, debug_info: DebugInfo) -> DebugView<'app> {
+impl DebugView {
+    pub fn new(view: View, debug_info: DebugInfo) -> DebugView {
         DebugView { view, visibile: false, debug_info }
     }
 
@@ -53,7 +53,8 @@ impl<'app> DebugView<'app> {
         if self.visibile {
             let Vec2i { x: top_x, y: top_y } = self.view.view_frame.anchor;
             let proc_info = ProcessInfo::new();
-            let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
+            let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } =
+                proc_info.unwrap();
             let title = "Debug Information";
             let r = format!(
                 "
@@ -88,13 +89,21 @@ impl<'app> DebugView<'app> {
             self.update();
 
             let Vec2i { x: tx, y: ty } = self.view.title_frame.anchor;
-            self.view
-                .text_renderer
-                .push_draw_command(title.chars().map(|c| c), RGBColor::black(), tx + 3, ty, self.view.title_font);
+            self.view.text_renderer.push_draw_command(
+                title.chars().map(|c| c),
+                RGBColor::black(),
+                tx + 3,
+                ty,
+                self.view.title_font.clone(),
+            );
             let color = RGBColor::white();
-            self.view
-                .text_renderer
-                .push_draw_command(it.iter().map(|c| *c), color, top_x, top_y, self.view.edit_font);
+            self.view.text_renderer.push_draw_command(
+                it.iter().map(|c| *c),
+                color,
+                top_x,
+                top_y,
+                self.view.edit_font.clone(),
+            );
             self.view.set_need_redraw();
         }
     }

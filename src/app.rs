@@ -9,19 +9,28 @@ use crate::ui::basic::{
 };
 use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
-use crate::ui::inputbox::{InputBox, InputBoxMode};
+use crate::ui::inputbox::{InputBox, Mode};
 use crate::ui::panel::{Panel, PanelId};
 use crate::ui::view::{Popup, View, ViewId};
 use crate::ui::{font::Font, UID};
 use crate::ui::{MouseState, Viewable};
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
 
 static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742123, a: 1.0 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.3242123, a: 1.0 };
+
+fn all_views<'app>(panels: &'app Vec<Panel>) -> impl Iterator<Item = &View> + Clone {
+    panels.iter().flat_map(|p| p.children.iter())
+}
+
+fn all_views_mut<'app>(panels: &'app mut Vec<Panel>) -> impl Iterator<Item = &'app mut View> + 'app {
+    panels.iter_mut().flat_map(|p| p.children.iter_mut())
+}
 
 pub struct Application<'app> {
     /// Window Title
@@ -31,7 +40,7 @@ pub struct Application<'app> {
     /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
     panel_space_size: Size,
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
-    fonts: &'app Vec<Box<Font>>,
+    fonts: Vec<Rc<Font>>,
     /// The statusbar, displays different short info about whatever element we're using, or some other user message/debug data
     // This is un unsed for now
     // status_bar: StatusBar<'app>,
@@ -40,19 +49,19 @@ pub struct Application<'app> {
     /// Shaders for rectangles/windows/views
     rect_shader: shaders::RectShader,
     /// The panels, which hold the different views, and manages their layout and size
-    pub panels: Vec<Panel<'app>>,
+    pub panels: Vec<Panel>,
 
     /// buffers we're editing and is live, yet not open in any view currently
     buffers: Buffers,
 
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
-    popup: Popup<'app>,
+    popup: Popup,
     /// The active element's id
     pub active_ui_element: UID,
     /// Whether or not we're in debug interface mode (showing different kinds of debug information)
     debug: bool,
     /// Pointer to the text editor view that is currently active
-    pub active_view: *mut View<'app>,
+    pub active_view: *mut View,
     /// Pointer to the element that's currently receiving user input. This handle, handles the behavior of the application
     /// and dispatches accordingly to the right type, to determine what should be done when user inputs, key strokes or mouse movements, etc
     pub active_input: &'app mut dyn InputBehavior,
@@ -60,8 +69,8 @@ pub struct Application<'app> {
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
     close_requested: bool,
-    input_box: InputBox<'app>,
-    pub debug_view: DebugView<'app>,
+    input_box: InputBox,
+    pub debug_view: DebugView,
     mouse_state: MouseState,
     rect_animation_renderer: RectRenderer,
     pub draw_test: bool,
@@ -70,7 +79,9 @@ pub struct Application<'app> {
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(fonts: &'app Vec<Box<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
+    pub fn create(
+        fonts: Vec<Rc<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo,
+    ) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -79,7 +90,9 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+        let make_view_renderers = || {
+            (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60))
+        };
 
         let mut buffers = Buffers::new();
 
@@ -90,13 +103,34 @@ impl<'app> Application<'app> {
         // Create the default 1st view
         let (tr, rr) = make_view_renderers();
         let buffer = buffers.request_new_buffer();
-        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer, &fonts[0], &fonts[1]);
+        let view = View::new(
+            "Unnamed view",
+            active_view_id.into(),
+            tr,
+            rr,
+            1024,
+            768,
+            ACTIVE_VIEW_BACKGROUND,
+            buffer,
+            fonts[0].clone(),
+            fonts[1].clone(),
+        );
         panels[0].add_view(view);
 
         // Create the popup UI
         let (tr, rr) = make_view_renderers();
-        let mut popup =
-            View::new("Popup view", (active_view_id + 1).into(), tr, rr, 524, 518, ACTIVE_VIEW_BACKGROUND, Buffers::free_buffer(), &fonts[0], &fonts[1]);
+        let mut popup = View::new(
+            "Popup view",
+            (active_view_id + 1).into(),
+            tr,
+            rr,
+            524,
+            518,
+            ACTIVE_VIEW_BACKGROUND,
+            Buffers::free_buffer(),
+            fonts[0].clone(),
+            fonts[1].clone(),
+        );
 
         popup.set_anchor(Vec2i::new(250, 768 - 250));
         popup.update();
@@ -106,7 +140,18 @@ impl<'app> Application<'app> {
         // Creating the Debug View UI
         let (tr, rr) = make_view_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view = View::new("debug_view", 10.into(), tr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer(), &fonts[0], &fonts[1]);
+        let mut debug_view = View::new(
+            "debug_view",
+            10.into(),
+            tr,
+            rr,
+            1014,
+            758,
+            dbg_view_bg_color,
+            Buffers::free_buffer(),
+            fonts[0].clone(),
+            fonts[1].clone(),
+        );
         debug_view.set_anchor(Vec2i::new(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
@@ -114,7 +159,7 @@ impl<'app> Application<'app> {
 
         let ib_frame = Frame { anchor: Vec2i::new(250, 700), size: Size { width: 500, height: 500 } };
 
-        let input_box = InputBox::new(ib_frame, &fonts[1], &font_shader, &rect_shader);
+        let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
         let mut res = Application {
@@ -163,8 +208,8 @@ impl<'app> Application<'app> {
             .unwrap_or(0)
             + 1;
         if let Some(p) = self.panels.iter_mut().find(|panel| panel.id == parent_panel) {
-            let font = &self.fonts[0];
-            let menu_font = &self.fonts[1];
+            let font = self.fonts[0].clone();
+            let menu_font = self.fonts[1].clone();
             let Size { width, height } = view_size;
             let view_name = view_name.as_ref().map(|name| name.as_ref()).unwrap_or("unnamed view");
             let view = View::new(
@@ -177,7 +222,7 @@ impl<'app> Application<'app> {
                 ACTIVE_VIEW_BACKGROUND,
                 self.buffers.request_new_buffer(),
                 font,
-                &menu_font,
+                menu_font,
             );
 
             self.active_ui_element = UID::View(*view.id);
@@ -214,21 +259,22 @@ impl<'app> Application<'app> {
             view.update();
             view.id
         };
+        {
+            let mut iter = all_views(&self.panels).filter(|v| v.visible).cycle();
+            let mut next = false;
+            while let Some(it) = iter.next() {
+                if next {
+                    self.active_view = it as *const _ as *mut _;
+                    break;
+                }
+                if (*it).id == id {
+                    next = true;
+                }
+            }
 
-        let mut iter = self.panels.iter().flat_map(|p| p.children.iter()).filter(|v| v.visible).cycle();
-        let mut next = false;
-        while let Some(it) = iter.next() {
-            if next {
-                self.active_view = it as *const _ as *mut _;
-                break;
-            }
-            if (*it).id == id {
-                next = true;
-            }
+            let id = unsafe { (*self.active_view).id };
+            self.active_ui_element = UID::View(*id);
         }
-
-        let id = unsafe { (*self.active_view).id };
-        self.active_ui_element = UID::View(*id);
         self.decorate_active_view();
         self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
         let v = unsafe { self.active_view.as_mut().unwrap() };
@@ -237,7 +283,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn get_active_view(&mut self) -> &mut View<'app> {
+    pub fn get_active_view(&mut self) -> &mut View {
         if self.popup.visible {
             return unsafe { &mut *(&self.popup.view as *const _ as *mut _) };
         } else {
@@ -245,7 +291,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn get_active_view_ptr(&mut self) -> *mut View<'app> {
+    pub fn get_active_view_ptr(&mut self) -> *mut View {
         if self.popup.visible {
             &mut self.popup.view as *mut _
         } else {
@@ -253,7 +299,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn set_active_view(&mut self, view: &View<'app>) {
+    pub fn set_active_view(&mut self, view: &View) {
         self.active_view = view as *const _ as *mut _;
     }
 
@@ -361,6 +407,7 @@ impl<'app> Application<'app> {
         }
     }
 
+    #[allow(unused)]
     fn overlay_clicked(&self, pos: Vec2i) -> Option<&dyn Viewable> {
         None
     }
@@ -452,7 +499,10 @@ impl<'app> Application<'app> {
                                 let mut panel_b = self.panels.swap_remove(p_b.unwrap());
 
                                 let vb = panel_b.children.iter().position(|v| v.id == dragged_view_id.unwrap());
-                                std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
+                                std::mem::swap(
+                                    panel_a.children.get_mut(va.unwrap()).unwrap(),
+                                    panel_b.children.get_mut(vb.unwrap()).unwrap(),
+                                );
                                 self.panels.insert(p_a.unwrap(), panel_a);
                                 self.panels.insert(p_b.unwrap(), panel_b);
                             }
@@ -472,7 +522,7 @@ impl<'app> Application<'app> {
         unsafe { self.active_view.as_ref().unwrap().id }
     }
 
-    pub fn toggle_input_box(&mut self, mode: InputBoxMode) {
+    pub fn toggle_input_box(&mut self, mode: Mode) {
         if self.input_box.visible {
             self.active_input = cast_ptr_to_input(self.active_view);
             self.input_box.visible = false;
@@ -484,11 +534,13 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+    pub fn handle_key_event(
+        &mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers,
+    ) {
         match key {
             Key::Escape => {
                 if self.input_box.visible {
-                    self.toggle_input_box(InputBoxMode::Command);
+                    self.toggle_input_box(Mode::Command);
                 }
             }
             Key::KpAdd => {}
@@ -496,18 +548,19 @@ impl<'app> Application<'app> {
                 self.close_active_view();
             }
             Key::H if modifier == Modifiers::Control && action == Action::Press => {
-                let v_ptr = unsafe { &mut (*self.active_view) };
-                self.cycle_focus();
-                v_ptr.visible = false;
-                for p in self.panels.iter_mut() {
-                    p.layout();
+                let visible = all_views(&self.panels).filter(|v| v.visible).count();
+                if visible > 1 {
+                    let v_ptr = unsafe { &mut (*self.active_view) };
+                    self.cycle_focus();
+                    v_ptr.visible = false;
+                    for p in self.panels.iter_mut() {
+                        p.layout();
+                    }
                 }
             }
             Key::S if modifier == Modifiers::Control && action == Action::Press => {
-                self.panels
-                    .iter_mut()
-                    .flat_map(|p| p.children.iter_mut())
-                    .for_each(|v| v.visible = true);
+                let p = &mut self.panels;
+                all_views_mut(p).for_each(|v| v.visible = true);
                 for p in self.panels.iter_mut() {
                     p.layout();
                 }
@@ -519,9 +572,9 @@ impl<'app> Application<'app> {
             }
             Key::I if action == Action::Press => {
                 if modifier == Modifiers::Control {
-                    self.toggle_input_box(InputBoxMode::Command);
+                    self.toggle_input_box(Mode::Command);
                 } else if modifier == (Modifiers::Control | Modifiers::Shift) {
-                    self.toggle_input_box(InputBoxMode::FileList);
+                    self.toggle_input_box(Mode::FileList);
                 }
             }
             Key::Tab if action == Action::Press => {
@@ -574,7 +627,11 @@ impl<'app> Application<'app> {
                     } else {
                         let p_id = self.get_active_view().panel_id;
                         let f_name = path.file_name();
-                        self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                        self.open_text_view(
+                            p_id.unwrap(),
+                            f_name.and_then(|s| s.to_str()).map(|f| f.to_string()),
+                            self.window_size,
+                        );
                         let v = self.get_active_view();
                         debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
                         v.buffer.load_file(&path);

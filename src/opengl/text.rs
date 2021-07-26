@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use super::{
     types::{RGBColor, TextVertex as TVertex},
     Primitive,
@@ -40,13 +42,13 @@ impl BufferIndex {
     }
 }
 
-pub struct TextDrawCommand<'a> {
-    font: &'a Font,
+pub struct TextDrawCommand {
+    font: Rc<Font>,
     data_indices: BufferIndex,
 }
 
-impl<'a> TextDrawCommand<'a> {
-    pub fn new(font: &Font, data_indices: BufferIndex) -> TextDrawCommand {
+impl TextDrawCommand {
+    pub fn new(font: Rc<Font>, data_indices: BufferIndex) -> TextDrawCommand {
         TextDrawCommand { font, data_indices }
     }
 }
@@ -98,7 +100,9 @@ pub fn dimensions_of_text_line(text: &[char], font: &Font) -> Size {
     // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
     debugger_catch!(
         !text.contains(&'\n'),
-        crate::DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
+        crate::DebuggerCatch::Handle(
+            "This function can only correctly calculate the dimensions of a single text line".into()
+        )
     );
 
     let parse_special_symbols = |(index, &c): (usize, &char)| {
@@ -136,7 +140,7 @@ pub fn dimensions_of_text_line(text: &[char], font: &Font) -> Size {
         .fold(Size { width: 0i32, height: font.row_height() }, |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }))
 }
 
-pub struct TextRenderer<'a> {
+pub struct TextRenderer {
     gl_handle: super::glinit::OpenGLHandle,
     pub pristine: bool,
     vtx_data: Vec<TVertex>,
@@ -144,12 +148,12 @@ pub struct TextRenderer<'a> {
     pub shader: super::shaders::TextShader,
     reserved_vertex_count: isize,
     reserved_index_count: isize,
-    pub draw_commands: Vec<TextDrawCommand<'a>>,
+    pub draw_commands: Vec<TextDrawCommand>,
 }
 
 /// Public interface
-impl<'a> TextRenderer<'a> {
-    pub fn create(shader: super::shaders::TextShader, reserve_quads: usize) -> TextRenderer<'a> {
+impl TextRenderer {
+    pub fn create(shader: super::shaders::TextShader, reserve_quads: usize) -> TextRenderer {
         use std::mem::size_of;
         let stride = size_of::<TVertex>() as gl::types::GLsizei;
 
@@ -204,7 +208,9 @@ impl<'a> TextRenderer<'a> {
         self.shader.bind();
     }
 
-    pub fn push_draw_command<'b>(&mut self, text: impl Iterator<Item = char>, color: RGBColor, x: i32, y: i32, font: &'a Font) {
+    pub fn push_draw_command(
+        &mut self, text: impl Iterator<Item = char>, color: RGBColor, x: i32, y: i32, font: Rc<Font>,
+    ) {
         use TextDrawCommand as DC;
         let mut current_x = x;
         let mut current_y = y - font.row_height();
@@ -284,10 +290,17 @@ impl<'a> TextRenderer<'a> {
         }
         self.shader.bind();
         // todo(optimization): this means we can smash together consecutive DrawCommands that use the same settings & configurations, thus reducing the draw calls
-        for TextDrawCommand { font, data_indices: BufferIndex { idx_buffer_idx, idx_count }, .. } in self.draw_commands.iter() {
+        for TextDrawCommand { font, data_indices: BufferIndex { idx_buffer_idx, idx_count }, .. } in
+            self.draw_commands.iter()
+        {
             font.bind();
             unsafe {
-                gl::DrawElements(gl::TRIANGLES, (*idx_count) as _, gl::UNSIGNED_INT, (std::mem::size_of::<u32>() * *idx_buffer_idx) as _);
+                gl::DrawElements(
+                    gl::TRIANGLES,
+                    (*idx_count) as _,
+                    gl::UNSIGNED_INT,
+                    (std::mem::size_of::<u32>() * *idx_buffer_idx) as _,
+                );
             }
         }
     }
@@ -306,11 +319,21 @@ impl<'a> TextRenderer<'a> {
 }
 
 /// Private interface
-impl<'a> TextRenderer<'a> {
+impl TextRenderer {
     fn upload_cpu_data(&self) {
         unsafe {
-            gl::BufferSubData(gl::ARRAY_BUFFER, 0, (self.vtx_data.len() * std::mem::size_of::<TVertex>()) as _, self.vtx_data.as_ptr() as _);
-            gl::BufferSubData(gl::ELEMENT_ARRAY_BUFFER, 0, (self.indices.len() * std::mem::size_of::<u32>()) as _, self.indices.as_ptr() as _);
+            gl::BufferSubData(
+                gl::ARRAY_BUFFER,
+                0,
+                (self.vtx_data.len() * std::mem::size_of::<TVertex>()) as _,
+                self.vtx_data.as_ptr() as _,
+            );
+            gl::BufferSubData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                0,
+                (self.indices.len() * std::mem::size_of::<u32>()) as _,
+                self.indices.as_ptr() as _,
+            );
         }
     }
 
@@ -324,14 +347,24 @@ impl<'a> TextRenderer<'a> {
         if self.reserved_vertex_count <= self.vtx_data.len() as _ {
             self.reserved_vertex_count = self.vtx_data.capacity() as _;
             unsafe {
-                gl::BufferData(gl::ARRAY_BUFFER, (std::mem::size_of::<TVertex>() * self.vtx_data.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
+                gl::BufferData(
+                    gl::ARRAY_BUFFER,
+                    (std::mem::size_of::<TVertex>() * self.vtx_data.capacity()) as _,
+                    std::ptr::null(),
+                    gl::DYNAMIC_DRAW,
+                );
             }
         }
 
         if self.reserved_index_count <= self.indices.len() as _ {
             self.reserved_index_count = self.indices.capacity() as _;
             unsafe {
-                gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (std::mem::size_of::<u32>() * self.indices.capacity()) as _, std::ptr::null(), gl::DYNAMIC_DRAW);
+                gl::BufferData(
+                    gl::ELEMENT_ARRAY_BUFFER,
+                    (std::mem::size_of::<u32>() * self.indices.capacity()) as _,
+                    std::ptr::null(),
+                    gl::DYNAMIC_DRAW,
+                );
             }
         }
     }

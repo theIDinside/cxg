@@ -26,17 +26,17 @@ impl Into<PanelId> for u32 {
 
 /// A panel is a top container, that contains children of Views. Views are essentially panels where
 /// text can be rendered
-pub struct Panel<'app> {
+pub struct Panel {
     pub id: PanelId,
     pub layout: Layout,
     pub margin: Option<i32>,
     pub border: Option<i32>,
     pub size: Size,
     pub anchor: Vec2i,
-    pub children: Vec<View<'app>>,
+    pub children: Vec<View>,
 }
 
-impl<'app> std::fmt::Debug for Panel<'app> {
+impl std::fmt::Debug for Panel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Panel")
             .field("id", &self.id)
@@ -72,8 +72,8 @@ pub fn divide_scatter(number: i32, spread_count: usize) -> Vec<i32> {
     r
 }
 
-impl<'app> Panel<'app> {
-    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Vec2i) -> Panel<'app> {
+impl Panel {
+    pub fn new(id: u32, layout: Layout, margin: Option<i32>, border: Option<i32>, width: i32, height: i32, anchor: Vec2i) -> Panel {
         Panel {
             id: id.into(),
             layout: layout,
@@ -129,13 +129,13 @@ impl<'app> Panel<'app> {
         }
     }
 
-    pub fn add_view(&mut self, mut view: View<'app>) {
+    pub fn add_view(&mut self, mut view: View) {
         view.set_manager_panel(self.id);
         self.children.push(view);
         self.layout();
     }
 
-    pub fn remove_view(&mut self, view_id: ViewId) -> Option<View<'app>> {
+    pub fn remove_view(&mut self, view_id: ViewId) -> Option<View> {
         if let Some(pos) = self.children.iter().position(|v| v.id == view_id) {
             let v = self.children.remove(pos);
             Some(v)
@@ -144,7 +144,7 @@ impl<'app> Panel<'app> {
         }
     }
 
-    pub fn get_view(&mut self, view_id: ViewId) -> Option<*mut View<'app>> {
+    pub fn get_view(&mut self, view_id: ViewId) -> Option<*mut View> {
         for v in self.children.iter_mut() {
             if *v.id() == *view_id {
                 return Some(v);
@@ -202,7 +202,7 @@ impl<'app> Panel<'app> {
     }
 }
 
-impl<'app> Viewable for Panel<'app> {
+impl Viewable for Panel {
     fn resize(&mut self, size: Size) {
         let old_size = self.size;
         self.size = size;

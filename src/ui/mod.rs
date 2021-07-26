@@ -23,6 +23,7 @@ pub mod debug_view;
 pub enum UID {
     View(u32),
     Panel(u32),
+    Overlay(u32),
     None,
 }
 

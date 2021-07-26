@@ -25,6 +25,7 @@ use crate::textbuffer::{
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
 use std::path::Path;
+use std::rc::Rc;
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct ViewId(pub u32);
@@ -43,12 +44,12 @@ impl Into<ViewId> for u32 {
     }
 }
 
-pub struct View<'a> {
+pub struct View {
     pub name: String,
     pub id: ViewId,
-    pub title_font: &'a Font,
-    pub edit_font: &'a Font,
-    pub text_renderer: TextRenderer<'a>,
+    pub title_font: Rc<Font>,
+    pub edit_font: Rc<Font>,
+    pub text_renderer: TextRenderer,
     pub window_renderer: RectRenderer,
     pub cursor_renderer: RectRenderer,
     pub title_frame: Frame,
@@ -64,26 +65,26 @@ pub struct View<'a> {
     pub visible: bool,
 }
 
-pub struct Popup<'app> {
+pub struct Popup {
     pub visible: bool,
-    pub view: View<'app>,
+    pub view: View,
 }
 
-impl<'app> Popup<'app> {
+impl Popup {
     pub fn reset(&mut self) {
         self.view.buffer.clear();
         self.view.set_need_redraw();
     }
 }
 
-impl<'a> std::ops::Deref for Popup<'a> {
-    type Target = View<'a>;
+impl std::ops::Deref for Popup {
+    type Target = View;
     fn deref(&self) -> &Self::Target {
         &self.view
     }
 }
 
-impl<'a> std::fmt::Debug for View<'a> {
+impl std::fmt::Debug for View {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("View")
             .field("id", &self.id)
@@ -98,7 +99,7 @@ impl<'a> std::fmt::Debug for View<'a> {
     }
 }
 
-impl<'app> InputBehavior for View<'app> {
+impl InputBehavior for View {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
         match key {
             Key::Home | Key::Kp7 => match modifier {
@@ -171,11 +172,11 @@ impl<'app> InputBehavior for View<'app> {
     }
 }
 
-impl<'a> View<'a> {
+impl View {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
-        buffer: Box<SimpleBuffer>, edit_font: &'a Font, title_font: &'a Font,
-    ) -> View<'a> {
+        name: &str, view_id: ViewId, text_renderer: TextRenderer, window_renderer: RectRenderer, width: i32,
+        height: i32, bg_color: RGBAColor, buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>,
+    ) -> View {
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
 
@@ -224,6 +225,16 @@ impl<'a> View<'a> {
         self.view_changed = true;
     }
 
+    #[inline(always)]
+    pub fn get_title_font(&self) -> Rc<Font> {
+        self.title_font.clone()
+    }
+
+    #[inline(always)]
+    pub fn get_text_font(&self) -> Rc<Font> {
+        self.edit_font.clone()
+    }
+
     /// Prepares the renderable data, so that upon next draw() call, it renders the new content
     pub fn update(&mut self) {
         self.window_renderer.clear_data();
@@ -235,15 +246,24 @@ impl<'a> View<'a> {
             RectangleType::Rounded { radius: 10.0 },
         );
 
-        self.window_renderer
-            .push_rect(self.view_frame.to_bb(), self.bg_color, Some((2, RGBAColor::black())), RectangleType::Rounded { radius: 10.0 });
+        self.window_renderer.push_rect(
+            self.view_frame.to_bb(),
+            self.bg_color,
+            Some((2, RGBAColor::black())),
+            RectangleType::Rounded { radius: 10.0 },
+        );
         self.set_need_redraw();
     }
 
     pub fn draw_title(&mut self, title: &str) {
         let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
-        self.text_renderer
-            .push_draw_command(title.chars().map(|c| c), RGBColor::white(), tx + 3, ty, self.title_font);
+        self.text_renderer.push_draw_command(
+            title.chars().map(|c| c),
+            RGBColor::white(),
+            tx + 3,
+            ty,
+            self.get_title_font(),
+        );
     }
 
     pub fn draw(&mut self) {
@@ -290,7 +310,7 @@ impl<'a> View<'a> {
                 RGBColor::white(),
                 top_x,
                 top_y,
-                self.edit_font,
+                self.get_text_font(),
             );
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
@@ -299,9 +319,15 @@ impl<'a> View<'a> {
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
             use crate::opengl::text as gltxt;
-            let min_x = top_x + gltxt::dimensions_of_text_line(line_contents, self.edit_font).x();
-            let min = Vec2i::new(min_x, top_y - (rows_down * self.edit_font.row_height()) - self.edit_font.row_height() - 6);
-            let max = Vec2i::new(min_x + self.edit_font.get_max_glyph_width() - 2, top_y - (rows_down * self.edit_font.row_height()));
+            let min_x = top_x + gltxt::dimensions_of_text_line(line_contents, self.edit_font.as_ref()).x();
+            let min = Vec2i::new(
+                min_x,
+                top_y - (rows_down * self.get_text_font().row_height()) - self.get_text_font().row_height() - 6,
+            );
+            let max = Vec2i::new(
+                min_x + self.get_text_font().get_max_glyph_width() - 2,
+                top_y - (rows_down * self.get_text_font().row_height()),
+            );
 
             let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
@@ -341,7 +367,10 @@ impl<'a> View<'a> {
     }
 
     pub fn load_file(&mut self, path: &Path) {
-        debugger_catch!(self.buffer.empty(), crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file")));
+        debugger_catch!(
+            self.buffer.empty(),
+            crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file"))
+        );
         if self.buffer.empty() {
             self.buffer.load_file(path);
             self.adjust_view_range();
@@ -365,26 +394,32 @@ impl<'a> View<'a> {
     pub fn adjust_view_range(&mut self) {
         let md = self.buffer.meta_data();
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
-            let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.rows_displayable()) as i32, 1);
+            let diff = std::cmp::max(
+                (*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.rows_displayable()) as i32,
+                1,
+            );
             self.topmost_line_in_buffer += diff;
-            if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
-            {
+            if let (Some(a), end) = md.get_byte_indices_of_lines(
+                Line(self.topmost_line_in_buffer as _),
+                Line((self.topmost_line_in_buffer + self.rows_displayable()) as _),
+            ) {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
 
             self.view_changed = true;
         } else if self.buffer.cursor_row() < Line(self.topmost_line_in_buffer as _) {
             self.topmost_line_in_buffer = *self.buffer.cursor_row() as _;
-            if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
-            {
+            if let (Some(a), end) = md.get_byte_indices_of_lines(
+                Line(self.topmost_line_in_buffer as _),
+                Line((self.topmost_line_in_buffer + self.rows_displayable()) as _),
+            ) {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         } else {
-            if let (Some(a), end) =
-                md.get_byte_indices_of_lines(Line(self.topmost_line_in_buffer as _), Line((self.topmost_line_in_buffer + self.rows_displayable()) as _))
-            {
+            if let (Some(a), end) = md.get_byte_indices_of_lines(
+                Line(self.topmost_line_in_buffer as _),
+                Line((self.topmost_line_in_buffer + self.rows_displayable()) as _),
+            ) {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         }
@@ -449,10 +484,12 @@ impl<'a> View<'a> {
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
 
-        let g = self.edit_font.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
+        let text_font = self.get_text_font();
+
+        let g = text_font.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
         let cursor_width = g
             .map(|glyph| if glyph.width() == 0 as _ { glyph.advance } else { glyph.width() as _ })
-            .unwrap_or(self.edit_font.get_max_glyph_width());
+            .unwrap_or(text_font.get_max_glyph_width());
 
         let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
         let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
@@ -460,11 +497,11 @@ impl<'a> View<'a> {
         let min_x = top_x
             + line_contents
                 .iter()
-                .map(|&c| self.edit_font.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
+                .map(|&c| text_font.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
                 .sum::<i32>();
 
-        let min = Vec2i::new(min_x, top_y - (rows_down * self.edit_font.row_height()) - self.edit_font.row_height());
-        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.edit_font.row_height()));
+        let min = Vec2i::new(min_x, top_y - (rows_down * text_font.row_height()) - text_font.row_height());
+        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * text_font.row_height()));
 
         let bb = BoundingBox::new(min, max);
 
@@ -484,7 +521,7 @@ impl<'a> View<'a> {
     }
 
     pub fn rows_displayable(&self) -> i32 {
-        self.view_frame.size.height / self.edit_font.row_height()
+        self.view_frame.size.height / self.get_text_font().row_height()
     }
 
     pub fn total_boundingbox(&self) -> BoundingBox {
@@ -512,15 +549,18 @@ fn input_not_valid(ch: char) -> bool {
     false
 }
 
-impl<'app> Viewable for View<'app> {
+impl Viewable for View {
     fn resize(&mut self, mut size: Size) {
         debug_assert!(size.height > 20, "resize size invalid. Must be larger than 20");
-        size.height -= self.title_font.row_height() + 5;
+        size.height -= self.get_title_font().row_height() + 5;
         self.title_frame.size.width = size.width;
         self.view_frame.anchor.y = self.title_frame.anchor.y - self.title_frame.size.height;
         // self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
         self.view_frame.size = size;
-        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.title_font.row_height() - 5));
+        assert_eq!(
+            self.view_frame.anchor,
+            self.title_frame.anchor + Vec2i::new(0, -self.get_title_font().row_height() - 5)
+        );
         assert_eq!(self.view_frame.size.width, self.title_frame.size.width);
     }
 
@@ -545,7 +585,7 @@ impl<'app> Viewable for View<'app> {
             let Vec2i { x: mx, y: my } = validated_inside_pos;
 
             let md = self.buffer.meta_data();
-            let view_line = ((ay - my) as f64 / self.edit_font.row_height() as f64).floor() as isize;
+            let view_line = ((ay - my) as f64 / self.get_text_font().row_height() as f64).floor() as isize;
             let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
 
             let start_index = md
@@ -556,12 +596,12 @@ impl<'app> Viewable for View<'app> {
 
             let line_contents = self.buffer.get_slice(*start_index..*end_index);
             let mut rel_x = mx - ax;
-
+            let text_font = self.get_text_font();
             let final_index_pos = line_contents
                 .iter()
                 .enumerate()
                 .find(|(_, ch)| {
-                    rel_x -= self.edit_font.get_glyph(**ch).unwrap().advance;
+                    rel_x -= text_font.get_glyph(**ch).unwrap().advance;
                     rel_x <= 0
                 })
                 .map(|(i, _)| start_index.offset(i as isize))
