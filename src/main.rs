@@ -10,6 +10,7 @@ extern crate walkdir;
 #[macro_use]
 pub mod opengl;
 pub mod app;
+pub mod cmd;
 pub mod datastructure;
 pub mod debuginfo;
 pub mod textbuffer;
