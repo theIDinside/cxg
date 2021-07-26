@@ -4,6 +4,8 @@ use crate::{
     opengl::{rect::RectangleType, types::RGBColor},
 };
 
+use crate::opengl::text as gltxt;
+
 use super::{
     basic::{
         boundingbox::BoundingBox,
@@ -79,7 +81,7 @@ impl<'app> DebugView<'app> {
             );
 
             let it: Vec<char> = r.chars().collect();
-            let mut size = self.view.text_renderer.calculate_text_dimensions(&it);
+            let mut size = gltxt::calculate_text_dimensions(&it, &self.view.edit_font);
             size.height += self.view.title_frame.size.height + 40;
             size.width += 20;
             self.resize(size);

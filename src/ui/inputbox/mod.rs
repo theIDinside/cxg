@@ -63,11 +63,12 @@ pub struct InputBox<'app> {
     rect_renderer: RectRenderer,
     pub mode: InputBoxMode,
     needs_update: bool,
+    font: &'app Font,
 }
 
 impl<'app> InputBox<'app> {
     pub fn new(frame: Frame, font: &'app Font, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox<'app> {
-        let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), &font, 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+        let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let margin = 2;
         let input_box_frame = Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
@@ -89,6 +90,7 @@ impl<'app> InputBox<'app> {
             rect_renderer,
             mode: InputBoxMode::Command,
             needs_update: true,
+            font,
         }
     }
 
@@ -159,7 +161,7 @@ impl<'app> InputBox<'app> {
             let color = self.input_box.text_render_settings.text_color;
             if !self.input_box.data.is_empty() {
                 self.text_renderer
-                    .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.text_renderer.font);
+                    .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.font);
                 let color = self.selection_list.text_render_settings.text_color;
 
                 let mut displace_y = 3;
@@ -178,7 +180,7 @@ impl<'app> InputBox<'app> {
                     .collect();
 
                 let selected = self.selection_list.selection.unwrap_or(0);
-                let font = self.text_renderer.font;
+                let font = self.font;
                 for (index, item) in items.into_iter().enumerate() {
                     if selected == index {
                         let Vec2i { x, .. } = self.selection_list.frame.anchor;
@@ -194,7 +196,7 @@ impl<'app> InputBox<'app> {
                 }
             } else {
                 let color = RGBColor { r: 0.5, g: 0.5, b: 0.5 };
-                let font = self.text_renderer.font;
+                let font = self.font;
                 self.text_renderer
                     .push_draw_command(INPUT_BOX_MSG.chars(), color, t.min.x, t.max.y, font);
             }

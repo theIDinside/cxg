@@ -54,7 +54,6 @@ pub struct View<'a> {
     pub title_frame: Frame,
     pub view_frame: Frame,
     pub topmost_line_in_buffer: i32,
-    row_height: i32,
     pub panel_id: Option<PanelId>,
     /// The currently edited buffer. We have sole ownership over it. If we want to edit another buffer in this view, (and thus hide the contents of this buffer)
     /// we return it back to the Buffers type, which manages live buffers and we replace this one with another Box<SimpleBuffer>, taking ownership of that
@@ -177,11 +176,10 @@ impl<'a> View<'a> {
         name: &str, view_id: ViewId, text_renderer: TextRenderer<'a>, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
         buffer: Box<SimpleBuffer>, edit_font: &'a Font, title_font: &'a Font,
     ) -> View<'a> {
-        let row_height = text_renderer.font.row_height();
         let cursor_shader = window_renderer.shader.clone();
         let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
 
-        let title_height = row_height + 5;
+        let title_height = title_font.row_height() + 5;
 
         let tmp_anchor = Vec2i::new(0, height);
         let title_size = Size::new(width, title_height);
@@ -205,7 +203,6 @@ impl<'a> View<'a> {
             title_frame,
             view_frame,
             topmost_line_in_buffer: 0,
-            row_height,
             panel_id: None,
             buffer,
             buffer_in_view: 0..0,
@@ -230,7 +227,6 @@ impl<'a> View<'a> {
     /// Prepares the renderable data, so that upon next draw() call, it renders the new content
     pub fn update(&mut self) {
         self.window_renderer.clear_data();
-        // draw filled rectangle, which will become border
 
         self.window_renderer.push_rect(
             BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
@@ -241,32 +237,9 @@ impl<'a> View<'a> {
 
         self.window_renderer
             .push_rect(self.view_frame.to_bb(), self.bg_color, Some((2, RGBAColor::black())), RectangleType::Rounded { radius: 10.0 });
-        /*
-                self.window_renderer.push_rect(
-                    self.title_frame.to_bb(),
-                    RGBAColor::new(0.5, 0.5, 0.5, 1.0),
-                    Some((2, RGBAColor::gray().uniform_scale(-0.2))),
-                    RectangleType::Undecorated,
-                );
-
-                self.window_renderer.push_rect(
-                    self.view_frame.to_bb(),
-                    self.bg_color,
-                    Some((2, RGBAColor::gray().uniform_scale(-0.2))),
-                    RectangleType::Rounded { radius: 10.0 },
-                );
-        */
         self.set_need_redraw();
-        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
     }
-    /*
-       pub fn draw_title(&mut self, title: &Vec<char>) {
-           let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
-           self.menu_text_renderer
-               .prepare_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty);
-           // self.text_renderer.append_data_from_iterator(title.iter().skip(0).take(title.len()), RGBColor::black(), tx + 3, ty + 1);
-       }
-    */
+
     pub fn draw_title(&mut self, title: &str) {
         let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
         self.text_renderer
@@ -325,10 +298,10 @@ impl<'a> View<'a> {
 
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
-
-            let min_x = top_x + self.text_renderer.dimensions_of_text_line(line_contents).x();
-            let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height - 6);
-            let max = Vec2i::new(min_x + self.text_renderer.get_cursor_width_size() - 2, top_y - (rows_down * self.row_height));
+            use crate::opengl::text as gltxt;
+            let min_x = top_x + gltxt::dimensions_of_text_line(line_contents, self.edit_font).x();
+            let min = Vec2i::new(min_x, top_y - (rows_down * self.edit_font.row_height()) - self.edit_font.row_height() - 6);
+            let max = Vec2i::new(min_x + self.edit_font.get_max_glyph_width() - 2, top_y - (rows_down * self.edit_font.row_height()));
 
             let mut cursor_bound_box = BoundingBox::new(min, max);
             let mut line_bounding_box = cursor_bound_box.clone();
@@ -476,12 +449,10 @@ impl<'a> View<'a> {
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
 
-        let g = self
-            .text_renderer
-            .get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
+        let g = self.edit_font.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
         let cursor_width = g
             .map(|glyph| if glyph.width() == 0 as _ { glyph.advance } else { glyph.width() as _ })
-            .unwrap_or(self.text_renderer.get_cursor_width_size());
+            .unwrap_or(self.edit_font.get_max_glyph_width());
 
         let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
         let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
@@ -489,11 +460,11 @@ impl<'a> View<'a> {
         let min_x = top_x
             + line_contents
                 .iter()
-                .map(|&c| self.text_renderer.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
+                .map(|&c| self.edit_font.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
                 .sum::<i32>();
 
-        let min = Vec2i::new(min_x, top_y - (rows_down * self.row_height) - self.row_height);
-        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.row_height));
+        let min = Vec2i::new(min_x, top_y - (rows_down * self.edit_font.row_height()) - self.edit_font.row_height());
+        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * self.edit_font.row_height()));
 
         let bb = BoundingBox::new(min, max);
 
@@ -513,7 +484,7 @@ impl<'a> View<'a> {
     }
 
     pub fn rows_displayable(&self) -> i32 {
-        self.view_frame.size.height / self.row_height
+        self.view_frame.size.height / self.edit_font.row_height()
     }
 
     pub fn total_boundingbox(&self) -> BoundingBox {
@@ -544,19 +515,18 @@ fn input_not_valid(ch: char) -> bool {
 impl<'app> Viewable for View<'app> {
     fn resize(&mut self, mut size: Size) {
         debug_assert!(size.height > 20, "resize size invalid. Must be larger than 20");
-        size.height -= self.row_height + 5;
+        size.height -= self.title_font.row_height() + 5;
         self.title_frame.size.width = size.width;
         self.view_frame.anchor.y = self.title_frame.anchor.y - self.title_frame.size.height;
         // self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
         self.view_frame.size = size;
-        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
+        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.title_font.row_height() - 5));
         assert_eq!(self.view_frame.size.width, self.title_frame.size.width);
     }
 
     fn set_anchor(&mut self, anchor: Vec2i) {
         self.title_frame.anchor = anchor;
-        self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -(self.row_height + 5));
-        assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5));
+        self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.title_frame.size.height);
     }
 
     fn bounding_box(&self) -> BoundingBox {
@@ -575,7 +545,7 @@ impl<'app> Viewable for View<'app> {
             let Vec2i { x: mx, y: my } = validated_inside_pos;
 
             let md = self.buffer.meta_data();
-            let view_line = ((ay - my) as f64 / self.row_height as f64).floor() as isize;
+            let view_line = ((ay - my) as f64 / self.edit_font.row_height() as f64).floor() as isize;
             let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
 
             let start_index = md
@@ -591,7 +561,7 @@ impl<'app> Viewable for View<'app> {
                 .iter()
                 .enumerate()
                 .find(|(_, ch)| {
-                    rel_x -= self.text_renderer.get_glyph(**ch).unwrap().advance;
+                    rel_x -= self.edit_font.get_glyph(**ch).unwrap().advance;
                     rel_x <= 0
                 })
                 .map(|(i, _)| start_index.offset(i as isize))

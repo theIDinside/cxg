@@ -8,7 +8,7 @@ use crate::{
     ui::{
         basic::coordinate::{PointArithmetic, Size},
         basic::frame::Frame,
-        font::{Font, GlyphInfo},
+        font::Font,
     },
 };
 
@@ -51,9 +51,93 @@ impl<'a> TextDrawCommand<'a> {
     }
 }
 
+// Calculates the size required for the bounding box to cover to be able to hold this text
+pub fn calculate_text_dimensions(text: &[char], font: &Font) -> Size {
+    let mut size = Size { width: 0, height: font.row_height() };
+    let mut max_x = 0;
+    for (index, &c) in text.iter().enumerate() {
+        if c == '\n' {
+            size.height += font.row_height();
+            size.width = 0;
+        } else {
+            let c = if c == '<' || c == '>' || c == '!' {
+                if let Some('=') = text.get(index + 1) {
+                    let resulting_unicode_char = if c == '<' {
+                        unsafe { std::char::from_u32_unchecked(0x2264) }
+                    } else if c == '>' {
+                        unsafe { std::char::from_u32_unchecked(0x2265) }
+                    } else {
+                        unsafe { std::char::from_u32_unchecked(0x2260) }
+                    };
+                    resulting_unicode_char
+                } else {
+                    c
+                }
+            } else {
+                c
+            };
+            if c == '=' {
+                let g = match text.get(index - 1) {
+                    Some('<') | Some('>') | Some('!') => None,
+                    _ => font.get_glyph(c),
+                };
+                size.width += g.unwrap().advance;
+            } else {
+                size.width += font.get_glyph(c).unwrap().advance;
+            }
+        }
+        max_x = std::cmp::max(size.width, max_x);
+    }
+
+    size.width = max_x;
+    size
+}
+
+// Calculates the size required for the bounding box to cover to be able to hold this text
+pub fn dimensions_of_text_line(text: &[char], font: &Font) -> Size {
+    // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
+    debugger_catch!(
+        !text.contains(&'\n'),
+        crate::DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
+    );
+
+    let parse_special_symbols = |(index, &c): (usize, &char)| {
+        let c = if c == '<' || c == '>' || c == '!' {
+            if let Some('=') = text.get(index + 1) {
+                let resulting_unicode_char = if c == '<' {
+                    unsafe { std::char::from_u32_unchecked(0x2264) }
+                } else if c == '>' {
+                    unsafe { std::char::from_u32_unchecked(0x2265) }
+                } else {
+                    unsafe { std::char::from_u32_unchecked(0x2260) }
+                };
+                resulting_unicode_char
+            } else {
+                c
+            }
+        } else {
+            c
+        };
+        if c == '=' {
+            match text.get(index - 1) {
+                Some('<') | Some('>') | Some('!') => None,
+                _ => font.get_glyph(c),
+            }
+        } else {
+            font.get_glyph(c)
+        }
+    };
+
+    text.iter()
+        .enumerate()
+        .filter_map(parse_special_symbols)
+        // .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
+        .map(|glyph_info| glyph_info.advance)
+        .fold(Size { width: 0i32, height: font.row_height() }, |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }))
+}
+
 pub struct TextRenderer<'a> {
     gl_handle: super::glinit::OpenGLHandle,
-    pub font: &'a Font,
     pub pristine: bool,
     vtx_data: Vec<TVertex>,
     indices: Vec<u32>,
@@ -65,7 +149,7 @@ pub struct TextRenderer<'a> {
 
 /// Public interface
 impl<'a> TextRenderer<'a> {
-    pub fn create(shader: super::shaders::TextShader, font: &'a Font, reserve_quads: usize) -> TextRenderer<'a> {
+    pub fn create(shader: super::shaders::TextShader, reserve_quads: usize) -> TextRenderer<'a> {
         use std::mem::size_of;
         let stride = size_of::<TVertex>() as gl::types::GLsizei;
 
@@ -105,7 +189,6 @@ impl<'a> TextRenderer<'a> {
         let tdb = TextRenderer {
             gl_handle,
             shader,
-            font,
             pristine: false,
             vtx_data: Vec::with_capacity(vertices_count.value()),
             indices,
@@ -119,7 +202,6 @@ impl<'a> TextRenderer<'a> {
     pub fn bind(&self) {
         self.gl_handle.bind();
         self.shader.bind();
-        self.font.bind();
     }
 
     pub fn push_draw_command<'b>(&mut self, text: impl Iterator<Item = char>, color: RGBColor, x: i32, y: i32, font: &'a Font) {
@@ -220,97 +302,6 @@ impl<'a> TextRenderer<'a> {
         unsafe {
             gl::Disable(gl::SCISSOR_TEST);
         }
-    }
-
-    pub fn get_cursor_width_size(&self) -> i32 {
-        self.font.get_max_glyph_width()
-    }
-
-    pub fn get_glyph(&self, ch: char) -> Option<&GlyphInfo> {
-        self.font.get_glyph(ch)
-    }
-
-    pub fn calculate_text_dimensions(&self, text: &[char]) -> Size {
-        let mut size = Size { width: 0, height: self.font.row_height() };
-        let mut max_x = 0;
-        for (index, &c) in text.iter().enumerate() {
-            if c == '\n' {
-                size.height += self.font.row_height();
-                size.width = 0;
-            } else {
-                let c = if c == '<' || c == '>' || c == '!' {
-                    if let Some('=') = text.get(index + 1) {
-                        let resulting_unicode_char = if c == '<' {
-                            unsafe { std::char::from_u32_unchecked(0x2264) }
-                        } else if c == '>' {
-                            unsafe { std::char::from_u32_unchecked(0x2265) }
-                        } else {
-                            unsafe { std::char::from_u32_unchecked(0x2260) }
-                        };
-                        resulting_unicode_char
-                    } else {
-                        c
-                    }
-                } else {
-                    c
-                };
-                if c == '=' {
-                    let g = match text.get(index - 1) {
-                        Some('<') | Some('>') | Some('!') => None,
-                        _ => self.get_glyph(c),
-                    };
-                    size.width += g.unwrap().advance;
-                } else {
-                    size.width += self.get_glyph(c).unwrap().advance;
-                }
-            }
-            max_x = std::cmp::max(size.width, max_x);
-        }
-
-        size.width = max_x;
-        size
-    }
-
-    pub fn dimensions_of_text_line(&self, text: &[char]) -> Size {
-        // todo(feature): implement function so that it can calculate the dimensions of text that spans lines
-        debugger_catch!(
-            !text.contains(&'\n'),
-            crate::DebuggerCatch::Handle("This function can only correctly calculate the dimensions of a single text line".into())
-        );
-
-        let parse_special_symbols = |(index, &c): (usize, &char)| {
-            let c = if c == '<' || c == '>' || c == '!' {
-                if let Some('=') = text.get(index + 1) {
-                    let resulting_unicode_char = if c == '<' {
-                        unsafe { std::char::from_u32_unchecked(0x2264) }
-                    } else if c == '>' {
-                        unsafe { std::char::from_u32_unchecked(0x2265) }
-                    } else {
-                        unsafe { std::char::from_u32_unchecked(0x2260) }
-                    };
-                    resulting_unicode_char
-                } else {
-                    c
-                }
-            } else {
-                c
-            };
-            if c == '=' {
-                match text.get(index - 1) {
-                    Some('<') | Some('>') | Some('!') => None,
-                    _ => self.get_glyph(c),
-                }
-            } else {
-                self.get_glyph(c)
-            }
-        };
-
-        text.iter()
-            .enumerate()
-            .filter_map(parse_special_symbols)
-            // .map(|&c| self.get_glyph(c).map(|g| g.advance).unwrap_or(self.get_cursor_width_size()))
-            .map(|glyph_info| glyph_info.advance)
-            .fold(Size { width: 0i32, height: self.font.row_height() }, |acc, v| Size::vector_add(acc, Vec2i { x: v, y: 0 }))
     }
 }
 

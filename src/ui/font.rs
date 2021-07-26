@@ -254,15 +254,17 @@ impl Font {
         self.glyph_cache.get(&character)
     }
 
+    #[inline(always)]
     pub fn texture_width(&self) -> i32 {
         self.texture_dimensions.x
     }
-
+    #[inline(always)]
     pub fn texture_height(&self) -> i32 {
         self.texture_dimensions.y
     }
 
     /// Returns the row height, which is the maximum height of any glyph in the cache.
+    #[inline(always)]
     pub fn row_height(&self) -> i32 {
         self.row_height
     }

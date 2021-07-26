@@ -79,7 +79,7 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), &fonts[0], 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let mut buffers = Buffers::new();
 
@@ -180,7 +180,7 @@ impl<'app> Application<'app> {
             let view = View::new(
                 view_name,
                 view_id.into(),
-                TextRenderer::create(self.font_shader.clone(), font, 1024 * 10),
+                TextRenderer::create(self.font_shader.clone(), 1024 * 10),
                 RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
                 width,
                 height,
