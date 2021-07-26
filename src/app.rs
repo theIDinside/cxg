@@ -79,9 +79,7 @@ pub struct Application<'app> {
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(
-        fonts: Vec<Rc<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo,
-    ) -> Application<'app> {
+    pub fn create(fonts: Vec<Rc<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
         let active_view_id = 0;
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
@@ -90,9 +88,7 @@ impl<'app> Application<'app> {
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
 
-        let make_view_renderers = || {
-            (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60))
-        };
+        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let mut buffers = Buffers::new();
 
@@ -103,18 +99,7 @@ impl<'app> Application<'app> {
         // Create the default 1st view
         let (tr, rr) = make_view_renderers();
         let buffer = buffers.request_new_buffer();
-        let view = View::new(
-            "Unnamed view",
-            active_view_id.into(),
-            tr,
-            rr,
-            1024,
-            768,
-            ACTIVE_VIEW_BACKGROUND,
-            buffer,
-            fonts[0].clone(),
-            fonts[1].clone(),
-        );
+        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer, fonts[0].clone(), fonts[1].clone());
         panels[0].add_view(view);
 
         // Create the popup UI
@@ -140,18 +125,8 @@ impl<'app> Application<'app> {
         // Creating the Debug View UI
         let (tr, rr) = make_view_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view = View::new(
-            "debug_view",
-            10.into(),
-            tr,
-            rr,
-            1014,
-            758,
-            dbg_view_bg_color,
-            Buffers::free_buffer(),
-            fonts[0].clone(),
-            fonts[1].clone(),
-        );
+        let mut debug_view =
+            View::new("debug_view", 10.into(), tr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer(), fonts[0].clone(), fonts[1].clone());
         debug_view.set_anchor(Vec2i::new(5, 763));
         debug_view.update();
         debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
@@ -499,10 +474,7 @@ impl<'app> Application<'app> {
                                 let mut panel_b = self.panels.swap_remove(p_b.unwrap());
 
                                 let vb = panel_b.children.iter().position(|v| v.id == dragged_view_id.unwrap());
-                                std::mem::swap(
-                                    panel_a.children.get_mut(va.unwrap()).unwrap(),
-                                    panel_b.children.get_mut(vb.unwrap()).unwrap(),
-                                );
+                                std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
                                 self.panels.insert(p_a.unwrap(), panel_a);
                                 self.panels.insert(p_b.unwrap(), panel_b);
                             }
@@ -534,9 +506,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_key_event(
-        &mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers,
-    ) {
+    pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         match key {
             Key::Escape => {
                 if self.input_box.visible {
@@ -627,11 +597,7 @@ impl<'app> Application<'app> {
                     } else {
                         let p_id = self.get_active_view().panel_id;
                         let f_name = path.file_name();
-                        self.open_text_view(
-                            p_id.unwrap(),
-                            f_name.and_then(|s| s.to_str()).map(|f| f.to_string()),
-                            self.window_size,
-                        );
+                        self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
                         let v = self.get_active_view();
                         debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
                         v.buffer.load_file(&path);
