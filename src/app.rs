@@ -141,17 +141,7 @@ impl<'app> Application<'app> {
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
-
-        match res.active_ui_element {
-            UID::View(id) => {
-                if let Some(v) = res.panels.last_mut().unwrap().get_view(id.into()) {
-                    res.active_view = v;
-                }
-            }
-            UID::Panel(_id) => todo!(),
-            UID::None => todo!(),
-        }
-        // res.init();
+        res.active_view = res.panels.last_mut().unwrap().get_view(active_view_id.into()).unwrap();
         res
     }
 
@@ -369,6 +359,10 @@ impl<'app> Application<'app> {
                 _ => {}
             }
         }
+    }
+
+    fn overlay_clicked(&self, pos: Vec2i) -> Option<&dyn Viewable> {
+        None
     }
 
     fn handle_mouse_input(&mut self, new_state: MouseState) {
