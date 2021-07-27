@@ -21,11 +21,10 @@ pub mod utils;
 
 use std::rc::Rc;
 
-use crate::debuginfo::DebugInfo;
+use crate::{debuginfo::DebugInfo, utils::get_sys_error};
 
 use self::glfw::Context;
 use opengl::glinit;
-
 pub use utils::macros::*;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -58,7 +57,10 @@ pub fn foo() {
     let code: extern "C" fn(i32) = unsafe { std::mem::transmute(ptr) };
 
     unsafe {
-        libc::signal(libc::SIGTRAP, code as _);
+        let res = libc::signal(libc::SIGTRAP, code as _);
+        if res == libc::SIG_ERR {
+            println!("Error setting trap handler: {}", get_sys_error().unwrap());
+        }
     }
 }
 

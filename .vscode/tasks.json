@@ -1,0 +1,86 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+            "command": "cargo", // note: full path to the cargo
+			"args": ["run", "--release"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "cargo run release",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"options": {
+				"env": { "RUST_BACKTRACE": "full" } 
+			},
+		},
+		{
+			"type": "shell",
+            "command": "cargo", // note: full path to the cargo
+			"args": ["run"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "cargo run debug",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"options": {
+				"env": { "RUST_BACKTRACE": "full" } 
+			},
+		},
+		{
+			"type": "shell",
+            "command": "cargo", // note: full path to the cargo
+			"args": ["build"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "cargo build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"options": {
+				"env": { "RUST_BACKTRACE": "full" } 
+			}
+		},
+		
+		{
+			"type": "shell",
+            "command": "cargo", // note: full path to the cargo
+			"args": ["build", "--release"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "cargo perf-build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"options": {
+				"env": { 
+					"RUST_BACKTRACE": "full",
+					"RUSTFLAGS": "'-C -force-frame-pointer=y'" 
+				} 
+			}
+		},
+		{ // Run perf on binary
+			"type": "shell",
+            "command": "perf",
+			"args": ["record", "-g", "target/release/cxgledit"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "run perf",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+		}
+	]
+}

@@ -12,8 +12,14 @@ macro_rules! debugger_catch {
     ($assert_expr:expr, $message:literal) => {
         if !$assert_expr {
             println!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
-            unsafe { libc::raise(libc::SIGTRAP); }
-            println!("Reached stoppable debug statement");
+            unsafe { 
+                let res = libc::raise(libc::SIGTRAP);
+                if res != 0 {
+                    println!("Error sending SIGTRAP signal. Debugger will not be notified (probably). System error message:{}", crate::utils::get_sys_error().unwrap());
+                } else { 
+                    println!("Reached stoppable debug statement");
+                }
+            }
         }
     };
 
@@ -23,8 +29,14 @@ macro_rules! debugger_catch {
             match $handleRequest {
                 crate::DebuggerCatch::Handle(message) => {
                     println!("Assert failed - {} @ {}:{}:{}", message, file, line, column);
-                    unsafe { libc::raise(libc::SIGTRAP); }
-                    println!("Reached stoppable debug statement");
+                    unsafe { 
+                        let res = libc::raise(libc::SIGTRAP);
+                        if res != 0 {
+                            println!("Error sending SIGTRAP signal. Debugger will not be notified (probably). System error message:{}", crate::utils::get_sys_error().unwrap());
+                        } else { 
+                            println!("Reached stoppable debug statement");
+                        }
+                    }
                 },
                 crate::DebuggerCatch::Panic(message) => {
                     panic!("Assert failed - {} @ {}:{}:{}", message, file, line, column);

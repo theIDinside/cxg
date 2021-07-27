@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 #[macro_use]
 pub mod macros;
 
@@ -53,4 +55,14 @@ impl CountDigits for usize {
 /// Converts a vec of u32 to Vec<char>, unsafely. If you fuck up the code points, it's on you.
 pub fn convert_vec_of_u32_utf(data: &[u32]) -> Vec<char> {
     unsafe { data.iter().map(|&c| std::char::from_u32_unchecked(c)).collect() }
+}
+
+#[cfg(target_os = "linux")]
+pub fn get_sys_error() -> Option<String> {
+    unsafe {
+        libc::__errno_location().as_ref().map(|v| *v).and_then(|valid_errno| {
+            let p = libc::strerror(valid_errno);
+            CString::from_raw(p).to_owned().to_str().map(|v| v.to_string()).ok()
+        })
+    }
 }

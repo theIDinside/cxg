@@ -507,6 +507,8 @@ impl<'app> Application<'app> {
     }
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+        let _op = translate_key_input(key, action, modifier);
+
         match key {
             Key::Escape => {
                 if self.input_box.visible {
@@ -705,6 +707,32 @@ impl<'app> Application<'app> {
     pub fn set_debug(&mut self, set: bool) {
         self.debug = set;
     }
+}
+
+pub enum Command {
+    Cancel,
+    MoveCursorLeft,
+    MoveCursorRight,
+    MoveCursorUp,
+    MoveCursorDown,
+    GotoLineEnd,
+    GotoLineBegin,
+    GotoNextWord,
+    GotoPrevWord,
+    Undo,
+    Redo,
+    OpenFile,
+    SaveFile,
+    Search,
+    Goto,
+    CycleFocus,
+    HideFocused,
+    ShowAll,
+    ShowDebugInterface,
+}
+
+fn translate_key_input(key: Key, action: Action, modifier: Modifiers) -> Command {
+    Command::Cancel
 }
 
 pub fn cast_ptr_to_input<'app, T: InputBehavior>(t: *mut T) -> &'app mut dyn InputBehavior
