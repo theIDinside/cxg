@@ -651,11 +651,6 @@ impl<'app> Application<'app> {
             self.popup.view.draw();
         }
 
-        /*  // uncommented... probably won't use a single status bar again, but individual ones per view
-            self.status_bar.update_text_content(StatusBarContent::FileEdit(v.buffer.meta_data().file_name.as_ref(), (v.buffer.cursor_row(), v.buffer.cursor_col())));
-            self.status_bar.draw();
-        */
-
         self.input_box.draw();
         // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();
