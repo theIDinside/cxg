@@ -2,6 +2,7 @@ use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
 use crate::opengl::{rect::RectRenderer, shaders, text::TextRenderer, types::RGBAColor};
+use crate::textbuffer::Movement;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
@@ -704,16 +705,20 @@ impl<'app> Application<'app> {
     }
 }
 
-pub enum Command {
+/// Command enum. This is what user input gets translated to, so that we can have configurability, by reading text files and re-mapping the internal HashMap of KeyInput => Command translations
+/// In the examples below, whenever you see two bars around a text item like so: |foo| means the cursor & and it's sibling (meta cursor(s)) cursor has foo selected
+/// This way we can textually and visually represent cursor movement and actions
+pub enum InputTranslation {
     Cancel,
-    MoveCursorLeft,
-    MoveCursorRight,
-    MoveCursorUp,
-    MoveCursorDown,
-    GotoLineEnd,
-    GotoLineBegin,
-    GotoNextWord,
-    GotoPrevWord,
+    Movement(Movement),
+    /// let |v| = vec![1, 2] <br>
+    /// moves cursor to => "let v = vec![|1, 2|]" => next user input will replace what's between |1, 2|
+    ChangeValueOfAssignment,
+    StaticInsertStr(&'static str),
+    Cut,
+    Copy,
+    Paste,
+    Delete,
     Undo,
     Redo,
     OpenFile,
@@ -726,8 +731,8 @@ pub enum Command {
     ShowDebugInterface,
 }
 
-fn translate_key_input(key: Key, action: Action, modifier: Modifiers) -> Command {
-    Command::Cancel
+fn translate_key_input(key: Key, action: Action, modifier: Modifiers) -> InputTranslation {
+    InputTranslation::Cancel
 }
 
 pub fn cast_ptr_to_input<'app, T: InputBehavior>(t: *mut T) -> &'app mut dyn InputBehavior
