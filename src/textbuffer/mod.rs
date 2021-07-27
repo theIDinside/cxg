@@ -9,7 +9,6 @@ pub mod cursor;
 pub mod gb;
 pub mod metadata;
 pub mod simple;
-pub mod textbuffer;
 
 #[derive(Debug)]
 pub enum TextKind {

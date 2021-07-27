@@ -83,6 +83,25 @@ impl RGBAColor {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct RectangleVertex {
+    pub x: glfloat,
+    pub y: glfloat,
+    pub u: glfloat,
+    pub v: glfloat,
+    pub r: glfloat,
+    pub g: glfloat,
+    pub b: glfloat,
+    pub i: glfloat,
+}
+
+impl RectangleVertex {
+    #[inline(always)]
+    pub fn new(x: glfloat, y: glfloat, u: glfloat, v: glfloat, r: glfloat, g: glfloat, b: glfloat, i: glfloat) -> RectangleVertex {
+        RectangleVertex { x, y, u, v, r, g, b, i }
+    }
+}
+
 pub struct RectVertex {
     pub coord: Vec2f,
     pub color: RGBAColor,
