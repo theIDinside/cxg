@@ -52,8 +52,6 @@ impl TextShader {
 pub struct RectShader {
     pub id: gl::types::GLuint,
     projection_uniform: gl::types::GLint,
-    win_width: gl::types::GLint,
-    win_height: gl::types::GLint,
     radius: gl::types::GLint,
     rect_size: gl::types::GLint,
     rect_pos: gl::types::GLint,
@@ -80,17 +78,13 @@ impl RectShader {
                 std::process::exit(1);
             }
         };
-        let (projection_uniform, win_width, win_height, radius, rect_size, rect_pos) = unsafe {
+        let (projection_uniform, radius, rect_size, rect_pos) = unsafe {
             let projection_uniform_name = std::ffi::CString::new("projection").expect("Failed to create CString");
-            let win_width = std::ffi::CString::new("win_width").expect("Failed to create CString");
-            let win_height = std::ffi::CString::new("win_height").expect("Failed to create CString");
             let radius = std::ffi::CString::new("radius").expect("Failed to create CString");
             let rect_size = std::ffi::CString::new("rect_size").expect("Failed to create CString");
             let rect_pos = std::ffi::CString::new("rect_pos").expect("Failed to create CString");
             (
                 gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
-                gl::GetUniformLocation(font_program, win_width.as_ptr()),
-                gl::GetUniformLocation(font_program, win_height.as_ptr()),
                 gl::GetUniformLocation(font_program, radius.as_ptr()),
                 gl::GetUniformLocation(font_program, rect_size.as_ptr()),
                 gl::GetUniformLocation(font_program, rect_pos.as_ptr()),
@@ -98,7 +92,7 @@ impl RectShader {
         };
 
         assert_ne!(projection_uniform, -1);
-        RectShader { id: font_program, projection_uniform, win_width, win_height, radius, rect_size, rect_pos }
+        RectShader { id: font_program, projection_uniform, radius, rect_size, rect_pos }
     }
 
     pub fn bind(&self) {
@@ -112,14 +106,6 @@ impl RectShader {
         unsafe {
             gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, projection.as_ptr());
             // gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, d.as_ptr() as *const _);
-        }
-    }
-
-    pub fn set_window_dimensions(&self, width: f32, height: f32) {
-        self.bind();
-        unsafe {
-            gl::Uniform1f(self.win_width, width);
-            gl::Uniform1f(self.win_height, height);
         }
     }
 

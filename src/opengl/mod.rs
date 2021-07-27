@@ -1,6 +1,9 @@
 pub mod shaders;
 pub mod types;
 
+pub mod rectangle;
+pub mod renderer;
+
 /// Rect renderer module. Renders simple rectangles, such as windows/borders and cursors
 pub mod rect;
 /// Text renderer module. Renders text, using Views

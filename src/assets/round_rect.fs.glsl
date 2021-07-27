@@ -3,16 +3,10 @@ out vec4 FragColor;
 in vec4 rect_color;
 /// size of the rectangle currently getting drawn
 in vec2 u_size;
-
 in vec2 texel_coords;
-
-// size of the window we're drawing to
-uniform float win_width;
-uniform float win_height;
 // radius of the corners
 uniform float radius;
 uniform vec2 rect_pos;
-
 const float smoothness = 0.7;
 
 // from http://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
@@ -22,7 +16,6 @@ float box_signed_distance_field_rounding(vec2 CenterPosition, vec2 Size, float R
 
 void main()
 {
-    vec2 p = vec2(win_width, win_height);
     if(radius > 0.0) {
         // The pixel space scale of the rectangle.
         vec2 size = u_size;

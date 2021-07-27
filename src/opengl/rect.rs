@@ -25,7 +25,7 @@ pub enum RectDrawCommand {
         data_indices: BufferIndex,
         corner_radius: f32,
         rect_size: Vec2f,
-        rect_pos: Vec2<gl::types::GLfloat>,
+        rect_center_screen_pos: Vec2<gl::types::GLfloat>,
     },
 }
 
@@ -111,7 +111,7 @@ impl RectRenderer {
                 data_indices,
                 corner_radius: radius,
                 rect_size: rect.size_f32(),
-                rect_pos: rect.min.to_f32(),
+                rect_center_screen_pos: rect.min.to_f32(),
             }),
         }
     }
@@ -169,13 +169,12 @@ impl RectRenderer {
                     self.shader.set_radius(0.0);
                     data_indices
                 }
-                RectDrawCommand::RoundedCorners { data_indices, corner_radius, rect_size, rect_pos } => {
+                RectDrawCommand::RoundedCorners { data_indices, corner_radius, rect_size, rect_center_screen_pos } => {
                     // todo(feature) handle different setup and options
                     // that we can pass to this draw command. right now it does nothing.
                     self.shader.set_radius(*corner_radius);
-                    self.shader.set_rect_pos(*rect_pos);
+                    self.shader.set_rect_pos(*rect_center_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());
-                    self.shader.set_window_dimensions(1024.0, 768.0);
                     data_indices
                 }
             };
