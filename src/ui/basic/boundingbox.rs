@@ -2,10 +2,7 @@ use super::{
     coordinate::{Margin, Size},
     frame::Frame,
 };
-use crate::{
-    datastructure::generic::{Vec2f, Vec2i},
-    debugger_catch, DebuggerCatch,
-};
+use crate::datastructure::generic::{Vec2f, Vec2i};
 
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -18,7 +15,7 @@ pub struct BoundingBox {
 impl BoundingBox {
     /// Create a new bounding box. No assertions or checks is done to verify that min <= max. User must take responsibility for that
     pub fn new(min: Vec2i, max: Vec2i) -> BoundingBox {
-        crate::debugger_catch!(min.x <= max.x && min.y <= max.y, DebuggerCatch::Handle(format!("Assertion failed for {:?} <= {:?}", min, max)));
+        crate::debugger_catch!(min.x <= max.x && min.y <= max.y, crate::DebuggerCatch::Handle(format!("Assertion failed for {:?} <= {:?}", min, max)));
         BoundingBox { min, max }
     }
 
