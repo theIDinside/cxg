@@ -176,11 +176,14 @@ impl PolygonRenderer {
             draw_commands: Vec::with_capacity(10),
         }
     }
+    /// Binds the Vertex Array Object, it's related Vertex Buffer Objects and the Element Buffer Object and the Shader that this
+    /// renderer uses.
     pub fn bind(&self) {
         self.gl_handle.bind();
         self.shader.bind();
     }
 
+    /// Clears all rendering data, stored on the CPU side
     pub fn clear_data(&mut self) {
         self.vtx_data.clear();
         self.indices.clear();
@@ -188,6 +191,7 @@ impl PolygonRenderer {
         self.needs_update = true;
     }
 
+    /// Changes the vertex color data
     pub fn set_color(&mut self, color: RGBAColor) {
         let RGBAColor { r, g, b, .. } = color;
         for v in self.vtx_data.iter_mut() {
@@ -198,6 +202,11 @@ impl PolygonRenderer {
         self.needs_update = true;
     }
 
+    /// When we push a draw command, we've already uploaded the vertex and attribute data to the GPU
+    /// Thus, this is for "us" (on the CPU) to know, how each range of data in that buffer, is supposed to be drawn
+    /// what state is supposed to be set on the GPU etc. Utilizing this approach, I most likely can unify the renderers
+    /// entirely later on, when I'm a bit more knowledgeable, so instead of *each* View holding a Text, Rect and a Poly renderer
+    /// we can have three *total* that we push data to from all views and elements etc.
     pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBColor, poly_type: PolygonType) {
         match poly_type {
             PolygonType::Undecorated => {
@@ -225,6 +234,11 @@ impl PolygonRenderer {
         }
     }
 
+    /// Creates the vertex & attribute data for a rectangle, here represented as a BoundingBox. <br>
+    ///
+    /// * `rect` - the dimensions of the rectangle to be drawn
+    /// * `color` - The fill color of the rectangle
+    /// * `texture` - An optional parameter which defines which texture to draw in the rectangle
     pub fn make_vertex_data(&mut self, rect: BoundingBox, color: RGBColor, texture: Option<&Texture>) -> BufferIndex {
         let BoundingBox { min, max } = rect;
         let RGBColor { r, g, b } = color;
@@ -252,6 +266,11 @@ impl PolygonRenderer {
         BufferIndex::new(ebo_idx, elem_count)
     }
 
+    /// Constructs vertex and attribute data for a rectangle with a border.
+    /// * `rect` - the dimensions of the rectangle to be drawn, including the border
+    /// * `fill_color` - The fill color of the rectangle to be drawn
+    /// * `border_info: (i32, RGBColor)` - A tuple of (border_width, border_color), thus what the desired border with and color should be
+    /// * `rect_type` - What type of rectangle to be drawn, i.e. if it is supposed to have rounded corners, have a texture etc
     pub fn make_bordered_rect(&mut self, rect: BoundingBox, fill_color: RGBColor, border_info: (i32, RGBColor), rect_type: PolygonType) {
         let (border_thickness, border_color) = border_info;
         debug_assert!(border_thickness >= 1, "Border thickness must be set to at least 1 when creating a bordered rectangle");
