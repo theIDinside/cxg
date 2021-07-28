@@ -1,5 +1,7 @@
 # cxgledit
-So what's this? Well this is cxgledit rewritten in rust, because I'd figured it would be more fun to write in Rust. And oh boy yes it is.
+So what's this? Well this is cxgledit rewritten in rust, because I'd figured it would be more fun to write in Rust. And you'll always learn something
+when you do something. Text editors are pretty small in scope, unless of course you want to write massively efficient insanely fast ones. The thing is though
+just writing one in C, Rust, C++, D, by default will get you a lot of speed and efficiency. So the nice thing is you can worry about optimizing later.
 
 So far, only some 60-70% of the same features as the C++ version, with some minor differences.
 
