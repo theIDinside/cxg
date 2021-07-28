@@ -66,6 +66,10 @@ pub fn foo() {
 }
 
 fn main() -> Main {
+    let s = String::from("foooo");
+    let a = &s[0..1];
+    if a == "f" {}
+
     let debug_info = DebugInfo::begin();
     let width = 1024;
     let height = 768;

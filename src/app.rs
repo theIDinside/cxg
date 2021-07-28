@@ -45,21 +45,16 @@ pub struct Application<'app> {
     panel_space_size: Size,
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
     fonts: Vec<Rc<Font>>,
-    /// The statusbar, displays different short info about whatever element we're using, or some other user message/debug data
-    // This is un unsed for now
-    // status_bar: StatusBar<'app>,
     /// The shader for the font
     font_shader: TextShader,
     /// Shaders for rectangles/windows/views
     rect_shader: RectShader,
-
+    /// Shader for drawing rectangles and polygons, that can be textured, have rounded corners using SDF in the shader code, etc
     polygon_shader: RectShader,
     /// The panels, which hold the different views, and manages their layout and size
     pub panels: Vec<Panel>,
-
-    /// buffers we're editing and is live, yet not open in any view currently
+    /// buffers we're editing and is live, yet not open in any view currently, lives in this field
     buffers: Buffers,
-
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
     popup: Popup,
     /// The active element's id
@@ -75,11 +70,17 @@ pub struct Application<'app> {
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
     close_requested: bool,
+    /// The input box, for opening files & running commands like VSCode
     input_box: InputBox,
+    /// Debug view, shows frame rate, heap allocation, resident set size, shared library code size
     pub debug_view: DebugView,
+    /// Current mouse state
     mouse_state: MouseState,
+    /// renderer for "animations" such as when we're "moving" a window to a new place. Due to how i've designed the draw command list in PolygonRenderer and RectRenderer, I may very well be able
+    /// to compress this into 3 renderers in total, instead of having a bunch of them
     rect_animation_renderer: RectRenderer,
-    pub draw_test: bool,
+    /// Currently *only* holds the background texture.
+    /// todo: make this hold both the font atlas & and the future textures, such as button images, logos etc
     pub tex_map: TextureMap,
 }
 
@@ -184,7 +185,6 @@ impl<'app> Application<'app> {
         let debug_view = DebugView::new(debug_view, debug_info, tex_map.textures.get(&TextureType::Background(2)).unwrap().clone());
 
         let ib_frame = Frame { anchor: Vec2i::new(250, 700), size: Size { width: 500, height: 500 } };
-
         let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
@@ -209,7 +209,6 @@ impl<'app> Application<'app> {
             debug_view,
             mouse_state: MouseState::None,
             rect_animation_renderer,
-            draw_test: false,
             tex_map,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
