@@ -56,10 +56,6 @@ impl SimpleBuffer {
         (self.file_name(), self.cursor())
     }
 
-    pub fn file_name(&self) -> Option<&Path> {
-        self.meta_data.file_name.as_ref().map(|pb| pb.as_path())
-    }
-
     pub fn cursor(&self) -> BufferCursor {
         self.cursor.clone()
     }
@@ -417,6 +413,10 @@ impl std::ops::IndexMut<std::ops::Range<usize>> for SimpleBuffer {
 impl<'a> CharBuffer<'a> for SimpleBuffer {
     type ItemIterator = std::slice::Iter<'a, char>;
 
+    fn file_name(&self) -> Option<&Path> {
+        self.meta_data.file_name.as_ref().map(|pb| pb.as_path())
+    }
+
     fn clear(&mut self) {
         self.data.clear();
         self.cursor = BufferCursor::default();
@@ -654,8 +654,8 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         if checksum != self.meta_data.get_checksum() {
             match std::fs::OpenOptions::new().write(true).create(true).open(path) {
                 Ok(mut file) => match file.write(self.data.iter().map(|c| *c).collect::<String>().as_bytes()) {
-                    Ok(bytes_written) => {
-                        only_in_debug!(println!("wrote {} bytes to {}", bytes_written, path.display()));
+                    Ok(_bytes_written) => {
+                        only_in_debug!(println!("wrote {} bytes to {}", _bytes_written, path.display()));
                         let checksum = calculate_hash(self);
                         self.meta_data.set_checksum(checksum);
                         self.meta_data.file_name = Some(path.to_path_buf());

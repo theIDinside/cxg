@@ -760,24 +760,29 @@ impl<'app> Application<'app> {
             return;
         }
         // todo: we need to ask user,  what to do with unsaved files etc.
+
         let view = unsafe { self.active_view.as_mut().unwrap() };
 
-        let view_id = view.id;
-        let panel_id = view.panel_id.unwrap();
+        if view.buffer.pristine() {
+            let view_id = view.id;
+            let panel_id = view.panel_id.unwrap();
 
-        if self.panels.last().unwrap().children.len() == 1 {
-            self.open_text_view(panel_id, None, self.window_size);
+            if self.panels.last().unwrap().children.len() == 1 {
+                self.open_text_view(panel_id, None, self.window_size);
+            }
+
+            let panel = self.panels.get_mut(*panel_id as usize).unwrap();
+
+            let v = panel.remove_view(view_id);
+            drop(v);
+            self.active_view = panel.children.last_mut().unwrap() as _;
+            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+            panel.layout();
+            self.decorate_active_view();
+            self.active_ui_element = UID::View(*self.get_active_view().id);
+        } else {
+            println!("File has been altered! You must save the file.");
         }
-
-        let panel = self.panels.get_mut(*panel_id as usize).unwrap();
-
-        let v = panel.remove_view(view_id);
-        drop(v);
-        self.active_view = panel.children.last_mut().unwrap() as _;
-        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-        panel.layout();
-        self.decorate_active_view();
-        self.active_ui_element = UID::View(*self.get_active_view().id);
     }
 
     pub fn set_debug(&mut self, set: bool) {

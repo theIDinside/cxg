@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use crate::debugger_catch;
 use crate::IndexingType;
 
-use super::simple::simplebuffer::SimpleBuffer;
 use super::CharBuffer;
 
 IndexingType!(/** Wrapper around usize to display that this is an index type */,
@@ -155,7 +154,7 @@ impl MetaData {
     }
 }
 
-pub fn calculate_hash(buf: &mut SimpleBuffer) -> u64 {
+pub fn calculate_hash<'a, T: CharBuffer<'a> + Hash + Sized>(buf: &T) -> u64 {
     let mut s = DefaultHasher::new();
     buf.hash(&mut s);
     if let Some(p) = buf.file_name() {

@@ -12,6 +12,12 @@ pub struct TextBuffer {
     size: usize,
 }
 
+impl std::hash::Hash for TextBuffer {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {
+        todo!()
+    }
+}
+
 impl TextBuffer {}
 
 #[allow(unused)]
@@ -79,6 +85,10 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     }
 
     fn save_file(&mut self, path: &std::path::Path) {
+        todo!()
+    }
+
+    fn file_name(&self) -> Option<&std::path::Path> {
         todo!()
     }
 }

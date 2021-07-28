@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
-use self::metadata::MetaData;
+use self::metadata::{calculate_hash, MetaData};
 
 pub mod buffers;
 pub mod cursor;
@@ -33,7 +33,7 @@ pub enum BufferState {
     NotSavedToDisk,
 }
 
-pub trait CharBuffer<'a> {
+pub trait CharBuffer<'a>: std::hash::Hash {
     type ItemIterator: Iterator<Item = &'a char>;
     // todo(feature): Add support for multiple cursors, whether they be implemented as multi-cursors or just as macros pretending to be multiple cursors is utterly irrelevant
     /// Inserts character att current cursor position
@@ -54,6 +54,16 @@ pub trait CharBuffer<'a> {
     fn empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Hashes the contents of the buffer, and compares it to the last saved state.
+    fn pristine(&self) -> bool
+    where
+        Self: std::hash::Hash + Sized,
+    {
+        let hash = calculate_hash(self);
+        self.meta_data().get_checksum() == hash
+    }
+
     /// Available free space in the buffer
     fn available_space(&self) -> usize {
         self.capacity() - self.len()
@@ -122,6 +132,8 @@ pub trait CharBuffer<'a> {
     fn load_file(&mut self, path: &Path);
 
     fn save_file(&mut self, path: &Path);
+
+    fn file_name(&self) -> Option<&Path>;
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.
