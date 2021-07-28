@@ -153,7 +153,7 @@ impl<'app> Application<'app> {
             Buffers::free_buffer(),
             fonts[0].clone(),
             fonts[1].clone(),
-            tex_map.textures.get(&TextureType::Background(1)).map(|t| *t).unwrap(),
+            tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
         );
 
         popup.set_anchor(Vec2i::new(250, 768 - 250));
@@ -252,7 +252,7 @@ impl<'app> Application<'app> {
                 self.buffers.request_new_buffer(),
                 font,
                 menu_font,
-                self.tex_map.textures.get(&TextureType::Background(1)).map(|t| *t).unwrap(),
+                self.tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
             );
 
             self.active_ui_element = UID::View(*view.id);
@@ -380,7 +380,7 @@ impl<'app> Application<'app> {
         self.debug_view
             .view
             .resize(Size { width: self.width() - 20, height: self.height() - 20 });
-        self.debug_view.update(Some(self.debug_view.bg_texture));
+        self.debug_view.update();
 
         let ib_center = self.input_box.frame.size.width / 2;
         let app_window_width_center = width / 2;
@@ -644,7 +644,7 @@ impl<'app> Application<'app> {
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
             _ => match self.active_input.handle_key(key, action, modifier) {
-                crate::ui::eventhandling::event::InputResponse::File(path) => {
+                crate::ui::eventhandling::event::InputResponse::OpenFile(path) => {
                     let v = self.get_active_view();
                     if v.buffer.empty() {
                         v.buffer.load_file(&path);

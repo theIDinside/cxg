@@ -34,7 +34,7 @@ impl DebugView {
         self.view.resize(size);
     }
 
-    pub fn update(&mut self, texture: Option<Texture>) {
+    pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
         self.view.text_renderer.clear_data();
         let RGBAColor { r, g, b, .. } = self.view.bg_color;
@@ -48,24 +48,13 @@ impl DebugView {
             PolygonType::RoundedUndecorated { corner_radius: 15.0 },
         );
 
-        if let Some(texture) = texture {
-            // draw content pane
-            self.view.window_renderer.make_bordered_rect(
-                self.view.view_frame.to_bb(),
-                bg_color,
-                (2, bg_color.uniform_scale(-1.0)),
-                PolygonType::RoundedUndecorated { corner_radius: 15.0 },
-            );
-        } else {
-            self.view.window_renderer.make_bordered_rect(
-                self.view.view_frame.to_bb(),
-                bg_color,
-                (2, bg_color.uniform_scale(-1.0)),
-                PolygonType::RoundedUndecorated { corner_radius: 15.0 },
-            );
-        }
-        let Size { width, height } = self.view.view_frame.size;
-        let mut image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 40, v: 20 });
+        self.view.window_renderer.make_bordered_rect(
+            self.view.view_frame.to_bb(),
+            bg_color,
+            (2, bg_color.uniform_scale(-1.0)),
+            PolygonType::RoundedUndecorated { corner_radius: 15.0 },
+        );
+        let image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 40, v: 20 });
         self.view
             .window_renderer
             .push_draw_command(image_bb, bg_color, PolygonType::Decorated { texture: self.bg_texture });
@@ -107,7 +96,7 @@ impl DebugView {
             size.height += self.view.title_frame.size.height + 40;
             size.width += 20;
             self.resize(size);
-            self.update(Some(self.bg_texture.clone()));
+            self.update();
 
             let Vec2i { x: tx, y: ty } = self.view.title_frame.anchor;
             self.view

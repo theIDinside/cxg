@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
-use crate::{debugger_catch, ui::UID};
+use crate::ui::UID;
 
 pub enum InputResponse {
     Command,
-    File(PathBuf),
+    OpenFile(PathBuf),
+    SaveFile,
     None,
 }
 
@@ -25,13 +26,13 @@ pub struct InvalidInputElement {}
 impl InputBehavior for InvalidInputElement {
     fn handle_key(&mut self, _key: glfw::Key, _action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
         println!("Default Invalid Input Handler: {:?} {:?} {:?}", _key, _action, _modifier);
-        debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
+        crate::debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
         InputResponse::None
     }
 
     fn handle_char(&mut self, _ch: char) {
         println!("Default Invalid Input Handler: {}", _ch);
-        debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
+        crate::debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
     }
 
     fn get_uid(&self) -> Option<UID> {

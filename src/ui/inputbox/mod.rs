@@ -68,12 +68,10 @@ pub struct InputBox {
 
 impl InputBox {
     pub fn new(frame: Frame, font: Rc<Font>, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox {
-        let (text_renderer, rect_renderer) =
-            (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+        let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
         let margin = 2;
-        let input_box_frame =
-            Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
+        let input_box_frame = Frame { anchor: frame.anchor, size: Size::new(frame.size.width, font.row_height() + margin * 4) };
         let input_inner_frame = make_inner_frame(&input_box_frame, margin);
         let ltb = LineTextBox::new(input_box_frame, input_inner_frame, None);
 
@@ -81,11 +79,7 @@ impl InputBox {
             anchor: frame.anchor + Vec2i::new(0, -input_box_frame.size.height),
             size: Size { width: frame.size.width, height: frame.size.height - input_box_frame.size.height },
         };
-        let lb = ListBox::new(
-            list_box_frame,
-            font.row_height(),
-            Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)),
-        );
+        let lb = ListBox::new(list_box_frame, font.row_height(), Some((TextRenderSetting::new(1.0, RGBColor::white()), ACTIVE_VIEW_BACKGROUND)));
 
         InputBox {
             input_box: ltb,
@@ -166,13 +160,8 @@ impl InputBox {
             // Testing the drawing of text, inside the input box
             let color = self.input_box.text_render_settings.text_color;
             if !self.input_box.data.is_empty() {
-                self.text_renderer.push_draw_command(
-                    self.input_box.data.iter().map(|c| *c),
-                    color,
-                    t.min.x,
-                    t.max.y,
-                    self.font.clone(),
-                );
+                self.text_renderer
+                    .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.font.clone());
                 let color = self.selection_list.text_render_settings.text_color;
 
                 let mut displace_y = 3;
@@ -200,13 +189,8 @@ impl InputBox {
                         self.rect_renderer.add_rect(selection_box, RGBAColor::new(0.0, 0.65, 0.5, 1.0));
                     }
 
-                    self.text_renderer.push_draw_command(
-                        item.iter().map(|c| *c),
-                        color,
-                        t.min.x,
-                        t.min.y - displace_y,
-                        self.font.clone(),
-                    );
+                    self.text_renderer
+                        .push_draw_command(item.iter().map(|c| *c), color, t.min.x, t.min.y - displace_y, self.font.clone());
                     displace_y += self.selection_list.item_height;
                 }
             } else {
@@ -241,7 +225,7 @@ impl InputBox {
                 InputResponse::None
             } else {
                 if p.exists() {
-                    InputResponse::File(p)
+                    InputResponse::OpenFile(p)
                 } else {
                     InputResponse::None
                 }

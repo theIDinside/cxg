@@ -266,7 +266,7 @@ impl View {
 
         if self.buffer.empty() {
             let Size { width, height } = self.view_frame.size;
-            let mut image_bb = BoundingBox::shrink(&self.view_frame.to_bb(), Margin::Perpendicular { h: width / 4, v: height / 4 });
+            let image_bb = BoundingBox::shrink(&self.view_frame.to_bb(), Margin::Perpendicular { h: width / 4, v: height / 4 });
             self.window_renderer
                 .push_draw_command(image_bb, bg_color, PolygonType::Decorated { texture: self.background_image });
         }
