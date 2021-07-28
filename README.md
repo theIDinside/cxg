@@ -16,6 +16,12 @@ Key-bindings are not re-mappable right now, but obviously will be
 - Ctrl + P:             Show popup view (no other functionality than a normal view as of now)
 - Ctrl + shift + I:     Open Input box (screen shot below)
 
+## Code quality
+I have to be very clear and say that the quality of this code, how it's designed, is particularly awful. That mostly has to do with my inexperience
+with writing applications that deal directly with OpenGL. Therefore most of the stuff becomes hack and slash (and I do mean, wild, hack and slash) to
+get it working, and once I've done that, start thinking about architecturing the design. (one example of this hack-n-slash-then-design, is what I
+did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
+
 
 ## Screenshots
 
