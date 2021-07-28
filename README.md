@@ -23,6 +23,11 @@ get it working, and once I've done that, start thinking about architecturing the
 did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 
 
+### Todos
+- [ ] Implement rudimentary Rust syntax highlighting (use regex crate. For whatever reason, regex seem to outperform naive approaches, so might as well use that).
+- [ ] Todo source code parser. Scan documents for todo comments and present them in some nice way
+
+
 ## Screenshots
 
 Empty file
