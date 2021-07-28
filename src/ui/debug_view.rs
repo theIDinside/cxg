@@ -65,7 +65,7 @@ impl DebugView {
             );
         }
         let Size { width, height } = self.view.view_frame.size;
-        let mut image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 10, v: 10 });
+        let mut image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 40, v: 20 });
         self.view
             .window_renderer
             .push_draw_command(image_bb, bg_color, PolygonType::Decorated { texture: self.bg_texture });
@@ -79,18 +79,18 @@ impl DebugView {
             let title = "Debug Information";
             let r = format!(
                 "
- |  Application 
- |  > name                          [{}] 
- |  > pid:                          [{}]
- |  Memory: 
- |  > Usage:                        [{:.2}MB]
- |  > Peak usage:                   [{:.2}MB]
- |  > Shared lib code               [{:.2}MB]
- |  > RSS                           [{:.2}MB]
- |  > Allocated heap since start    [{:.2}MB]
- |  Timing  
- |  > Frame time:                   [{:.5}ms]
- |  > Frame speed                   [{:.2}f/s]",
+   Application 
+   > name                          [{}] 
+   > pid:                          [{}]
+   Memory: 
+   > Usage:                        [{:.2}MB]
+   > Peak usage:                   [{:.2}MB]
+   > Shared lib code               [{:.2}MB]
+   > RSS                           [{:.2}MB]
+   > Allocated heap since start    [{:.2}MB]
+   Timing  
+   > Frame time:                   [{:.5}ms]
+   > Frame speed                   [{:.2}f/s]",
                 name,
                 pid,
                 virtual_mem_usage as f64 / 1024.0,
