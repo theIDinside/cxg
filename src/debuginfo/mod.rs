@@ -25,7 +25,7 @@ impl DebugInfo {
         DebugInfo { heap_address_at_main, current_heap_address: None }
     }
 
-    pub fn heap_increase_since_start(&mut self) -> usize {
+    pub fn heap_allocated_since_begin(&mut self) -> usize {
         let current_heap_address = unsafe { libc::sbrk(0) as usize };
         self.current_heap_address = Some(current_heap_address);
         self.current_heap_address.unwrap_or(self.heap_address_at_main) - self.heap_address_at_main

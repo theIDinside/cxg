@@ -86,7 +86,7 @@ impl DebugView {
                 virtual_mem_usage_peak as f64 / 1024.0,
                 shared_lib_code as f64 / 1024.0,
                 rss as f64 / 1024.0,
-                self.debug_info.heap_increase_since_start() as f64 / (1024.0 * 1024.0), // we read *actual* heap addresses, and these obviously are measured in bytes. The others are values from syscall proc, and they return in KB
+                self.debug_info.heap_allocated_since_begin() as f64 / (1024.0 * 1024.0), // we read *actual* heap addresses, and these obviously are measured in bytes. The others are values from syscall proc, and they return in KB
                 frame_time,
                 fps
             );
