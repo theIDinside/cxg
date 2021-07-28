@@ -30,6 +30,10 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
       etc.
 - [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is shit.
 - [ ] Other search / go to features (probably also using the regex crate)
+- [ ] Symbol navigation. Like most things, I could start by using dependencies here, since the rust eco system is so powerful.
+      One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)
+      and do it like that. No semantical analysis, nothing. Just eat_char(ch) until done, and figure out what are types, values, etc and use this to syntax highlight.
+      Or, we can pull in parsers and lexers from other crates. We'll see. 
 
 
 ## Screenshots
@@ -52,9 +56,9 @@ Right now, there's no actual functionality in it. When typing in it, it produces
 folder, that contains the characters. The functionality isn't particularly hard. The UI is my absolute weakest side.
 
 ### Bugs
-Holy shit there has to be a massive bug in the nfd-library (I'm not accusing the Rust binding around
-it, for being the reason). But when one uses the "save file" dialog, suddenly memory usage goes UP
-by 300-400 MB. That's an *insane* jump.
+Figured out that the NFD library wasn't buggy. The massive spike in VMSize has nothing to do with actual *physical* allocated memory. So VMSize really only shows how much virtual memory is addressed. The real allocation is the Resident Set Size,
+which accounts for memory that can be accessed without triggering a page fault interrupt (i.e swapping into memory the pages).
+So RSS is a much better metric for resource/memory usage.
 
 Keyboard command
 ![Input box for quick select of file browsing](docs/img/example.png)

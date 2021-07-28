@@ -15,7 +15,7 @@ pub struct DebugInfo {
 
 impl DebugInfo {
     /// Call this function, at any specific time, to begin measuring *from* that point in real time and execution time how much Heap memory we've acquried by the OS.
-    pub fn begin() -> DebugInfo {
+    pub fn begin_recording() -> DebugInfo {
         let initial_heap_address = unsafe { libc::sbrk(0) as usize };
         let current_heap_address = Some(initial_heap_address);
         DebugInfo { heap_address_at_main: initial_heap_address, current_heap_address }

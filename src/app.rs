@@ -4,7 +4,6 @@ use crate::debuginfo::DebugInfo;
 use crate::opengl::rectangle::{PolygonRenderer, TextureMap, TextureType};
 use crate::opengl::shaders::{RectShader, TextShader};
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
-use crate::textbuffer::metadata::calculate_hash;
 use crate::textbuffer::Movement;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{

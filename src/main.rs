@@ -70,7 +70,7 @@ fn main() -> Main {
     let a = &s[0..1];
     if a == "f" {}
 
-    let debug_info = DebugInfo::begin();
+    let debug_info = DebugInfo::begin_recording();
     let width = 1024;
     let height = 768;
     let font_path = std::path::Path::new("fonts/SourceCodePro-Regular.ttf");
