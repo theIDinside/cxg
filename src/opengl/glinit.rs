@@ -66,8 +66,8 @@ pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<g
         GetShaderiv(vertex_shader, gl::COMPILE_STATUS, &mut ok);
         if ok != gl::TRUE as gl::types::GLint {
             GetShaderInfoLog(vertex_shader, 512, std::ptr::null_mut(), log.as_mut_ptr() as *mut gl::types::GLchar);
-            println!("Compilation of vertex shader failed:\n{}", std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL"));
-            return Err(MainInitError::Shader(String::from_utf8(log).unwrap()));
+            println!("Compilation of vertex shader failed:\n{}", log.iter().map(|v| *v as char).collect::<String>());
+            return Err(MainInitError::Shader(log.iter().map(|v| *v as char).collect::<String>()));
         }
         log.clear();
 
@@ -76,11 +76,12 @@ pub fn create_shader_program(vertex_source: &str, frag_source: &str) -> Result<g
         ShaderSource(frag_shader, 1, &f_src.as_ptr(), std::ptr::null());
         CompileShader(frag_shader);
 
+        log.set_len(512 - 1);
         GetShaderiv(frag_shader, gl::COMPILE_STATUS, &mut ok);
         if ok != gl::TRUE as gl::types::GLint {
             GetShaderInfoLog(frag_shader, 512, std::ptr::null_mut(), log.as_mut_ptr() as *mut gl::types::GLchar);
-            println!("Compilation of fragment shader failed:\n{}", std::str::from_utf8(&log).unwrap_or("Failed to retrieve error message from OpenGL"));
-            return Err(MainInitError::Shader(String::from_utf8(log).unwrap()));
+            println!("Compilation of fragment shader failed:\n{}", log.iter().map(|v| *v as char).collect::<String>());
+            return Err(MainInitError::Shader(log.iter().map(|v| *v as char).collect::<String>()));
         }
         log.clear();
 

@@ -6,12 +6,7 @@ use super::{
 };
 use crate::{
     datastructure::generic::Vec2i,
-    debugger_catch,
-    ui::{
-        basic::coordinate::{PointArithmetic, Size},
-        basic::frame::Frame,
-        font::Font,
-    },
+    ui::{basic::coordinate::Size, basic::frame::Frame, font::Font},
 };
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash, PartialOrd, Ord, Debug)]

@@ -19,7 +19,7 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
-use std::rc::Rc;
+use std::{path::Path, rc::Rc};
 
 use crate::{debuginfo::DebugInfo, utils::get_sys_error};
 
@@ -89,13 +89,16 @@ fn main() -> Main {
     window.set_scroll_polling(true);
     window.set_cursor_pos_polling(true);
 
-    glfw_handle.set_swap_interval(glfw::SwapInterval::Sync(1));
+    // glfw_handle.set_swap_interval(glfw::SwapInterval::Sync(1));
+    glfw_handle.set_swap_interval(glfw::SwapInterval::None);
     gl::load_with(|sym| window.get_proc_address(sym) as *const _);
     unsafe {
         glinit::init_gl();
     };
     let font_program = opengl::shaders::TextShader::new();
-    let rectangle_program = opengl::shaders::RectShader::new();
+
+    let rectangle_program = opengl::shaders::RectShader::new(Path::new("./src/assets/round_rect.vs.glsl"), Path::new("./src/assets/round_rect.fs.glsl"));
+    let poly_program = opengl::shaders::RectShader::new(Path::new("./src/assets/rectangle.vs.glsl"), Path::new("./src/assets/rectangle.fs.glsl"));
 
     font_program.bind();
     // let char_range = (0..=0x0F028u32).filter_map(|c| std::char::from_u32(c)).collect();
@@ -111,7 +114,7 @@ fn main() -> Main {
     let fonts = vec![Rc::new(font), Rc::new(menu_font)];
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
-    let mut app = app::Application::create(fonts, font_program, rectangle_program, debug_info);
+    let mut app = app::Application::create(fonts, font_program, rectangle_program, poly_program, debug_info);
     let mut last_update = glfw_handle.get_time();
     let mut frame_counter = 0.0;
     let mut once_a_second_update = 60.0;

@@ -1,12 +1,17 @@
 #version 430 core
-out vec4 color;
+out vec4 FragColor;
 // The RGB Color
-in vec3 rect_color;
+in vec4 rect_color;
 // The interpolation value; decides if we use the bound texture
 in float interpolation;
 /// size of the rectangle currently getting drawn
 in vec2 u_size;
+
+// actual fragment position in the world, used for the SDF calculation
 in vec2 texel_coords;
+
+// the texture coordinates
+in vec2 uv_coords;
 // radius of the corners
 uniform float radius;
 uniform vec2 rect_pos;
@@ -20,15 +25,28 @@ float box_signed_distance_field_rounding(vec2 CenterPosition, vec2 Size, float R
 
 void main()
 {
+    float interpolation = rect_color.w;
+    vec3 rect_color2 = rect_color.xyz;
+    vec4 chosen_color = vec4(0.0, 0.0, 1.0, 0.0);
+
+    if(interpolation == 0.0) {
+        chosen_color = vec4(rect_color2, 1.0);
+    } else {
+        vec4 sampledTexture = texture(texture_sampler, uv_coords);
+        chosen_color = 
+        mix(sampledTexture, vec4(rect_color2, 1.0), 0.005);
+    }
+    
     if(radius > 0.0) {
         // The pixel space scale of the rectangle.
         vec2 size = u_size;
+        
         // the pixel space location of the rectangle.
         vec2 location = rect_pos;
         float boundary = texel_coords.y;
         float cutoff = location.y + size.y / 2.0;
-        vec4 sampledTexture = texture(texture_sampler, texel_coords);
-        vec4 chosen_color = mix(sampledTexture, vec4(rect_color, 1.0), interpolation);
+        
+        
         if(boundary > cutoff) {
             float edgeSoftness  = 1.0f;
             // Calculate distance to edge.   
@@ -37,11 +55,11 @@ void main()
             float smoothedAlpha =  1.0 - smoothstep(0.0f, edgeSoftness * 2.0 ,dist);
             // This will be our resulting "shape". 
             vec4 quadColor = mix(vec4(0.0, 0.0, 0.0, 0.0), vec4(chosen_color.rgb, smoothedAlpha), smoothedAlpha);
-            color = quadColor;
+            FragColor = quadColor;
         } else {
-            color = chosen_color;
+            FragColor = chosen_color;
         }
     } else {
-        color = chosen_color;
+        FragColor = chosen_color;
     }    
 }

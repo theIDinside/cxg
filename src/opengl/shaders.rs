@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, path::Path};
 
 use crate::datastructure::generic::{Vec2, Vec2f};
 
@@ -20,8 +20,8 @@ impl TextShader {
     pub fn new() -> TextShader {
         let font_program = match super::glinit::create_shader_program(source::TEXT_VERTEX_SHADER, source::TEXT_FRAGMENT_SHADER) {
             Ok(program) => program,
-            Err(_) => {
-                println!("Error creating font shader program. Exiting application.");
+            Err(e) => {
+                println!("Error creating Rectangle shader program. Exiting application. {:?}", e);
                 std::process::exit(1);
             }
         };
@@ -58,14 +58,14 @@ pub struct RectShader {
 }
 
 impl RectShader {
-    pub fn new() -> RectShader {
-        let rvs = std::fs::File::open("./src/assets/round_rect.vs.glsl").and_then(|mut f| {
+    pub fn new(vs_path: &Path, fs_path: &Path) -> RectShader {
+        let rvs = std::fs::File::open(vs_path).and_then(|mut f| {
             let mut s = String::new();
             f.read_to_string(&mut s)?;
             Ok(s)
         });
 
-        let rfs = std::fs::File::open("./src/assets/round_rect.fs.glsl").and_then(|mut f| {
+        let rfs = std::fs::File::open(fs_path).and_then(|mut f| {
             let mut s = String::new();
             f.read_to_string(&mut s)?;
             Ok(s)
@@ -74,7 +74,7 @@ impl RectShader {
         let font_program = match super::glinit::create_shader_program(&rvs.expect("failed to read RVS code"), &rfs.expect("failed to read RFS code")) {
             Ok(program) => program,
             Err(_) => {
-                println!("Error creating font shader program. Exiting application.");
+                println!("Error creating Rectangle shader program. Exiting application.");
                 std::process::exit(1);
             }
         };

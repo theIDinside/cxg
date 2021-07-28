@@ -15,6 +15,10 @@ pub struct RGBColor {
 }
 
 impl RGBColor {
+    pub fn new(r: f32, g: f32, b: f32) -> RGBColor {
+        RGBColor { r, g, b }
+    }
+
     pub fn black() -> RGBColor {
         RGBColor { r: 0.0, g: 0.0, b: 0.0 }
     }
@@ -37,6 +41,11 @@ impl RGBColor {
 
     pub fn gray() -> RGBColor {
         RGBColor { r: 0.5, g: 0.5, b: 0.5 }
+    }
+
+    pub fn uniform_scale(&self, value: f32) -> RGBColor {
+        let &RGBColor { r, g, b } = self;
+        Self::new(r + value, g + value, b + value)
     }
 }
 

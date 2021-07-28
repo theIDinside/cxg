@@ -10,7 +10,7 @@ use super::{
 };
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
-use crate::opengl::rect::RectangleType;
+use crate::opengl::rectangle::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
@@ -50,7 +50,7 @@ pub struct View {
     pub title_font: Rc<Font>,
     pub edit_font: Rc<Font>,
     pub text_renderer: TextRenderer,
-    pub window_renderer: RectRenderer,
+    pub window_renderer: PolygonRenderer,
     pub cursor_renderer: RectRenderer,
     pub title_frame: Frame,
     pub view_frame: Frame,
@@ -63,6 +63,7 @@ pub struct View {
     pub view_changed: bool,
     pub bg_color: RGBAColor,
     pub visible: bool,
+    background_image: Texture,
 }
 
 pub struct Popup {
@@ -174,12 +175,9 @@ impl InputBehavior for View {
 
 impl View {
     pub fn new(
-        name: &str, view_id: ViewId, text_renderer: TextRenderer, window_renderer: RectRenderer, width: i32, height: i32, bg_color: RGBAColor,
-        buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>,
+        name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
+        bg_color: RGBAColor, buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
     ) -> View {
-        let cursor_shader = window_renderer.shader.clone();
-        let mut cursor_renderer = RectRenderer::create(cursor_shader, 100);
-
         let title_height = title_font.row_height() + 5;
 
         let tmp_anchor = Vec2i::new(0, height);
@@ -210,9 +208,10 @@ impl View {
             view_changed: true,
             bg_color,
             visible: true,
+            background_image,
         };
 
-        v.update();
+        v.update(None);
         v
     }
 
@@ -236,18 +235,42 @@ impl View {
     }
 
     /// Prepares the renderable data, so that upon next draw() call, it renders the new content
-    pub fn update(&mut self) {
+    pub fn update(&mut self, bg_texture: Option<Texture>) {
         self.window_renderer.clear_data();
 
-        self.window_renderer.push_rect(
+        /* Make the title bar */
+        self.window_renderer.make_bordered_rect(
             BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
-            RGBAColor::new(0.5, 0.5, 0.5, 1.0),
-            Some((1, RGBAColor::black())),
-            RectangleType::Rounded { radius: 10.0 },
+            RGBColor::new(0.5, 0.5, 0.5),
+            (1, RGBColor::black()),
+            PolygonType::RoundedUndecorated { corner_radius: 10.0 },
         );
 
-        self.window_renderer
-            .push_rect(self.view_frame.to_bb(), self.bg_color, Some((2, RGBAColor::black())), RectangleType::Rounded { radius: 10.0 });
+        let RGBAColor { r, g, b, .. } = self.bg_color;
+        let bg_color = RGBColor::new(r, g, b);
+        if let Some(texture) = bg_texture {
+            self.window_renderer.make_bordered_rect(
+                self.view_frame.to_bb(),
+                bg_color,
+                (2, RGBColor::black()),
+                PolygonType::RoundedDecorated { corner_radius: 10.0, texture },
+            );
+        } else {
+            self.window_renderer.make_bordered_rect(
+                self.view_frame.to_bb(),
+                bg_color,
+                (2, RGBColor::black()),
+                PolygonType::RoundedUndecorated { corner_radius: 10.0 },
+            );
+        }
+
+        if self.buffer.empty() {
+            let Size { width, height } = self.view_frame.size;
+            let mut image_bb = BoundingBox::shrink(&self.view_frame.to_bb(), Margin::Perpendicular { h: width / 4, v: height / 4 });
+            self.window_renderer
+                .push_draw_command(image_bb, bg_color, PolygonType::Decorated { texture: self.background_image });
+        }
+
         self.set_need_redraw();
     }
 

@@ -1,7 +1,9 @@
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
-use crate::opengl::{rect::RectRenderer, shaders, text::TextRenderer, types::RGBAColor};
+use crate::opengl::rectangle::{PolygonRenderer, TextureMap, TextureType};
+use crate::opengl::shaders::{RectShader, TextShader};
+use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
 use crate::textbuffer::Movement;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
@@ -17,6 +19,7 @@ use crate::ui::{font::Font, UID};
 use crate::ui::{MouseState, Viewable};
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
@@ -46,9 +49,11 @@ pub struct Application<'app> {
     // This is un unsed for now
     // status_bar: StatusBar<'app>,
     /// The shader for the font
-    font_shader: shaders::TextShader,
+    font_shader: TextShader,
     /// Shaders for rectangles/windows/views
-    rect_shader: shaders::RectShader,
+    rect_shader: RectShader,
+
+    polygon_shader: RectShader,
     /// The panels, which hold the different views, and manages their layout and size
     pub panels: Vec<Panel>,
 
@@ -75,21 +80,39 @@ pub struct Application<'app> {
     mouse_state: MouseState,
     rect_animation_renderer: RectRenderer,
     pub draw_test: bool,
+    pub tex_map: TextureMap,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(fonts: Vec<Rc<Font>>, font_shader: shaders::TextShader, rect_shader: shaders::RectShader, debug_info: DebugInfo) -> Application<'app> {
+    pub fn create(
+        fonts: Vec<Rc<Font>>, font_shader: TextShader, rect_shader: RectShader, polygon_shader: RectShader, debug_info: DebugInfo,
+    ) -> Application<'app> {
         let active_view_id = 0;
+        let backgrounds = vec![
+            (Path::new("./logo.png"), TextureType::Background(1)),
+            (Path::new("./logo_transparent.png"), TextureType::Background(2)),
+        ];
+        let tex_map = TextureMap::new(backgrounds);
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
         font_shader.set_projection(&mvp);
         // utility renderer creation
         rect_shader.bind();
         rect_shader.set_projection(&mvp);
+        polygon_shader.bind();
+        polygon_shader.set_projection(&mvp);
 
-        let make_view_renderers = || (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+        // let make_view_renderers = || (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
+
+        let make_view_renderers = || {
+            (
+                TextRenderer::create(font_shader.clone(), 1024 * 10),
+                RectRenderer::create(rect_shader.clone(), 8 * 1024),
+                PolygonRenderer::create(polygon_shader.clone(), 8 * 60),
+            )
+        };
 
         let mut buffers = Buffers::new();
 
@@ -98,40 +121,67 @@ impl<'app> Application<'app> {
         let mut panels = vec![panel];
 
         // Create the default 1st view
-        let (tr, rr) = make_view_renderers();
+        let (tr, rr, pr) = make_view_renderers();
         let buffer = buffers.request_new_buffer();
-        let view = View::new("Unnamed view", active_view_id.into(), tr, rr, 1024, 768, ACTIVE_VIEW_BACKGROUND, buffer, fonts[0].clone(), fonts[1].clone());
+        let view = View::new(
+            "Unnamed view",
+            active_view_id.into(),
+            tr,
+            rr,
+            pr,
+            1024,
+            768,
+            ACTIVE_VIEW_BACKGROUND,
+            buffer,
+            fonts[0].clone(),
+            fonts[1].clone(),
+            tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
+        );
         panels[0].add_view(view);
 
         // Create the popup UI
-        let (tr, rr) = make_view_renderers();
+        let (tr, rr, pr) = make_view_renderers();
         let mut popup = View::new(
             "Popup view",
             (active_view_id + 1).into(),
             tr,
             rr,
+            pr,
             524,
             518,
             ACTIVE_VIEW_BACKGROUND,
             Buffers::free_buffer(),
             fonts[0].clone(),
             fonts[1].clone(),
+            tex_map.textures.get(&TextureType::Background(1)).map(|t| *t).unwrap(),
         );
 
         popup.set_anchor(Vec2i::new(250, 768 - 250));
-        popup.update();
-        popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
+        popup.update(None);
+        // popup.window_renderer.set_color(RGBAColor { r: 0.3, g: 0.34, b: 0.48, a: 0.8 });
         let popup = Popup { visible: false, view: popup };
 
         // Creating the Debug View UI
-        let (tr, rr) = make_view_renderers();
+        let (tr, rr, pr) = make_view_renderers();
         let dbg_view_bg_color = RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 };
-        let mut debug_view =
-            View::new("debug_view", 10.into(), tr, rr, 1014, 758, dbg_view_bg_color, Buffers::free_buffer(), fonts[0].clone(), fonts[1].clone());
+        let mut debug_view = View::new(
+            "debug_view",
+            10.into(),
+            tr,
+            rr,
+            pr,
+            1014,
+            758,
+            dbg_view_bg_color,
+            Buffers::free_buffer(),
+            fonts[0].clone(),
+            fonts[1].clone(),
+            tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
+        );
         debug_view.set_anchor(Vec2i::new(5, 763));
-        debug_view.update();
-        debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
-        let debug_view = DebugView::new(debug_view, debug_info);
+        debug_view.update(Some(tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap()));
+        // debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
+        let debug_view = DebugView::new(debug_view, debug_info, tex_map.textures.get(&TextureType::Background(2)).unwrap().clone());
 
         let ib_frame = Frame { anchor: Vec2i::new(250, 700), size: Size { width: 500, height: 500 } };
 
@@ -146,6 +196,7 @@ impl<'app> Application<'app> {
             // status_bar,
             font_shader,
             rect_shader,
+            polygon_shader,
             panels,
             buffers,
             popup,
@@ -159,6 +210,7 @@ impl<'app> Application<'app> {
             mouse_state: MouseState::None,
             rect_animation_renderer,
             draw_test: false,
+            tex_map,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -170,7 +222,7 @@ impl<'app> Application<'app> {
         let view = unsafe { self.active_view.as_mut().unwrap() };
         view.bg_color = ACTIVE_VIEW_BACKGROUND;
         view.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
-        view.update();
+        view.update(None);
     }
 
     /// Creates a text view and makes that the focused UI element
@@ -193,12 +245,14 @@ impl<'app> Application<'app> {
                 view_id.into(),
                 TextRenderer::create(self.font_shader.clone(), 1024 * 10),
                 RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
+                PolygonRenderer::create(self.polygon_shader.clone(), 1024 * 10),
                 width,
                 height,
                 ACTIVE_VIEW_BACKGROUND,
                 self.buffers.request_new_buffer(),
                 font,
                 menu_font,
+                self.tex_map.textures.get(&TextureType::Background(1)).map(|t| *t).unwrap(),
             );
 
             self.active_ui_element = UID::View(*view.id);
@@ -206,7 +260,7 @@ impl<'app> Application<'app> {
             unsafe {
                 (*self.active_view).bg_color = INACTIVE_VIEW_BACKGROUND;
                 // (*self.active_view).window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-                (*self.active_view).update();
+                (*self.active_view).update(None);
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
             self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
@@ -232,7 +286,7 @@ impl<'app> Application<'app> {
             let view = self.get_active_view();
             view.bg_color = INACTIVE_VIEW_BACKGROUND;
             view.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-            view.update();
+            view.update(None);
             view.id
         };
         {
@@ -292,6 +346,7 @@ impl<'app> Application<'app> {
         let mvp = super::opengl::glinit::screen_projection_matrix(*width as _, *height as _, 0);
         self.font_shader.set_projection(&mvp);
         self.rect_shader.set_projection(&mvp);
+        self.polygon_shader.set_projection(&mvp);
     }
 
     fn handle_resize_event(&mut self, width: i32, height: i32) {
@@ -325,7 +380,7 @@ impl<'app> Application<'app> {
         self.debug_view
             .view
             .resize(Size { width: self.width() - 20, height: self.height() - 20 });
-        self.debug_view.update();
+        self.debug_view.update(Some(self.debug_view.bg_texture));
 
         let ib_center = self.input_box.frame.size.width / 2;
         let app_window_width_center = width / 2;
@@ -423,7 +478,7 @@ impl<'app> Application<'app> {
                             v.bg_color = INACTIVE_VIEW_BACKGROUND;
                             v.set_need_redraw();
                             v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-                            v.update();
+                            v.update(None);
                         }
                     }
                     self.mouse_state = MouseState::Clicked(id, MouseButton::Button1, p);
@@ -457,13 +512,13 @@ impl<'app> Application<'app> {
                                     if v.id == dragged_view_id.unwrap() {
                                         v.bg_color = ACTIVE_VIEW_BACKGROUND;
                                         v.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
-                                        v.update();
+                                        v.update(None);
                                         self.active_view = v as *mut _;
                                         self.active_input = cast_ptr_to_input(self.active_view);
                                     } else {
                                         v.bg_color = INACTIVE_VIEW_BACKGROUND;
                                         v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-                                        v.update();
+                                        v.update(None);
                                     }
                                 }
                                 self.panels.insert(p_a.unwrap(), panel_a);
@@ -594,7 +649,7 @@ impl<'app> Application<'app> {
                     if v.buffer.empty() {
                         v.buffer.load_file(&path);
                         v.set_need_redraw();
-                        v.update();
+                        v.update(None);
                         self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
                         self.input_box.visible = false;
                     } else {
@@ -605,7 +660,7 @@ impl<'app> Application<'app> {
                         debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
                         v.buffer.load_file(&path);
                         v.set_need_redraw();
-                        v.update();
+                        v.update(None);
                         self.input_box.visible = false;
                     }
                     self.input_box.clear();
@@ -731,7 +786,7 @@ pub enum InputTranslation {
     ShowDebugInterface,
 }
 
-fn translate_key_input(key: Key, action: Action, modifier: Modifiers) -> InputTranslation {
+fn translate_key_input(_key: Key, _action: Action, _modifier: Modifiers) -> InputTranslation {
     InputTranslation::Cancel
 }
 

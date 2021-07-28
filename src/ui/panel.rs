@@ -125,7 +125,7 @@ impl Panel {
             }
         }
         for v in self.children.iter_mut().filter(|v| v.visible) {
-            v.update();
+            v.update(None);
         }
     }
 
@@ -197,7 +197,7 @@ impl Panel {
             }
         }
         for v in self.children.iter_mut() {
-            v.update();
+            v.update(None);
         }
     }
 }

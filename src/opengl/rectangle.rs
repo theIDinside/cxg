@@ -10,7 +10,7 @@ use super::{
     glinit::OpenGLHandle,
     shaders::RectShader,
     text::BufferIndex,
-    types::{RGBColor, RectangleVertex},
+    types::{RGBAColor, RGBColor, RectangleVertex},
 };
 
 #[derive(Hash, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +18,7 @@ pub enum TextureType {
     Background(u32),
 }
 
+#[derive(Clone, Copy)]
 pub struct Texture {
     pub id: gl::types::GLuint,
     pub dimensions: Vec2i,
@@ -30,7 +31,7 @@ impl Texture {
 }
 
 pub struct TextureMap {
-    textures: HashMap<TextureType, Texture>,
+    pub textures: HashMap<TextureType, Texture>,
 }
 
 impl TextureMap {
@@ -43,6 +44,7 @@ impl TextureMap {
             let mut buf = vec![0; reader.output_buffer_size()];
             reader.next_frame(&mut buf).unwrap();
 
+            println!("Texture color type: {:?}", info.color_type);
             let dimensions = Vec2i::new(info.width as _, info.height as _);
 
             let mut id = 0;
@@ -51,7 +53,9 @@ impl TextureMap {
                 gl::BindTexture(gl::TEXTURE_2D, id);
                 // gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
                 gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, dimensions.x, dimensions.y, 0, gl::RGBA, gl::UNSIGNED_BYTE, buf.as_ptr() as *const _);
-                gl::GenerateMipmap(gl::TEXTURE_2D);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
+                // gl::GenerateMipmap(gl::TEXTURE_2D);
             }
 
             assert!(!textures.contains_key(&tex_type));
@@ -184,6 +188,16 @@ impl PolygonRenderer {
         self.needs_update = true;
     }
 
+    pub fn set_color(&mut self, color: RGBAColor) {
+        let RGBAColor { r, g, b, .. } = color;
+        for v in self.vtx_data.iter_mut() {
+            v.r = r;
+            v.g = g;
+            v.b = b;
+        }
+        self.needs_update = true;
+    }
+
     pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBColor, poly_type: PolygonType) {
         match poly_type {
             PolygonType::Undecorated => {
@@ -265,9 +279,11 @@ impl PolygonRenderer {
             let indices = match dc {
                 PolygonDrawCommand::Undecorated { indices } => {
                     self.shader.set_radius(0.0);
+                    unsafe { gl::BindTexture(gl::TEXTURE_2D, 0) }
                     indices
                 }
                 PolygonDrawCommand::RoundedUndecorated { indices, corner_radius, rect_size, bl_rect_screen_pos } => {
+                    unsafe { gl::BindTexture(gl::TEXTURE_2D, 0) }
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());
@@ -275,15 +291,11 @@ impl PolygonRenderer {
                 }
                 PolygonDrawCommand::Decorated { indices, texture } => {
                     self.shader.set_radius(0.0);
-                    unsafe {
-                        gl::BindTexture(gl::TEXTURE_2D, texture.id);
-                    }
+                    texture.bind();
                     indices
                 }
                 PolygonDrawCommand::RoundedDecorated { indices, corner_radius, rect_size, bl_rect_screen_pos, texture } => {
-                    unsafe {
-                        gl::BindTexture(gl::TEXTURE_2D, texture.id);
-                    }
+                    texture.bind();
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());

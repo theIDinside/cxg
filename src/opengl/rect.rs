@@ -188,6 +188,9 @@ impl RectRenderer {
     pub fn draw(&mut self) {
         self.bind();
         self.shader.set_radius(0.0);
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+        }
         if self.needs_update {
             self.reserve_gpu_memory_if_needed();
             self.upload_cpu_data();
