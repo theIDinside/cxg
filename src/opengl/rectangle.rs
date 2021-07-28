@@ -1,5 +1,7 @@
+use std::{collections::HashMap, path::Path};
+
 use crate::{
-    datastructure::generic::Vec2f,
+    datastructure::generic::{Vec2f, Vec2i},
     opengl::Primitive,
     ui::basic::{boundingbox::BoundingBox, coordinate::Margin},
 };
@@ -11,8 +13,53 @@ use super::{
     types::{RGBColor, RectangleVertex},
 };
 
+#[derive(Hash, Clone, Copy, PartialEq, Eq)]
+pub enum TextureType {
+    Background(u32),
+}
+
 pub struct Texture {
     pub id: gl::types::GLuint,
+    pub dimensions: Vec2i,
+}
+
+impl Texture {
+    pub fn bind(&self) {
+        unsafe { gl::BindTexture(gl::TEXTURE_2D, self.id) }
+    }
+}
+
+pub struct TextureMap {
+    textures: HashMap<TextureType, Texture>,
+}
+
+impl TextureMap {
+    pub fn new(paths: Vec<(&Path, TextureType)>) -> TextureMap {
+        let mut textures = HashMap::new();
+
+        for (p, tex_type) in paths {
+            let decoder = png::Decoder::new(std::fs::File::open(p).unwrap());
+            let (info, mut reader) = decoder.read_info().unwrap();
+            let mut buf = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut buf).unwrap();
+
+            let dimensions = Vec2i::new(info.width as _, info.height as _);
+
+            let mut id = 0;
+            unsafe {
+                gl::GenTextures(1, &mut id);
+                gl::BindTexture(gl::TEXTURE_2D, id);
+                // gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
+                gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, dimensions.x, dimensions.y, 0, gl::RGBA, gl::UNSIGNED_BYTE, buf.as_ptr() as *const _);
+                gl::GenerateMipmap(gl::TEXTURE_2D);
+            }
+
+            assert!(!textures.contains_key(&tex_type));
+            textures.insert(tex_type, Texture { id, dimensions });
+        }
+
+        TextureMap { textures }
+    }
 }
 
 pub enum PolygonType {
