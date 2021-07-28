@@ -24,8 +24,12 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 
 
 ### Todos
-- [ ] Implement rudimentary Rust syntax highlighting (use regex crate. For whatever reason, regex seem to outperform naive approaches, so might as well use that).
+- [ ] Syntax highlighting, using something like the regex crate which has been added to the [cargo configuration](Cargo.toml)
 - [ ] Todo source code parser. Scan documents for todo comments and present them in some nice way
+- [x] Buffer can now be hashed for comparison to saved contents, if the buffer is pristine / restored.
+      etc.
+- [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is shit.
+- [ ] Other search / go to features (probably also using the regex crate)
 
 
 ## Screenshots
