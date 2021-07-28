@@ -1,13 +1,13 @@
 pub mod shaders;
 pub mod types;
 
-pub mod rectangle;
+pub mod polygon_renderer;
 pub mod renderer;
 
 /// Rect renderer module. Renders simple rectangles, such as windows/borders and cursors
-pub mod rect;
+pub mod rectangle_renderer;
 /// Text renderer module. Renders text, using Views
-pub mod text;
+pub mod text_renderer;
 #[macro_use]
 pub mod glinit;
 

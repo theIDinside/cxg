@@ -2,12 +2,12 @@ use crate::{
     datastructure::generic::Vec2i,
     debuginfo::{process_info::ProcessInfo, DebugInfo},
     opengl::{
-        rectangle::{PolygonType, Texture},
+        polygon_renderer::{PolygonType, Texture},
         types::{RGBAColor, RGBColor},
     },
 };
 
-use crate::opengl::text as gltxt;
+use crate::opengl::text_renderer as gltxt;
 
 use super::{
     basic::{

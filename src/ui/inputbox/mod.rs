@@ -19,9 +19,9 @@ use super::{
 use crate::{
     datastructure::generic::Vec2i,
     opengl::{
-        rect::RectRenderer,
+        rectangle_renderer::RectRenderer,
         shaders::{RectShader, TextShader},
-        text::TextRenderer,
+        text_renderer::TextRenderer,
         types::{RGBAColor, RGBColor},
     },
     ui::eventhandling::event::InputResponse,

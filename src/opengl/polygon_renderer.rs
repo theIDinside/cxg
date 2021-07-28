@@ -9,7 +9,7 @@ use crate::{
 use super::{
     glinit::OpenGLHandle,
     shaders::RectShader,
-    text::BufferIndex,
+    text_renderer::BufferIndex,
     types::{RGBAColor, RGBColor, RectangleVertex},
 };
 
@@ -27,6 +27,13 @@ pub struct Texture {
 impl Texture {
     pub fn bind(&self) {
         unsafe { gl::BindTexture(gl::TEXTURE_2D, self.id) }
+    }
+
+    /// Unbinds any currently bound texture.
+    pub fn unbind_textures() {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+        }
     }
 }
 
@@ -297,24 +304,24 @@ impl PolygonRenderer {
         for dc in self.draw_commands.iter() {
             let indices = match dc {
                 PolygonDrawCommand::Undecorated { indices } => {
+                    Texture::unbind_textures();
                     self.shader.set_radius(0.0);
-                    unsafe { gl::BindTexture(gl::TEXTURE_2D, 0) }
                     indices
                 }
                 PolygonDrawCommand::RoundedUndecorated { indices, corner_radius, rect_size, bl_rect_screen_pos } => {
-                    unsafe { gl::BindTexture(gl::TEXTURE_2D, 0) }
+                    Texture::unbind_textures();
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());
                     indices
                 }
                 PolygonDrawCommand::Decorated { indices, texture } => {
+                    Texture::bind(texture);
                     self.shader.set_radius(0.0);
-                    texture.bind();
                     indices
                 }
                 PolygonDrawCommand::RoundedDecorated { indices, corner_radius, rect_size, bl_rect_screen_pos, texture } => {
-                    texture.bind();
+                    Texture::bind(texture);
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());

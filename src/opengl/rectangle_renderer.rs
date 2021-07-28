@@ -6,7 +6,7 @@ use crate::{
 use super::{
     glinit::OpenGLHandle,
     shaders::RectShader,
-    text::BufferIndex,
+    text_renderer::BufferIndex,
     types::{RGBAColor, RectVertex},
     Primitive,
 };

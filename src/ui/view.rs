@@ -10,8 +10,8 @@ use super::{
 };
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
-use crate::opengl::rectangle::{PolygonRenderer, PolygonType, Texture};
-use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
+use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
 use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
@@ -333,7 +333,7 @@ impl View {
 
             let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
             let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
-            use crate::opengl::text as gltxt;
+            use crate::opengl::text_renderer as gltxt;
             let min_x = top_x + gltxt::calculate_text_dimensions(line_contents, self.edit_font.as_ref()).x();
             let min = Vec2i::new(min_x, top_y - (rows_down * self.get_text_font().row_height()) - self.get_text_font().row_height() - 6);
             let max = Vec2i::new(min_x + self.get_text_font().get_max_glyph_width() - 2, top_y - (rows_down * self.get_text_font().row_height()));
