@@ -34,19 +34,27 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 
 ## Screenshots
 
+Some look-and-feel showing
+![gif rendering of simple use cases](docs/img/rendering.gif)
+
 Empty file
-![Start screen](empty_file.png)
+![Start screen](docs/img/empty_file.png)
 
 Editing while having 2 views open
-![How regular editing looks right now](editing.png)
+![How regular editing looks right now](docs/img/editing.png)
 
 Debug interface overlaid on the window
-![How regular editing looks right now](debug_interface.png)
+![How regular editing looks right now](docs/img/debug_interface.png)
 
 Input box, emulating the functionality of all modern IDE's or editors, like VSCode, or Clion etc. The design
 is bound to change, right now it's just about getting the functionality to work. Looks will come later.
 Right now, there's no actual functionality in it. When typing in it, it produces files & paths in the workspace
 folder, that contains the characters. The functionality isn't particularly hard. The UI is my absolute weakest side.
 
+### Bugs
+Holy shit there has to be a massive bug in the nfd-library (I'm not accusing the Rust binding around
+it, for being the reason). But when one uses the "save file" dialog, suddenly memory usage goes UP
+by 300-400 MB. That's an *insane* jump.
+
 Keyboard command
-![Input box for quick select of file browsing](example.png)
+![Input box for quick select of file browsing](docs/img/example.png)

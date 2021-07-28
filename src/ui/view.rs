@@ -179,19 +179,17 @@ impl InputBehavior for View {
 impl View {
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
-        bg_color: RGBAColor, buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
+        bg_color: RGBAColor, mut buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
     ) -> View {
         let title_height = title_font.row_height() + 5;
 
         let tmp_anchor = Vec2i::new(0, height);
         let title_size = Size::new(width, title_height);
-
         let title_frame = Frame::new(tmp_anchor, title_size);
-
         let view_anchor = Vec2i::new(0, height - title_height);
         let view_size = Size::new(width, height - title_height);
-
         let view_frame = Frame::new(view_anchor, view_size);
+        buffer.rebuild_metadata();
 
         cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
         let mut v = View {

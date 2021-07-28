@@ -3,8 +3,11 @@
 	"tasks": [
 		{
 			"type": "shell",
-            "command": "cargo", // note: full path to the cargo
-			"args": ["run", "--release"],
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"run",
+				"--release"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -14,13 +17,17 @@
 				"isDefault": true
 			},
 			"options": {
-				"env": { "RUST_BACKTRACE": "full" } 
+				"env": {
+					"RUST_BACKTRACE": "full"
+				}
 			},
 		},
 		{
 			"type": "shell",
-            "command": "cargo", // note: full path to the cargo
-			"args": ["run"],
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"run"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -30,13 +37,17 @@
 				"isDefault": true
 			},
 			"options": {
-				"env": { "RUST_BACKTRACE": "full" } 
+				"env": {
+					"RUST_BACKTRACE": "full"
+				}
 			},
 		},
 		{
 			"type": "shell",
-            "command": "cargo", // note: full path to the cargo
-			"args": ["build"],
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"build"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -46,14 +57,18 @@
 				"isDefault": true
 			},
 			"options": {
-				"env": { "RUST_BACKTRACE": "full" } 
+				"env": {
+					"RUST_BACKTRACE": "full"
+				}
 			}
 		},
-		
 		{
 			"type": "shell",
-            "command": "cargo", // note: full path to the cargo
-			"args": ["build", "--release"],
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"build",
+				"--release"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -63,16 +78,20 @@
 				"isDefault": true
 			},
 			"options": {
-				"env": { 
+				"env": {
 					"RUST_BACKTRACE": "full",
-					"RUSTFLAGS": "'-C -force-frame-pointer=y'" 
-				} 
+					"RUSTFLAGS": "'-C -force-frame-pointer=y'"
+				}
 			}
 		},
 		{ // Run perf on binary
 			"type": "shell",
-            "command": "perf",
-			"args": ["record", "-g", "target/release/cxgledit"],
+			"command": "perf",
+			"args": [
+				"record",
+				"-g",
+				"target/release/cxgledit"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],

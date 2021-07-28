@@ -4,6 +4,7 @@ use crate::debuginfo::DebugInfo;
 use crate::opengl::rectangle::{PolygonRenderer, TextureMap, TextureType};
 use crate::opengl::shaders::{RectShader, TextShader};
 use crate::opengl::{rect::RectRenderer, text::TextRenderer, types::RGBAColor};
+use crate::textbuffer::metadata::calculate_hash;
 use crate::textbuffer::Movement;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
@@ -123,7 +124,8 @@ impl<'app> Application<'app> {
 
         // Create the default 1st view
         let (tr, rr, pr) = make_view_renderers();
-        let buffer = buffers.request_new_buffer();
+        let mut buffer = buffers.request_new_buffer();
+        buffer.rebuild_metadata();
         let view = View::new(
             "Unnamed view",
             active_view_id.into(),
@@ -253,7 +255,6 @@ impl<'app> Application<'app> {
                 menu_font,
                 self.tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
             );
-
             self.active_ui_element = UID::View(*view.id);
             p.add_view(view);
             unsafe {

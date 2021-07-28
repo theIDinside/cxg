@@ -69,17 +69,17 @@ impl DebugView {
             let r = format!(
                 "
    Application 
-   > name                          [{}] 
-   > pid:                          [{}]
+   > name                                       [{}] 
+   > pid:                                       [{}]
    Memory: 
-   > Usage:                        [{:.2}MB]
-   > Peak usage:                   [{:.2}MB]
-   > Shared lib code               [{:.2}MB]
-   > RSS                           [{:.2}MB]
-   > Allocated heap since start    [{:.2}MB]
-   Timing  
-   > Frame time:                   [{:.5}ms]
-   > Frame speed                   [{:.2}f/s]",
+   > Allocated Virtual Memory:                  [{:.2}MB]
+   > Peak allocated VM:                         [{:.2}MB]
+   > Shared lib code                            [{:.2}MB]
+   > RSS (actual physical mem allocated)        [{:.2}MB]
+   > Allocated heap since start                 [{:.2}MB]
+   Timing           
+   > Frame time:                                [{:.5}ms]
+   > Frame speed                                [{:.2}f/s]",
                 name,
                 pid,
                 virtual_mem_usage as f64 / 1024.0,
