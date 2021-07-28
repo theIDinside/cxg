@@ -5,7 +5,7 @@ use crate::ui::UID;
 pub enum InputResponse {
     Command,
     OpenFile(PathBuf),
-    SaveFile,
+    SaveFile(Option<PathBuf>),
     None,
 }
 

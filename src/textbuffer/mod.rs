@@ -120,6 +120,8 @@ pub trait CharBuffer<'a> {
     fn clear(&mut self);
 
     fn load_file(&mut self, path: &Path);
+
+    fn save_file(&mut self, path: &Path);
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.

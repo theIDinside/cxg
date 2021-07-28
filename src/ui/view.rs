@@ -156,6 +156,9 @@ impl InputBehavior for View {
                     }
                 }
             }
+            Key::S if action == Action::Press && modifier == Modifiers::Control => {
+                return InputResponse::SaveFile(self.buffer.file_name().map(Path::to_path_buf))
+            }
             Key::Enter if action == Action::Press || action == Action::Repeat => {
                 self.insert_ch('\n');
             }

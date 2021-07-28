@@ -4,6 +4,7 @@ extern crate freetype as ft;
 extern crate gl;
 extern crate glfw;
 extern crate libc;
+extern crate nfd;
 extern crate png;
 extern crate walkdir;
 

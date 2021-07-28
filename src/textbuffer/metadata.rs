@@ -1,8 +1,13 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 /// Macros used in this module
 use crate::debugger_catch;
 use crate::IndexingType;
+
+use super::simple::simplebuffer::SimpleBuffer;
+use super::CharBuffer;
 
 IndexingType!(/** Wrapper around usize to display that this is an index type */,
     Index, usize);
@@ -24,6 +29,8 @@ pub struct MetaData {
     pub file_name: Option<PathBuf>,
     pub line_begin_indices: Vec<Index>,
     pub buffer_size: usize,
+    /// real simple approach to checking file changes
+    buf_hash: u64,
 }
 
 impl std::fmt::Display for MetaData {
@@ -34,7 +41,12 @@ impl std::fmt::Display for MetaData {
 
 impl MetaData {
     pub fn new(file_name: Option<&Path>) -> MetaData {
-        MetaData { file_name: file_name.map(|p| p.to_path_buf()), line_begin_indices: vec![Index(0)], buffer_size: 0 }
+        MetaData {
+            file_name: file_name.map(|p| p.to_path_buf()),
+            line_begin_indices: vec![Index(0)],
+            buffer_size: 0,
+            buf_hash: 0,
+        }
     }
 
     /// Guaranteed to always be at least 1, no matter what.
@@ -133,4 +145,23 @@ impl MetaData {
     pub fn set_buffer_size(&mut self, size: usize) {
         self.buffer_size = size;
     }
+
+    pub fn set_checksum(&mut self, sum: u64) {
+        self.buf_hash = sum;
+    }
+
+    pub fn get_checksum(&self) -> u64 {
+        self.buf_hash
+    }
+}
+
+pub fn calculate_hash(buf: &mut SimpleBuffer) -> u64 {
+    let mut s = DefaultHasher::new();
+    buf.hash(&mut s);
+    if let Some(p) = buf.file_name() {
+        p.hash(&mut s);
+    }
+    let l = buf.len();
+    l.hash(&mut s);
+    s.finish()
 }

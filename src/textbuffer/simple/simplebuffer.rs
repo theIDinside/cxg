@@ -1,10 +1,14 @@
-use std::{cmp::min, io::Read, path::Path};
+use std::{
+    cmp::min,
+    io::{Read, Write},
+    path::Path,
+};
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
 use crate::{
-    debugger_catch,
+    debugger_catch, only_in_debug,
     textbuffer::{
-        metadata::{self},
+        metadata::{self, calculate_hash},
         TextKind,
     },
     utils::{copy_slice_to, AsUsize},
@@ -29,6 +33,12 @@ pub struct SimpleBuffer {
     cursor: BufferCursor,
     size: usize,
     meta_data: metadata::MetaData,
+}
+
+impl std::hash::Hash for SimpleBuffer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.data.hash(state);
+    }
 }
 
 impl SimpleBuffer {
@@ -532,6 +542,8 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 self.meta_data.push_new_line_begin(metadata::Index(i + 1));
             }
         }
+        let cs = calculate_hash(self);
+        self.meta_data.set_checksum(cs);
     }
 
     #[inline(always)]
@@ -610,8 +622,6 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     }
 
     fn load_file(&mut self, path: &Path) {
-        println!("File {} exists: {}", path.display(), path.exists());
-
         let file_options = std::fs::OpenOptions::new().read(true).open(path);
         let mut strbuf = String::with_capacity(10000);
 
@@ -628,12 +638,34 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     self.size = self.data.len();
                     self.meta_data.set_buffer_size(self.size);
                     self.meta_data.file_name = Some(path.to_path_buf());
+                    let cs = calculate_hash(self);
+                    self.meta_data.set_checksum(cs);
                 }
                 Err(e) => println!("failed to read data: {}", e),
             },
             Err(e) => {
                 println!("failed to OPEN file: {}", e);
             }
+        }
+    }
+
+    fn save_file(&mut self, path: &Path) {
+        let checksum = calculate_hash(self);
+        if checksum != self.meta_data.get_checksum() {
+            match std::fs::OpenOptions::new().write(true).create(true).open(path) {
+                Ok(mut file) => match file.write(self.data.iter().map(|c| *c).collect::<String>().as_bytes()) {
+                    Ok(bytes_written) => {
+                        only_in_debug!(println!("wrote {} bytes to {}", bytes_written, path.display()));
+                        let checksum = calculate_hash(self);
+                        self.meta_data.set_checksum(checksum);
+                        self.meta_data.file_name = Some(path.to_path_buf());
+                    }
+                    Err(_err) => {}
+                },
+                Err(_err) => {}
+            }
+        } else {
+            println!("File is already pristine!");
         }
     }
 }

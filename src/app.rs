@@ -11,7 +11,7 @@ use crate::ui::basic::{
     frame::Frame,
 };
 use crate::ui::debug_view::DebugView;
-use crate::ui::eventhandling::event::{InputBehavior, InvalidInputElement};
+use crate::ui::eventhandling::event::{InputBehavior, InputResponse, InvalidInputElement};
 use crate::ui::inputbox::{InputBox, Mode};
 use crate::ui::panel::{Panel, PanelId};
 use crate::ui::view::{Popup, View, ViewId};
@@ -586,7 +586,8 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-            Key::S if modifier == Modifiers::Control && action == Action::Press => {
+            // Key::F if modifier == Modifiers::Control && action == Action::Press =>
+            Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
                 let p = &mut self.panels;
                 all_views_mut(p).for_each(|v| v.visible = true);
                 for p in self.panels.iter_mut() {
@@ -644,7 +645,7 @@ impl<'app> Application<'app> {
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
             _ => match self.active_input.handle_key(key, action, modifier) {
-                crate::ui::eventhandling::event::InputResponse::OpenFile(path) => {
+                InputResponse::OpenFile(path) => {
                     let v = self.get_active_view();
                     if v.buffer.empty() {
                         v.buffer.load_file(&path);
@@ -664,6 +665,31 @@ impl<'app> Application<'app> {
                         self.input_box.visible = false;
                     }
                     self.input_box.clear();
+                }
+                InputResponse::SaveFile(file_path) => {
+                    if let Some(p) = file_path {
+                        let v = self.get_active_view();
+                        v.buffer.save_file(&p);
+                    } else {
+                        // todo: we need to turn off _all_ GLFW input handling at this point. Because if we hit Ctrl+Q while the nfd-dialog is open
+                        //  we have told our application to quit running, and it will try to exit - only to be blocked by the nfd. This doesn't seem safe at all.
+                        //  best thing to do, would be to turn off all polling for input and restore state once we return from nfd
+                        match nfd::open_save_dialog(Some("*"), Some(".")) {
+                            Ok(res) => match res {
+                                nfd::Response::Okay(file_name_selected) => {
+                                    let v = self.get_active_view();
+                                    v.buffer.save_file(Path::new(&file_name_selected));
+                                }
+                                nfd::Response::OkayMultiple(multi_string) => {
+                                    println!("Response: {:?}", multi_string);
+                                }
+                                nfd::Response::Cancel => {}
+                            },
+                            Err(err) => {
+                                println!("Error: {}", err);
+                            }
+                        }
+                    }
                 }
                 _ => {}
             },
