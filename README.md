@@ -19,6 +19,9 @@ Key-bindings are not re-mappable right now, but obviously will be
 
 ## Screenshots
 
+Empty file
+![Start screen](empty_file.png)
+
 Editing while having 2 views open
 ![How regular editing looks right now](editing.png)
 
