@@ -759,24 +759,19 @@ impl Viewable for View {
     }
 
     fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinate: Vec2i) {
-        // description
-        // check if begin_coordinate lands on cursor
-        // if not, set cursor to begin_coordinate, selecting that position in the text buffer, set at begin_range
-        // check where in the text buffer current_coordinate lands, set this as current_selection, thus we have selected begin_range ..= current_selection
-        // draw selection cursor accordingly
-
         if let Some((begin_coord_idx, target_coord_idx)) = self
             .mouse_to_buffer_position(begin_coordinate)
             .zip(self.mouse_to_buffer_position(current_coordinate))
         {
-            let (begin, end) = if begin_coord_idx < target_coord_idx {
-                (begin_coord_idx, target_coord_idx)
-            } else {
-                (target_coord_idx, begin_coord_idx)
-            };
-            let dbg_string = String::from_iter(self.buffer.get_slice(*begin..*end.offset(1)));
-            println!("Selection: {}", dbg_string);
-
+            /*
+                       let (begin, end) = if begin_coord_idx < target_coord_idx {
+                           (begin_coord_idx, target_coord_idx)
+                       } else {
+                           (target_coord_idx, begin_coord_idx)
+                       };
+                       let dbg_string = String::from_iter(self.buffer.get_slice(*begin..*end.offset(1)));
+                       println!("Selection: {}", dbg_string);
+            */
             self.buffer.cursor_goto(target_coord_idx);
             self.buffer.cursor_marker = Some(begin_coord_idx);
             self.adjust_view_range();

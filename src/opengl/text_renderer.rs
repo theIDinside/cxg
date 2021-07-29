@@ -275,11 +275,11 @@ pub fn calculate_text_dimensions(text: &[char], font: &Font) -> Size {
                 c
             };
             if c == '=' {
-                let g = match text.get(index - 1) {
+                size.width += match text.get(index - 1) {
                     Some('<') | Some('>') | Some('!') => None,
                     _ => font.get_glyph(c),
-                };
-                size.width += g.unwrap().advance;
+                }
+                .map_or(0, |g| g.advance);
             } else {
                 size.width += font.get_glyph(c).unwrap().advance;
             }
