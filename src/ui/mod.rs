@@ -17,6 +17,7 @@ pub mod inputbox;
 pub mod panel;
 pub mod view;
 
+pub mod clipboard;
 pub mod debug_view;
 
 #[derive(Clone, Copy, Debug)]
