@@ -8,6 +8,7 @@ pub mod generic {
     }
 
     impl<T> Vec2<T> {
+        #[inline(always)]
         pub fn new(x: T, y: T) -> Vec2<T> {
             Vec2 { x, y }
         }

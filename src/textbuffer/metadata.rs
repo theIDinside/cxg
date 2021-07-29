@@ -1,5 +1,6 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::iter::Step;
 use std::path::{Path, PathBuf};
 
 /// Macros used in this module
@@ -85,7 +86,8 @@ impl MetaData {
         (a, b)
     }
 
-    /// Finds what line in buffer, the absolute cursor position buffer_index is at
+    /// Finds what line in buffer, the absolute cursor position buffer_index points into
+    /// * `buffer_index` - the buffer index, we want to find the line that it lives on for
     pub fn get_line_number_of_buffer_index(&self, buffer_index: Index) -> Option<usize> {
         self.line_begin_indices
             .windows(2)

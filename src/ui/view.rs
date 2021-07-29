@@ -24,6 +24,7 @@ use crate::textbuffer::{
 
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -65,6 +66,7 @@ pub struct View {
     pub bg_color: RGBAColor,
     pub visible: bool,
     background_image: Texture,
+    text_margin_left: i32,
 }
 
 pub struct Popup {
@@ -212,6 +214,7 @@ impl View {
             bg_color,
             visible: true,
             background_image,
+            text_margin_left: 2,
         };
 
         v.update(None);
@@ -310,12 +313,6 @@ impl View {
         self.set_need_redraw();
     }
 
-    pub fn draw_title(&mut self, title: &str) {
-        let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
-        self.text_renderer
-            .push_draw_command(title.chars().map(|c| c), RGBColor::white(), tx + 3, ty, self.get_title_font());
-    }
-
     pub fn draw(&mut self) {
         if !self.visible {
             return;
@@ -345,7 +342,7 @@ impl View {
 
             // draw text view
             let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
-            let top_x = top_x + 2;
+            let top_x = top_x + self.text_margin_left;
             unsafe {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -362,41 +359,94 @@ impl View {
                 top_y,
                 self.get_text_font(),
             );
-
-            if let Some(selection) = self._buffer_selection {}
-
-            let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
-            let cols_in = *self.buffer.cursor_col() as i32;
-
-            let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-            let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
             use crate::opengl::text_renderer as gltxt;
-            let min_x = top_x + gltxt::calculate_text_dimensions(line_contents, self.edit_font.as_ref()).x();
-            let min = Vec2i::new(min_x, top_y - (rows_down * self.get_text_font().row_height()) - self.get_text_font().row_height() - 6);
-            let max = Vec2i::new(min_x + self.get_text_font().get_max_glyph_width() - 2, top_y - (rows_down * self.get_text_font().row_height()));
-
-            let mut cursor_bound_box = BoundingBox::new(min, max);
-            let mut line_bounding_box = cursor_bound_box.clone();
-            line_bounding_box.min.x = top_x;
-            line_bounding_box.max.x = top_x + total_size.width;
-
-            line_bounding_box.min.y += 2;
-            line_bounding_box.max.y -= 2;
-
-            cursor_bound_box.min.y += 3;
-            cursor_bound_box.max.y -= 3;
-
             self.cursor_renderer.clear_data();
+            if let &Some(marker) = &self.buffer.cursor_marker {
+                let selection_color = RGBAColor { r: 0.75, g: 0.75, b: 0.95, a: 0.3 };
 
-            self.cursor_renderer
-                .add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
-            self.cursor_renderer
-                .add_rect(cursor_bound_box, RGBAColor { r: 0.95, g: 0.75, b: 0.75, a: 0.5 });
+                if marker < self.buffer.cursor_abs() {
+                    // means we have drag-selected downwards/forwards
+                    let first_line = self
+                        .buffer
+                        .meta_data()
+                        .get_line_number_of_buffer_index(marker)
+                        .map_or(Line(0), |l| Line(l));
+                    let last_line = self.buffer.cursor_row();
+                    if first_line == last_line {
+                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                        let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+                        let begin_selection = marker - line_begin;
+                        let end_selection = self.buffer.cursor_col();
+                        let slice = self.buffer.get_slice(*line_begin..*self.buffer.cursor_abs());
+                        let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
+                        let end_x = gltxt::calculate_text_dimensions(&slice[0..*end_selection], self.edit_font.as_ref()).x();
+
+                        let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
+                        let max = Vec2i::new(
+                            top_x + end_x + self.get_text_font().get_max_glyph_width() - 2,
+                            top_y - rows_down_in_view * self.get_text_font().row_height(),
+                        );
+                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+                        self.cursor_renderer.add_rect(rect, selection_color);
+                        self.render_normal_cursor();
+                    } else {
+                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                        let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
+                        let rendered = self.render_selection_requires_translation(marker, self.buffer.cursor_abs());
+                        for bb in rendered {
+                            let translated = bb.translate(translate_vector);
+                            self.cursor_renderer.add_rect(translated, selection_color);
+                        }
+                        self.render_normal_cursor();
+                        self.view_changed = false;
+                    }
+                } else {
+                    // means we drag-selected upwards/backwards
+                    let md = self.buffer.meta_data();
+                    let first_line = self.buffer.cursor_row();
+                    let last_line = md
+                        .get_line_number_of_buffer_index(marker)
+                        .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
+
+                    if first_line == last_line {
+                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                        let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+                        // let begin_selection = marker - line_begin;
+                        let begin_selection = Index(*self.buffer.cursor_col());
+                        let end_selection = *marker - *line_begin;
+                        let slice = self.buffer.get_slice(*line_begin..*marker);
+                        let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
+                        let end_x = gltxt::calculate_text_dimensions(&slice[0..end_selection], self.edit_font.as_ref()).x();
+
+                        let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
+                        let max = Vec2i::new(
+                            top_x + end_x + self.get_text_font().get_max_glyph_width() - 2,
+                            top_y - rows_down_in_view * self.get_text_font().row_height(),
+                        );
+                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+                        self.cursor_renderer.add_rect(rect, selection_color);
+                        self.render_normal_cursor();
+                    } else {
+                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                        let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
+                        let rendered = self.render_selection_requires_translation(self.buffer.cursor_abs(), marker);
+                        for bb in rendered {
+                            let translated = bb.translate(translate_vector);
+                            self.cursor_renderer.add_rect(translated, selection_color);
+                        }
+                        self.render_normal_cursor();
+                        self.view_changed = false;
+                    }
+                }
+            } else {
+                self.render_normal_cursor();
+                self.view_changed = false;
+            }
             self.view_changed = false;
         }
 
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
-        self.window_renderer.draw_list();
+        self.window_renderer.execute_draw_list();
         unsafe {
             let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
             gl::Enable(gl::SCISSOR_TEST);
@@ -410,6 +460,92 @@ impl View {
         unsafe {
             gl::Disable(gl::SCISSOR_TEST);
         }
+    }
+
+    fn render_normal_cursor(&mut self) {
+        use crate::opengl::text_renderer as gltxt;
+        let total_size = self.total_size();
+        // Rendering the "normal" cursor stuff, i.e. the block cursor, and the line highlighter
+        let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
+        let cols_in = *self.buffer.cursor_col() as i32;
+
+        let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+        let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
+
+        let min_x = gltxt::calculate_text_dimensions(line_contents, self.edit_font.as_ref()).x();
+        let min = Vec2i::new(min_x, 0 - (rows_down + 1) * self.get_text_font().row_height());
+        let max = Vec2i::new(min_x + self.get_text_font().get_max_glyph_width() - 2, 0 - (rows_down * self.get_text_font().row_height()));
+
+        let cursor_bound_box = BoundingBox::new(min, max)
+            .translate(Vec2i::new(2, -3))
+            .translate(self.view_frame.anchor);
+        let mut line_bounding_box = cursor_bound_box.clone();
+        line_bounding_box.min.x = self.view_frame.anchor.x + 2;
+        line_bounding_box.max.x = self.view_frame.anchor.x + 2 + total_size.width;
+
+        self.cursor_renderer
+            .add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
+        self.cursor_renderer
+            .add_rect(cursor_bound_box, RGBAColor { r: 0.95, g: 0.75, b: 0.75, a: 0.5 });
+    }
+
+    // Renders bounding box(es) for the text range between begin and end. If this encompasses only one line, a vec![bb] will be returned, if more, then vec![bb_a, ..] and so on
+    // The bounding boxes will be in it's own coordinate space, and thus has to be mapped onto whatever coordinate space that the caller requires, which isn't that hard
+    // of a job. Therefore, the first bounding box, will have it's origin (the min member and its x,y values, that is): Vec2i(0, 0)
+    // and if spanning multiple lines, each subsequent line will have Vec2i(0, (line * row_height) * -1). This should make remapping fairly easy
+    fn render_selection_requires_translation(&self, begin: Index, end: Index) -> Vec<BoundingBox> {
+        use crate::opengl::text_renderer as gltxt;
+        debug_assert!(begin < end);
+        let mut render_infos = Vec::with_capacity(10);
+        let md = self.buffer.meta_data();
+        let first_line = md.get_line_number_of_buffer_index(begin).map_or(Line(0), |l| Line(l));
+        let last_line = md
+            .get_line_number_of_buffer_index(end)
+            .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
+
+        let mut lines_contents = self.buffer.get_lines_as_slices(first_line, last_line);
+        let mut rows_down_in_view: i32 = 0;
+        let first_selected_col_position = *begin - *md.get_line_start_index(first_line).unwrap();
+        let last_selected_col_position = *end - *md.get_line_start_index(last_line).unwrap();
+
+        let cursor_start_x = gltxt::calculate_text_dimensions(&lines_contents[0][0..first_selected_col_position], self.edit_font.as_ref()).x();
+        let remaining_line_width = gltxt::calculate_text_dimensions(&lines_contents[0][first_selected_col_position..], self.edit_font.as_ref()).x();
+        let min = Vec2i::new(cursor_start_x, 0 - (rows_down_in_view + 1) * self.get_text_font().row_height());
+        let max = Vec2i::new(cursor_start_x + remaining_line_width, 0 - rows_down_in_view * self.get_text_font().row_height());
+        let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+
+        render_infos.push(rect);
+        rows_down_in_view += 1;
+        if lines_contents.len() > 2 {
+            let last_line_content = lines_contents.pop().unwrap();
+            for &l in lines_contents.iter().skip(1) {
+                let line_width = gltxt::calculate_text_dimensions(&l, self.edit_font.as_ref()).width;
+                let min = Vec2i::new(0, 0 - (rows_down_in_view + 1) * self.get_text_font().row_height());
+                let max = Vec2i::new(line_width + self.get_text_font().get_max_glyph_width() - 2, 0 - rows_down_in_view * self.get_text_font().row_height());
+                let line_bb = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+                render_infos.push(line_bb);
+                rows_down_in_view += 1;
+            }
+            let line_width = gltxt::calculate_text_dimensions(&last_line_content[0..last_selected_col_position], self.edit_font.as_ref()).width;
+            let min = Vec2i::new(0, 0 - (rows_down_in_view + 1) * self.get_text_font().row_height());
+            let max = Vec2i::new(line_width + self.get_text_font().get_max_glyph_width() - 2, 0 - rows_down_in_view * self.get_text_font().row_height());
+            let line_bb = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+            render_infos.push(line_bb);
+        } else {
+            let last_line_content = lines_contents.pop().unwrap();
+            let line_width = gltxt::calculate_text_dimensions(&last_line_content[0..last_selected_col_position], self.edit_font.as_ref()).width;
+            let min = Vec2i::new(0, 0 - (rows_down_in_view + 1) * self.get_text_font().row_height());
+            let max = Vec2i::new(line_width + self.get_text_font().get_max_glyph_width() - 2, 0 - rows_down_in_view * self.get_text_font().row_height());
+            let line_bb = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+            render_infos.push(line_bb);
+        }
+        render_infos
+    }
+
+    pub fn draw_title(&mut self, title: &str) {
+        let Vec2i { x: tx, y: ty } = self.title_frame.anchor;
+        self.text_renderer
+            .push_draw_command(title.chars().map(|c| c), RGBColor::white(), tx + 3, ty, self.get_title_font());
     }
 
     pub fn load_file(&mut self, path: &Path) {
@@ -608,6 +744,7 @@ impl Viewable for View {
     }
 
     fn mouse_clicked(&mut self, validated_inside_pos: Vec2i) {
+        self.buffer.cursor_marker = None;
         debugger_catch!(
             self.bounding_box().box_hit_check(validated_inside_pos),
             crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view"))
@@ -627,11 +764,24 @@ impl Viewable for View {
         // if not, set cursor to begin_coordinate, selecting that position in the text buffer, set at begin_range
         // check where in the text buffer current_coordinate lands, set this as current_selection, thus we have selected begin_range ..= current_selection
         // draw selection cursor accordingly
-        use std::cmp::{max, min};
 
-        self._buffer_selection = self
+        if let Some((begin_coord_idx, target_coord_idx)) = self
             .mouse_to_buffer_position(begin_coordinate)
             .zip(self.mouse_to_buffer_position(current_coordinate))
-            .and_then(|(b, e)| Some(min(b, e)..max(b, e).offset(1)));
+        {
+            let (begin, end) = if begin_coord_idx < target_coord_idx {
+                (begin_coord_idx, target_coord_idx)
+            } else {
+                (target_coord_idx, begin_coord_idx)
+            };
+            let dbg_string = String::from_iter(self.buffer.get_slice(*begin..*end.offset(1)));
+            println!("Selection: {}", dbg_string);
+
+            self.buffer.cursor_goto(target_coord_idx);
+            self.buffer.cursor_marker = Some(begin_coord_idx);
+            self.adjust_view_range();
+        } else {
+            self.buffer.cursor_marker = None;
+        }
     }
 }

@@ -31,7 +31,7 @@ pub struct SimpleBuffer {
     pub id: u32,
     pub data: Vec<char>,
     edit_cursor: BufferCursor,
-    cursor_range_end: Option<metadata::Index>,
+    pub cursor_marker: Option<metadata::Index>,
     size: usize,
     meta_data: metadata::MetaData,
 }
@@ -48,7 +48,7 @@ impl SimpleBuffer {
             id: id,
             data: Vec::with_capacity(capacity),
             edit_cursor: BufferCursor::default(),
-            cursor_range_end: None,
+            cursor_marker: None,
             size: 0,
             meta_data: metadata::MetaData::new(None),
         }
@@ -79,6 +79,17 @@ impl SimpleBuffer {
             .data
             .get(range.clone())
             .expect(&format!("Range out of length: {:?} - buf size: {}", range, self.len()))
+    }
+
+    pub fn get_lines_as_slices(&self, first: metadata::Line, last: metadata::Line) -> Vec<&[char]> {
+        debug_assert!(first < last, "Last line must come after first line");
+        let mut res = Vec::with_capacity(*(last - first));
+        for l in first..=last {
+            let line_begin = self.meta_data.get_line_start_index(l).map(|i| *i).unwrap();
+            let line_end = self.meta_data.get_line_start_index(l.offset(1)).map_or(self.len(), |i| *i);
+            res.push(self.get_slice(line_begin..line_end));
+        }
+        res
     }
 
     pub fn line_length(&self, line: metadata::Line) -> Option<metadata::Length> {

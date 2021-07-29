@@ -506,8 +506,7 @@ impl<'app> Application<'app> {
             }
             MouseState::UIElementClicked(_view_id, _btn, _pos) => {}
             MouseState::UIElementDrag(_maybe_view, _btn, _pos) => {}
-            MouseState::UIElementDragAction(view, btn, begin, current) => {
-                let active_id = self.get_active_view_id();
+            MouseState::UIElementDragAction(_view, _btn, begin, current) => {
                 let pos = begin.to_i32();
                 let view_handling_action = self
                     .panels
@@ -516,8 +515,6 @@ impl<'app> Application<'app> {
                     .find(|v| v.bounding_box().box_hit_check(pos));
                 if let Some(handling_view) = view_handling_action {
                     handling_view.mouse_dragged(begin.to_i32(), current.to_i32());
-                    handling_view.set_need_redraw();
-                    handling_view.update(None);
                 }
                 self.mouse_state = new_state;
             }

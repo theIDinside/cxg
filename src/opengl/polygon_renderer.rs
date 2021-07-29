@@ -294,7 +294,7 @@ impl PolygonRenderer {
         self.push_draw_command(inner_rect, fill_color, rect_type);
     }
 
-    pub fn draw_list(&mut self) {
+    pub fn execute_draw_list(&mut self) {
         self.bind();
         if self.needs_update {
             self.reserve_gpu_memory_if_needed();

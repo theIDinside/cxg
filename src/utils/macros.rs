@@ -188,6 +188,29 @@ macro_rules! IndexingType {
                 }
             }
         }
+
+        impl Step for $safe_type {
+            fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+                if start > end {
+                    None
+                } else {
+                    Some(**end - **start)
+                }
+            }
+        
+            fn forward_checked(start: Self, count: usize) -> Option<Self> {
+                Some(start.offset(count as isize))
+            }
+        
+            fn backward_checked(start: Self, count: usize) -> Option<Self> {
+                if count > *start {
+                    None
+                } else {
+                    let offset = count as isize;
+                    Some(start.offset(-1 * offset))
+                }
+            }
+        }
     };
 }
 
