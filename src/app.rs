@@ -10,6 +10,7 @@ use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
+use crate::ui::clipboard::ClipBoard;
 use crate::ui::debug_view::DebugView;
 use crate::ui::eventhandling::event::{InputBehavior, InputResponse, InvalidInputElement};
 use crate::ui::inputbox::{InputBox, Mode};
@@ -82,6 +83,8 @@ pub struct Application<'app> {
     /// Currently *only* holds the background texture.
     /// todo: make this hold both the font atlas & and the future textures, such as button images, logos etc
     pub tex_map: TextureMap,
+
+    pub clipboard: ClipBoard,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -109,9 +112,9 @@ impl<'app> Application<'app> {
 
         let make_view_renderers = || {
             (
-                TextRenderer::create(font_shader.clone(), 1024 * 10),
-                RectRenderer::create(rect_shader.clone(), 8 * 1024),
-                PolygonRenderer::create(polygon_shader.clone(), 8 * 60),
+                TextRenderer::create(font_shader.clone(), 1024),
+                RectRenderer::create(rect_shader.clone(), 64),
+                PolygonRenderer::create(polygon_shader.clone(), 64),
             )
         };
 
@@ -211,6 +214,7 @@ impl<'app> Application<'app> {
             mouse_state: MouseState::None,
             rect_animation_renderer,
             tex_map,
+            clipboard: ClipBoard::new(),
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -243,9 +247,9 @@ impl<'app> Application<'app> {
             let view = View::new(
                 view_name,
                 view_id.into(),
-                TextRenderer::create(self.font_shader.clone(), 1024 * 10),
-                RectRenderer::create(self.rect_shader.clone(), 1024 * 10),
-                PolygonRenderer::create(self.polygon_shader.clone(), 1024 * 10),
+                TextRenderer::create(self.font_shader.clone(), 1024),
+                RectRenderer::create(self.rect_shader.clone(), 64),
+                PolygonRenderer::create(self.polygon_shader.clone(), 64),
                 width,
                 height,
                 ACTIVE_VIEW_BACKGROUND,
