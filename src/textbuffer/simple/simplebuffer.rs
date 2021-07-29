@@ -30,7 +30,8 @@ pub enum Operation {
 pub struct SimpleBuffer {
     pub id: u32,
     pub data: Vec<char>,
-    cursor: BufferCursor,
+    edit_cursor: BufferCursor,
+    cursor_range_end: Option<metadata::Index>,
     size: usize,
     meta_data: metadata::MetaData,
 }
@@ -46,7 +47,8 @@ impl SimpleBuffer {
         SimpleBuffer {
             id: id,
             data: Vec::with_capacity(capacity),
-            cursor: BufferCursor::default(),
+            edit_cursor: BufferCursor::default(),
+            cursor_range_end: None,
             size: 0,
             meta_data: metadata::MetaData::new(None),
         }
@@ -57,7 +59,7 @@ impl SimpleBuffer {
     }
 
     pub fn cursor(&self) -> BufferCursor {
-        self.cursor.clone()
+        self.edit_cursor.clone()
     }
 
     pub fn get(&self, idx: metadata::Index) -> Option<&char> {
@@ -90,14 +92,14 @@ impl SimpleBuffer {
     }
 
     pub fn get_cursor(&self) -> &BufferCursor {
-        &self.cursor
+        &self.edit_cursor
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
         if slice.len() > 128 {
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
             unsafe {
-                let abs = *self.cursor.absolute() as isize;
+                let abs = *self.edit_cursor.absolute() as isize;
                 let ptr = v.as_mut_ptr();
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr(), v.as_mut_ptr(), *self.cursor.absolute());
                 copy_slice_to(ptr, &self.data[..abs as usize]);
@@ -112,7 +114,7 @@ impl SimpleBuffer {
                 self.data = v;
                 self.rebuild_metadata();
                 self.meta_data.set_buffer_size(self.size);
-                self.cursor = self.cursor_from_metadata(new_abs_cursor_pos).unwrap();
+                self.edit_cursor = self.cursor_from_metadata(new_abs_cursor_pos).unwrap();
             }
         } else {
             for c in slice {
@@ -122,7 +124,7 @@ impl SimpleBuffer {
     }
     /// Erases one character at the index of the cursor position
     pub fn remove(&mut self) {
-        let idx = *self.cursor.absolute();
+        let idx = *self.edit_cursor.absolute();
         if idx != self.len() && self.len() != 0 {
             self.data.remove(idx);
         }
@@ -148,9 +150,9 @@ impl SimpleBuffer {
             TextKind::Char => self.cursor_step_forward(count),
             TextKind::Word => {
                 if count == 1 {
-                    if let Some(&c) = self.get(self.cursor.absolute()) {
+                    if let Some(&c) = self.get(self.edit_cursor.absolute()) {
                         if c.is_alphanumeric() {
-                            self.cursor = self.find_next(|c| c.is_whitespace()).unwrap_or(BufferCursor {
+                            self.edit_cursor = self.find_next(|c| c.is_whitespace()).unwrap_or(BufferCursor {
                                 pos: metadata::Index(self.len()),
                                 row: metadata::Line(self.meta_data.line_count() - 1),
                                 col: metadata::Column(
@@ -161,7 +163,7 @@ impl SimpleBuffer {
                                 ),
                             });
                         } else if c.is_whitespace() {
-                            self.cursor = self.find_next(|c| c.is_alphanumeric()).unwrap_or(BufferCursor {
+                            self.edit_cursor = self.find_next(|c| c.is_alphanumeric()).unwrap_or(BufferCursor {
                                 pos: metadata::Index(self.len()),
                                 row: metadata::Line(self.meta_data.line_count() - 1),
                                 col: metadata::Column(
@@ -189,32 +191,35 @@ impl SimpleBuffer {
     pub fn cursor_move_backward(&mut self, kind: TextKind, count: usize) {
         match kind {
             TextKind::Char => {
-                if *self.cursor.absolute() as i64 - count as i64 > 0 {
+                if *self.edit_cursor.absolute() as i64 - count as i64 > 0 {
                     for _ in 0..count {
-                        self.cursor.pos -= metadata::Index(1);
-                        if let Some('\n') = self.get(self.cursor.absolute()) {
-                            self.cursor.row -= metadata::Line(1);
-                            self.cursor.col = metadata::Column(
-                                *(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))),
+                        self.edit_cursor.pos -= metadata::Index(1);
+                        if let Some('\n') = self.get(self.edit_cursor.absolute()) {
+                            self.edit_cursor.row -= metadata::Line(1);
+                            self.edit_cursor.col = metadata::Column(
+                                *(self.edit_cursor.absolute()
+                                    - self
+                                        .find_prev_newline_pos_from(self.edit_cursor.absolute())
+                                        .unwrap_or(metadata::Index(0))),
                             )
                         } else {
-                            self.cursor.col -= metadata::Column(1);
+                            self.edit_cursor.col -= metadata::Column(1);
                         }
                     }
                 } else {
-                    self.cursor = BufferCursor::default();
+                    self.edit_cursor = BufferCursor::default();
                 }
             }
             TextKind::Word => {
                 if count == 1 {
-                    if let Some(&c) = self.get(self.cursor.absolute()) {
+                    if let Some(&c) = self.get(self.edit_cursor.absolute()) {
                         if c.is_alphanumeric() {
                             if let Some(cur) = self.find_prev(|c| c.is_whitespace()) {
-                                self.cursor = cur;
+                                self.edit_cursor = cur;
                             }
                         } else if c.is_whitespace() {
                             if let Some(cur) = self.find_prev(|c| c.is_alphanumeric()) {
-                                self.cursor = cur;
+                                self.edit_cursor = cur;
                             }
                         }
                     } else {
@@ -291,43 +296,47 @@ impl SimpleBuffer {
     }
 
     fn cursor_step_forward(&mut self, count: usize) {
-        if *self.cursor.absolute().offset(1) <= self.data.len() {
+        if *self.edit_cursor.absolute().offset(1) <= self.data.len() {
             for _ in 0..count {
-                if let Some('\n') = self.get(self.cursor.absolute()) {
-                    self.cursor.row = self.cursor.row.offset(1);
-                    self.cursor.col = metadata::Column(0);
+                if let Some('\n') = self.get(self.edit_cursor.absolute()) {
+                    self.edit_cursor.row = self.edit_cursor.row.offset(1);
+                    self.edit_cursor.col = metadata::Column(0);
                 } else {
-                    self.cursor.col = self.cursor.col.offset(1);
+                    self.edit_cursor.col = self.edit_cursor.col.offset(1);
                 }
-                self.cursor.pos = self.cursor.pos.offset(1);
+                self.edit_cursor.pos = self.edit_cursor.pos.offset(1);
             }
         } else {
-            for _ in *self.cursor.absolute()..self.data.len() {
-                if let Some('\n') = self.get(self.cursor.absolute()) {
-                    self.cursor.row = self.cursor.row.offset(1);
-                    self.cursor.col = metadata::Column(0);
+            for _ in *self.edit_cursor.absolute()..self.data.len() {
+                if let Some('\n') = self.get(self.edit_cursor.absolute()) {
+                    self.edit_cursor.row = self.edit_cursor.row.offset(1);
+                    self.edit_cursor.col = metadata::Column(0);
                 } else {
-                    self.cursor.col = self.cursor.col.offset(1);
+                    self.edit_cursor.col = self.edit_cursor.col.offset(1);
                 }
-                self.cursor.pos = self.cursor.pos.offset(1);
+                self.edit_cursor.pos = self.edit_cursor.pos.offset(1);
             }
         }
     }
 
     fn cursor_step_backward(&mut self, count: usize) {
-        if *self.cursor.absolute() as i64 - count as i64 > 0 {
+        if *self.edit_cursor.absolute() as i64 - count as i64 > 0 {
             for _ in 0..count {
-                self.cursor.pos = self.cursor.pos.offset(-1);
-                if let Some('\n') = self.get(self.cursor.absolute()) {
-                    self.cursor.row = self.cursor.row.offset(-1);
-                    self.cursor.col =
-                        metadata::Column(*(self.cursor.absolute() - self.find_prev_newline_pos_from(self.cursor.absolute()).unwrap_or(metadata::Index(0))))
+                self.edit_cursor.pos = self.edit_cursor.pos.offset(-1);
+                if let Some('\n') = self.get(self.edit_cursor.absolute()) {
+                    self.edit_cursor.row = self.edit_cursor.row.offset(-1);
+                    self.edit_cursor.col = metadata::Column(
+                        *(self.edit_cursor.absolute()
+                            - self
+                                .find_prev_newline_pos_from(self.edit_cursor.absolute())
+                                .unwrap_or(metadata::Index(0))),
+                    )
                 } else {
-                    self.cursor.col -= metadata::Column(1);
+                    self.edit_cursor.col -= metadata::Column(1);
                 }
             }
         } else {
-            self.cursor = BufferCursor::default();
+            self.edit_cursor = BufferCursor::default();
         }
     }
 
@@ -336,7 +345,7 @@ impl SimpleBuffer {
             return;
         }
         let prior_line = self.cursor_row().offset(-1);
-        self.cursor = self
+        self.edit_cursor = self
             .meta_data
             .get_line_start_index(prior_line)
             .and_then(|index| {
@@ -365,7 +374,7 @@ impl SimpleBuffer {
             .line_length(next_line_index)
             .map(|l| l.as_column())
             .and_then(|next_line_length| {
-                if let Some(line_begin) = self.meta_data.get(self.cursor.row.offset(1)) {
+                if let Some(line_begin) = self.meta_data.get(self.edit_cursor.row.offset(1)) {
                     let new_buffer_index = line_begin.offset(if self.cursor_col() <= next_line_length.offset(-1) {
                         *self.cursor_col() as _
                     } else {
@@ -376,7 +385,7 @@ impl SimpleBuffer {
                     None
                 }
             });
-        self.set_cursor(new_cursor.unwrap_or(self.cursor));
+        self.set_cursor(new_cursor.unwrap_or(self.edit_cursor));
     }
 }
 
@@ -419,40 +428,40 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     fn clear(&mut self) {
         self.data.clear();
-        self.cursor = BufferCursor::default();
+        self.edit_cursor = BufferCursor::default();
         self.meta_data.clear_line_index_metadata();
     }
 
     #[inline(always)]
     fn cursor_row(&self) -> metadata::Line {
-        self.cursor.row
+        self.edit_cursor.row
     }
 
     #[inline(always)]
     fn cursor_col(&self) -> metadata::Column {
-        self.cursor.col
+        self.edit_cursor.col
     }
 
     #[inline(always)]
     fn cursor_abs(&self) -> metadata::Index {
-        self.cursor.pos
+        self.edit_cursor.pos
     }
 
     fn insert(&mut self, ch: char) {
         use metadata::{Column as Col, Index};
-        debug_assert!(self.cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
+        debug_assert!(self.edit_cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
         if ch == '\n' {
-            self.data.insert(*self.cursor.absolute(), ch);
-            self.cursor.pos = self.cursor.pos.offset(1);
-            self.cursor.col = Col(0);
-            self.cursor.row = self.cursor.row.offset(1);
-            self.meta_data.insert_line_begin(self.cursor.absolute(), self.cursor.row);
-            self.meta_data.update_line_metadata_after_line(self.cursor.row, 1);
+            self.data.insert(*self.edit_cursor.absolute(), ch);
+            self.edit_cursor.pos = self.edit_cursor.pos.offset(1);
+            self.edit_cursor.col = Col(0);
+            self.edit_cursor.row = self.edit_cursor.row.offset(1);
+            self.meta_data.insert_line_begin(self.edit_cursor.absolute(), self.edit_cursor.row);
+            self.meta_data.update_line_metadata_after_line(self.edit_cursor.row, 1);
         } else {
-            self.data.insert(*self.cursor.absolute(), ch);
-            self.cursor.pos = self.cursor.pos.offset(1);
-            self.cursor.col = self.cursor.col.offset(1);
-            self.meta_data.update_line_metadata_after_line(self.cursor.row, 1);
+            self.data.insert(*self.edit_cursor.absolute(), ch);
+            self.edit_cursor.pos = self.edit_cursor.pos.offset(1);
+            self.edit_cursor.col = self.edit_cursor.col.offset(1);
+            self.meta_data.update_line_metadata_after_line(self.edit_cursor.row, 1);
         }
         self.size += 1;
         self.meta_data.set_buffer_size(self.size);
@@ -468,13 +477,13 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             Movement::Forward(kind, count) => match kind {
                 TextKind::Char => {
                     // clamp the count of characters removed, so we don't try to remove "outside" of our buffer
-                    let count = if self.cursor.absolute().offset(count as isize) <= Index(self.data.len()) {
+                    let count = if self.edit_cursor.absolute().offset(count as isize) <= Index(self.data.len()) {
                         count
                     } else {
-                        self.data.len() - *self.cursor.absolute()
+                        self.data.len() - *self.edit_cursor.absolute()
                     };
                     for _ in 0..count {
-                        self.data.remove(*self.cursor.absolute());
+                        self.data.remove(*self.edit_cursor.absolute());
                     }
                 }
                 TextKind::Word => {
@@ -497,18 +506,22 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 TextKind::Block => todo!(),
             },
 
-            Movement::Backward(kind, count) if self.cursor.absolute() != Index(0) => match kind {
+            Movement::Backward(kind, count) if self.edit_cursor.absolute() != Index(0) => match kind {
                 TextKind::Char => {
-                    let count = if *self.cursor.absolute() as i64 - count as i64 >= 0 { count } else { *self.cursor.absolute() };
+                    let count = if *self.edit_cursor.absolute() as i64 - count as i64 >= 0 {
+                        count
+                    } else {
+                        *self.edit_cursor.absolute()
+                    };
                     self.cursor_move_backward(TextKind::Char, count);
                     for _ in 0..count {
                         self.remove();
                     }
                 }
                 TextKind::Word => {
-                    let idx_pos = self.cursor.pos;
+                    let idx_pos = self.edit_cursor.pos;
                     self.move_cursor(Movement::Begin(TextKind::Word));
-                    let len = *(idx_pos - self.cursor.pos);
+                    let len = *(idx_pos - self.edit_cursor.pos);
                     for _ in 0..len {
                         self.remove();
                     }
@@ -568,14 +581,14 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             Movement::Begin(kind) => match kind {
                 TextKind::Char => self.cursor_step_backward(1),
                 TextKind::Word => {
-                    if let Some(c) = self.get(self.cursor.pos.offset(-1)) {
+                    if let Some(c) = self.get(self.edit_cursor.pos.offset(-1)) {
                         let predicate = predicate_generate(c);
-                        let start_position = self.cursor.pos.offset(-2);
+                        let start_position = self.edit_cursor.pos.offset(-2);
                         let i = self
                             .find_index_of_prev_from(start_position, predicate)
                             .unwrap_or(Index::default())
                             .offset(1);
-                        let len = *(self.cursor.pos - i);
+                        let len = *(self.edit_cursor.pos - i);
                         self.cursor_step_backward(len);
                     }
                 }
@@ -585,7 +598,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     }
                 }
                 TextKind::Block => {
-                    if let Some(block_begin) = self.find_index_of_prev_from(self.cursor.pos.offset(-1), |f| f == '{') {
+                    if let Some(block_begin) = self.find_index_of_prev_from(self.edit_cursor.pos.offset(-1), |f| f == '{') {
                         self.cursor_goto(block_begin);
                     }
                 }
@@ -593,11 +606,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             Movement::End(kind) => match kind {
                 TextKind::Char => self.cursor_step_forward(1),
                 TextKind::Word => {
-                    if let Some(c) = self.get(self.cursor.pos) {
-                        let start = self.cursor.pos.offset(1);
+                    if let Some(c) = self.get(self.edit_cursor.pos) {
+                        let start = self.edit_cursor.pos.offset(1);
                         let predicate = predicate_generate(c);
                         let new_pos = self.find_index_of_next_from(start, predicate).unwrap_or(Index(self.len())); // .and_then(|i| self.cursor_from_metadata(i));
-                        let step_length = *(new_pos - self.cursor.pos);
+                        let step_length = *(new_pos - self.edit_cursor.pos);
                         self.cursor_step_forward(step_length);
 
                         // self.cursor = new_pos.unwrap_or(self.cursor_from_metadata(Index(self.len())).unwrap());
@@ -609,7 +622,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     }
                 }
                 TextKind::Block => {
-                    if let Some(block_begin) = self.find_index_of_next_from(self.cursor.pos.offset(1), |f| f == '}') {
+                    if let Some(block_begin) = self.find_index_of_next_from(self.edit_cursor.pos.offset(1), |f| f == '}') {
                         self.cursor_goto(block_begin);
                     }
                 }
@@ -618,7 +631,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     }
 
     fn set_cursor(&mut self, cursor: BufferCursor) {
-        self.cursor = cursor;
+        self.edit_cursor = cursor;
     }
 
     fn load_file(&mut self, path: &Path) {
@@ -632,7 +645,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         self.data.insert(i, ch);
                     }
                     self.rebuild_metadata();
-                    self.cursor = self
+                    self.edit_cursor = self
                         .cursor_from_metadata(metadata::Index(self.len()))
                         .unwrap_or(BufferCursor::default());
                     self.size = self.data.len();

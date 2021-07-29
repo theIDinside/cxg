@@ -336,4 +336,8 @@ impl Viewable for InputBox {
     fn mouse_clicked(&mut self, _screen_coordinate: Vec2i) {
         todo!()
     }
+
+    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) {
+        todo!()
+    }
 }

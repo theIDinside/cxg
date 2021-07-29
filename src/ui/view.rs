@@ -60,6 +60,7 @@ pub struct View {
     /// we return it back to the Buffers type, which manages live buffers and we replace this one with another Box<SimpleBuffer>, taking ownership of that
     pub buffer: Box<SimpleBuffer>,
     buffer_in_view: std::ops::Range<usize>,
+    _buffer_selection: Option<std::ops::Range<Index>>,
     pub view_changed: bool,
     pub bg_color: RGBAColor,
     pub visible: bool,
@@ -206,6 +207,7 @@ impl View {
             panel_id: None,
             buffer,
             buffer_in_view: 0..0,
+            _buffer_selection: None,
             view_changed: true,
             bg_color,
             visible: true,
@@ -218,6 +220,39 @@ impl View {
 
     pub fn set_manager_panel(&mut self, panel_id: PanelId) {
         self.panel_id = Some(panel_id);
+    }
+
+    pub fn mouse_to_buffer_position(&self, mouse_pos: Vec2i) -> Option<Index> {
+        if BoundingBox::from_frame(&self.title_frame).box_hit_check(mouse_pos) {
+            None
+        } else {
+            let Vec2i { x: ax, y: ay } = self.view_frame.anchor;
+            let Vec2i { x: mx, y: my } = mouse_pos;
+
+            let md = self.buffer.meta_data();
+            let view_line = ((ay - my) as f64 / self.get_text_font().row_height() as f64).floor() as isize;
+            let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
+
+            let start_index = md
+                .get_line_start_index(line_clicked)
+                .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
+
+            let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
+
+            let line_contents = self.buffer.get_slice(*start_index..*end_index);
+            let mut rel_x = mx - ax;
+            let text_font = self.get_text_font();
+            let final_index_pos = line_contents
+                .iter()
+                .enumerate()
+                .find(|(_, ch)| {
+                    rel_x -= text_font.get_glyph(**ch).unwrap().advance;
+                    rel_x <= 0
+                })
+                .map(|(i, _)| start_index.offset(i as isize))
+                .unwrap_or(end_index.offset(-1));
+            Some(final_index_pos)
+        }
     }
 
     pub fn set_need_redraw(&mut self) {
@@ -327,6 +362,8 @@ impl View {
                 top_y,
                 self.get_text_font(),
             );
+
+            if let Some(selection) = self._buffer_selection {}
 
             let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
             let cols_in = *self.buffer.cursor_col() as i32;
@@ -578,33 +615,23 @@ impl Viewable for View {
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
         } else {
-            let Vec2i { x: ax, y: ay } = self.view_frame.anchor;
-            let Vec2i { x: mx, y: my } = validated_inside_pos;
-
-            let md = self.buffer.meta_data();
-            let view_line = ((ay - my) as f64 / self.get_text_font().row_height() as f64).floor() as isize;
-            let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
-
-            let start_index = md
-                .get_line_start_index(line_clicked)
-                .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
-
-            let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
-
-            let line_contents = self.buffer.get_slice(*start_index..*end_index);
-            let mut rel_x = mx - ax;
-            let text_font = self.get_text_font();
-            let final_index_pos = line_contents
-                .iter()
-                .enumerate()
-                .find(|(_, ch)| {
-                    rel_x -= text_font.get_glyph(**ch).unwrap().advance;
-                    rel_x <= 0
-                })
-                .map(|(i, _)| start_index.offset(i as isize))
-                .unwrap_or(end_index.offset(-1));
-
-            self.cursor_goto(final_index_pos);
+            if let Some(final_index_pos) = self.mouse_to_buffer_position(validated_inside_pos) {
+                self.cursor_goto(final_index_pos);
+            }
         }
+    }
+
+    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinate: Vec2i) {
+        // description
+        // check if begin_coordinate lands on cursor
+        // if not, set cursor to begin_coordinate, selecting that position in the text buffer, set at begin_range
+        // check where in the text buffer current_coordinate lands, set this as current_selection, thus we have selected begin_range ..= current_selection
+        // draw selection cursor accordingly
+        use std::cmp::{max, min};
+
+        self._buffer_selection = self
+            .mouse_to_buffer_position(begin_coordinate)
+            .zip(self.mouse_to_buffer_position(current_coordinate))
+            .and_then(|(b, e)| Some(min(b, e)..max(b, e).offset(1)));
     }
 }

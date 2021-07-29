@@ -220,4 +220,8 @@ impl Viewable for Panel {
     fn mouse_clicked(&mut self, _pos: Vec2i) {
         todo!()
     }
+
+    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) {
+        todo!()
+    }
 }

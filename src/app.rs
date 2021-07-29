@@ -414,23 +414,41 @@ impl<'app> Application<'app> {
                     if act == glfw::Action::Press {
                         let new_state = MouseState::Click(mbtn, pos);
                         self.handle_mouse_input(new_state);
-                        // self.mouse_state = new_state;
-                        // click only performs focus, whatever action that needs to be taken, happens at release
-                        // this is, so that we can click on something, and drag it
                     } else {
                         self.handle_mouse_input(MouseState::Released(mbtn, pos));
-                        // self.mouse_state = MouseState::None;
                     }
                 }
                 glfw::WindowEvent::CursorPos(mposx, mposy) => {
+                    let new_pos = self.translate_screen_to_application_space(Vec2d::new(mposx, mposy));
                     match self.mouse_state {
-                        MouseState::Clicked(view, btn, _pos) => {
-                            // Start drag, REMEMBER, MUST translate to Application coordinate space
-                            self.mouse_state = MouseState::Drag(view, btn, Vec2d::new(mposx, mposy))
+                        MouseState::UIElementClicked(view, btn, pos) => {
+                            // If control is pressed, we want to activate the Drag action for the UI element itsef
+
+                            let clicked_view = self
+                                .panels
+                                .iter_mut()
+                                .flat_map(|p| p.children.iter_mut())
+                                .find(|v| v.bounding_box().box_hit_check(pos.to_i32()));
+
+                            if let Some(cv) = clicked_view {
+                                if cv.title_frame.to_bb().box_hit_check(pos.to_i32()) {}
+                            }
+
+                            if window.get_key(glfw::Key::LeftControl) == Action::Press || window.get_key(glfw::Key::RightControl) == Action::Press {
+                                self.mouse_state = MouseState::UIElementDrag(view, btn, new_pos)
+                            } else {
+                                // Otherwise, we want to tell the UI element to handle the drag action for us; e.g. for selecting text
+                                let new_state = MouseState::UIElementDragAction(view, btn, pos, new_pos);
+                                self.handle_mouse_input(new_state);
+                            }
                         }
-                        MouseState::Drag(view, btn, _) => {
+                        MouseState::UIElementDrag(view, btn, _) => {
                             // Continue drag, REMEMBER, MUST translate to Application coordinate space
-                            self.mouse_state = MouseState::Drag(view, btn, Vec2d::new(mposx, mposy))
+                            self.mouse_state = MouseState::UIElementDrag(view, btn, new_pos)
+                        }
+                        MouseState::UIElementDragAction(v, btn, begin, ..) => {
+                            let new_state = MouseState::UIElementDragAction(v, btn, begin, new_pos);
+                            self.handle_mouse_input(new_state);
                         }
                         _ => { // Do nothing
                         }
@@ -457,85 +475,101 @@ impl<'app> Application<'app> {
                         .iter_mut()
                         .flat_map(|p| p.children.iter_mut())
                         .find(|v| v.bounding_box().box_hit_check(pos));
-                    let id = clicked_view.as_ref().map(|v| v.id.clone());
-                    let de_activate_old = if let Some(view_clicked) = clicked_view {
-                        let id = view_clicked.id;
-                        view_clicked.mouse_clicked(pos);
-                        self.active_view = &mut (*view_clicked) as *mut _;
+                    if let Some(clicked_view) = clicked_view {
+                        let id = clicked_view.id;
+
+                        let de_activate_old = id != active_id;
+                        clicked_view.mouse_clicked(pos);
+                        self.active_view = &mut (*clicked_view) as *mut _;
                         self.active_input = cast_ptr_to_input(self.active_view); // unsafe { self.active_view.as_mut().unwrap() as &'app mut dyn Input };
                         self.decorate_active_view();
                         // check if the clicked view, was the already active view
-                        id != active_id
-                    } else {
-                        false
-                    };
-                    // if the clicked view, was not the active view already, decorate the old view => inactive
-                    if de_activate_old {
-                        if let Some(v) = self
-                            .panels
-                            .iter_mut()
-                            .flat_map(|p| p.children.iter_mut())
-                            .find(|v| v.id == active_id)
-                        {
-                            // decorate view as an inactive one
-                            v.bg_color = INACTIVE_VIEW_BACKGROUND;
-                            v.set_need_redraw();
-                            v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-                            v.update(None);
+
+                        // if the clicked view, was not the active view already, decorate the old view => inactive
+                        if de_activate_old {
+                            if let Some(v) = self
+                                .panels
+                                .iter_mut()
+                                .flat_map(|p| p.children.iter_mut())
+                                .find(|v| v.id == active_id)
+                            {
+                                // decorate view as an inactive one
+                                v.bg_color = INACTIVE_VIEW_BACKGROUND;
+                                v.set_need_redraw();
+                                v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                                v.update(None);
+                            }
                         }
+                        self.mouse_state = MouseState::UIElementClicked(id, MouseButton::Button1, p);
                     }
-                    self.mouse_state = MouseState::Clicked(id, MouseButton::Button1, p);
                 }
             }
-            MouseState::Clicked(_view_id, _btn, _pos) => {}
-            MouseState::Drag(_maybe_view, _btn, _pos) => {}
+            MouseState::UIElementClicked(_view_id, _btn, _pos) => {}
+            MouseState::UIElementDrag(_maybe_view, _btn, _pos) => {}
+            MouseState::UIElementDragAction(view, btn, begin, current) => {
+                let active_id = self.get_active_view_id();
+                let pos = begin.to_i32();
+                let view_handling_action = self
+                    .panels
+                    .iter_mut()
+                    .flat_map(|p| p.children.iter_mut())
+                    .find(|v| v.bounding_box().box_hit_check(pos));
+                if let Some(handling_view) = view_handling_action {
+                    handling_view.mouse_dragged(begin.to_i32(), current.to_i32());
+                    handling_view.set_need_redraw();
+                    handling_view.update(None);
+                }
+                self.mouse_state = new_state;
+            }
             MouseState::Released(_btn, pos) => {
                 match self.mouse_state {
-                    MouseState::Drag(dragged_view_id, _, _) => {
+                    MouseState::UIElementDrag(dragged_view_id, _, _) => {
                         let view_dropped_on = self
                             .panels
                             .iter_mut()
                             .flat_map(|p| p.children.iter_mut())
                             .find(|v| v.bounding_box().box_hit_check(pos.to_i32()))
                             .map(|v| v.id);
-                        if let Some(true) = dragged_view_id.zip(view_dropped_on).map(|(a, b)| a != b) {
-                            let p_a = self
-                                .panels
-                                .iter_mut()
-                                .position(|p| p.children.iter().any(|f| f.id == dragged_view_id.unwrap()));
-                            let mut panel_a = self.panels.swap_remove(p_a.unwrap());
-                            let va = panel_a.children.iter().position(|v| v.id == dragged_view_id.unwrap());
-
-                            let coexist = panel_a.children.iter().any(|v| v.id == view_dropped_on.unwrap());
-                            if coexist {
-                                let vb = panel_a.children.iter().position(|v| v.id == view_dropped_on.unwrap());
-                                panel_a.children.swap(va.unwrap(), vb.unwrap());
-                                panel_a.layout();
-                                for v in panel_a.children.iter_mut() {
-                                    if v.id == dragged_view_id.unwrap() {
-                                        v.bg_color = ACTIVE_VIEW_BACKGROUND;
-                                        v.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
-                                        v.update(None);
-                                        self.active_view = v as *mut _;
-                                        self.active_input = cast_ptr_to_input(self.active_view);
-                                    } else {
-                                        v.bg_color = INACTIVE_VIEW_BACKGROUND;
-                                        v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
-                                        v.update(None);
-                                    }
-                                }
-                                self.panels.insert(p_a.unwrap(), panel_a);
-                            } else {
-                                let p_b = self
+                        if let Some(view_dropped_on) = view_dropped_on {
+                            if dragged_view_id != view_dropped_on {
+                                let p_a = self
                                     .panels
                                     .iter_mut()
-                                    .position(|p| p.children.iter().any(|f| f.id == view_dropped_on.unwrap()));
-                                let mut panel_b = self.panels.swap_remove(p_b.unwrap());
+                                    .position(|p| p.children.iter().any(|f| f.id == dragged_view_id));
+                                let mut panel_a = self.panels.swap_remove(p_a.unwrap());
+                                let va = panel_a.children.iter().position(|v| v.id == dragged_view_id);
 
-                                let vb = panel_b.children.iter().position(|v| v.id == dragged_view_id.unwrap());
-                                std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
-                                self.panels.insert(p_a.unwrap(), panel_a);
-                                self.panels.insert(p_b.unwrap(), panel_b);
+                                let coexist = panel_a.children.iter().any(|v| v.id == view_dropped_on);
+                                if coexist {
+                                    let vb = panel_a.children.iter().position(|v| v.id == view_dropped_on);
+                                    panel_a.children.swap(va.unwrap(), vb.unwrap());
+                                    panel_a.layout();
+                                    for v in panel_a.children.iter_mut() {
+                                        if v.id == dragged_view_id {
+                                            v.bg_color = ACTIVE_VIEW_BACKGROUND;
+                                            v.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
+                                            v.update(None);
+                                            self.active_view = v as *mut _;
+                                            self.active_input = cast_ptr_to_input(self.active_view);
+                                        } else {
+                                            v.bg_color = INACTIVE_VIEW_BACKGROUND;
+                                            v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+                                            v.update(None);
+                                        }
+                                    }
+                                    self.panels.insert(p_a.unwrap(), panel_a);
+                                } else {
+                                    let p_b = self
+                                        .panels
+                                        .iter_mut()
+                                        .position(|p| p.children.iter().any(|f| f.id == view_dropped_on));
+                                    let mut panel_b = self.panels.swap_remove(p_b.unwrap());
+
+                                    let vb = panel_b.children.iter().position(|v| v.id == dragged_view_id);
+                                    std::mem::swap(panel_a.children.get_mut(va.unwrap()).unwrap(), panel_b.children.get_mut(vb.unwrap()).unwrap());
+                                    self.panels.insert(p_a.unwrap(), panel_a);
+                                    self.panels.insert(p_b.unwrap(), panel_b);
+                                }
                             }
                         }
                     }
@@ -740,7 +774,7 @@ impl<'app> Application<'app> {
         // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();
 
-        if let MouseState::Drag(.., pos) = self.mouse_state {
+        if let MouseState::UIElementDrag(.., pos) = self.mouse_state {
             let pos = self.translate_screen_to_application_space(pos).to_i32();
             let v = unsafe { self.active_view.as_mut().unwrap() };
             let mut bb = v.bounding_box();
