@@ -3,6 +3,20 @@ pub enum DebuggerCatch {
     Panic(String),
 }
 
+#[macro_export]
+macro_rules! MB {
+    ($mbytes: expr) => {
+        1024 * 1024 * $mbytes
+    };
+}
+
+#[macro_export]
+macro_rules! KB {
+    ($kbytes: expr) => {
+        1024 * $mbytes
+    };
+}
+
 /// Usage: Pass a boolean expression as the first argument that must hold. If it does not
 /// This will raise a SIGTRAP signal, thus telling any connected debugger to set a breakpoint immediately
 /// and we get to analyze what's going on.
