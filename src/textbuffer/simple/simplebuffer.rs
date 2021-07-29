@@ -484,6 +484,20 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         if self.empty() {
             return;
         }
+        if let Some(marker) = self.cursor_marker {
+            let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                (*marker, *self.edit_cursor.pos)
+            } else {
+                (*self.edit_cursor.pos, *marker)
+            };
+            self.data.drain(erase_from..=erase_to);
+            self.cursor_marker = None;
+            self.size = self.data.len();
+            self.rebuild_metadata();
+            self.cursor_goto(Index(erase_from));
+            return;
+        }
+
         match dir {
             Movement::Forward(kind, count) => match kind {
                 TextKind::Char => {
