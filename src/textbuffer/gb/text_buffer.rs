@@ -91,4 +91,8 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn file_name(&self) -> Option<&std::path::Path> {
         todo!()
     }
+
+    fn copy(&mut self, range: std::ops::Range<usize>) -> &[char] {
+        todo!()
+    }
 }

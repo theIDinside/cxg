@@ -134,6 +134,8 @@ pub trait CharBuffer<'a>: std::hash::Hash {
     fn save_file(&mut self, path: &Path);
 
     fn file_name(&self) -> Option<&Path>;
+
+    fn copy(&mut self, range: std::ops::Range<usize>) -> &[char];
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.

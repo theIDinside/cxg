@@ -668,6 +668,10 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
             println!("File is already pristine!");
         }
     }
+
+    fn copy(&mut self, range: std::ops::Range<usize>) -> &[char] {
+        &self.data[range]
+    }
 }
 
 #[inline(always)]
