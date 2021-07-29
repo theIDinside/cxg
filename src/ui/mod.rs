@@ -17,6 +17,7 @@ pub mod inputbox;
 pub mod panel;
 pub mod view;
 
+pub mod clipboard;
 pub mod debug_view;
 
 #[derive(Clone, Copy, Debug)]
@@ -29,9 +30,20 @@ pub enum UID {
 
 #[derive(Debug, Clone, Copy)]
 pub enum MouseState {
+    /// Mouse state that immediately gets translated to, when a mouse click is registered
     Click(glfw::MouseButton, Vec2d),
-    Clicked(Option<ViewId>, glfw::MouseButton, Vec2d),
-    Drag(Option<ViewId>, glfw::MouseButton, Vec2d),
+    /// Represents the mouse state when a UI element has been clicked and when Application has verified that MouseState::Click
+    /// was inside a UI Element
+    UIElementClicked(ViewId, glfw::MouseButton, Vec2d),
+    /// Mouse state representing a mouse drag action, involving the layout of an Element in the
+    /// window. Thus, the behavior manager of this state, is the Application itself and not the individual UI element.
+    UIElementDrag(ViewId, glfw::MouseButton, Vec2d),
+    /// UIElementDragAction is a mouse state that represents a mouse click and drag
+    /// that the UI element should register itself, and handle what decision to take.
+    /// In contrast with UIElementDrag, which is a MouseState that Application<'app> should handle
+    /// Since it involves how the Application lays element out in the UI.
+    UIElementDragAction(ViewId, glfw::MouseButton, Vec2d, Vec2d),
+    /// Mouse state for when/where the mouse button was released
     Released(glfw::MouseButton, Vec2d),
     None,
 }
@@ -40,9 +52,10 @@ impl MouseState {
     pub fn position(&self) -> Option<Vec2i> {
         match self {
             MouseState::Click(.., pos) => Some(pos.to_i32()),
-            MouseState::Drag(_, _, pos) => Some(pos.to_i32()),
+            MouseState::UIElementDrag(_, _, pos) => Some(pos.to_i32()),
+            MouseState::UIElementDragAction(_, _, _, current) => Some(current.to_i32()),
             MouseState::Released(_, pos) => Some(pos.to_i32()),
-            MouseState::Clicked(.., pos) => Some(pos.to_i32()),
+            MouseState::UIElementClicked(.., pos) => Some(pos.to_i32()),
             MouseState::None => None,
         }
     }
@@ -63,4 +76,5 @@ pub trait Viewable {
     fn set_anchor(&mut self, anchor: Vec2i);
     fn bounding_box(&self) -> BoundingBox;
     fn mouse_clicked(&mut self, screen_coordinate: Vec2i);
+    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinated: Vec2i);
 }
