@@ -51,8 +51,8 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 - [ ] Todo source code parser. Scan documents for todo comments and present them in some nice way
 - [x] Buffer can now be hashed for comparison to saved contents, if the buffer is pristine / restored.
       etc.
-- [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is shit.
-- [x] Selecting text, with mouse and keyboard & rendering the selection properly
+- [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is bad.
+- [x] Selecting text, with mouse and keyboard & rendering the selection properly.
 - [ ] Other search / go to features (probably also using the regex crate)
 - [ ] Symbol navigation. Like most things, I could start by using dependencies here, since the rust eco system is so powerful.
       One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)
