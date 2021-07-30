@@ -730,7 +730,8 @@ impl<'app> Application<'app> {
                         }
                     }
                 }
-                InputResponse::ClipboardCopy(data) => {
+                // we discard the ClipboardCopy response, if it did not hold any data, which is why we match exactly on Some(data) here
+                InputResponse::ClipboardCopy(Some(data)) => {
                     println!("Application clip board copy: '{}'", data);
                     self.clipboard.take(data);
                 }

@@ -6,7 +6,7 @@ use crate::ui::UID;
 /// and as such, might need to communicate back results, to the Application object, such as results from run commands,
 /// or returning the value of CopyRange from the buffer etc.
 pub enum InputResponse {
-    ClipboardCopy(String),
+    ClipboardCopy(Option<String>),
     OpenFile(PathBuf),
     SaveFile(Option<PathBuf>),
     None,

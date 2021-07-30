@@ -17,6 +17,7 @@ pub struct ListBox {
 }
 
 impl ListBox {
+    pub const MAX_DISPLAYABLE_ITEMS_HINT: usize = 25;
     pub fn new(frame: Frame, list_item_height: i32, render_config: Option<(TextRenderSetting, RGBAColor)>) -> ListBox {
         let (text_render_settings, background_color) = render_config.unwrap_or((TextRenderSetting::default(), ACTIVE_VIEW_BACKGROUND));
         ListBox {

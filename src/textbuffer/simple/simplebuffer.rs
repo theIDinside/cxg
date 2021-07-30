@@ -80,10 +80,7 @@ impl SimpleBuffer {
             range.start <= self.len() && range.end <= self.len(),
             DebuggerCatch::Handle(format!("Illegal access of buffer; getting range {:?} from buffer of only {} len", range.clone(), self.len()))
         );
-        &self
-            .data
-            .get(range.clone())
-            .expect(&format!("Range out of length: {:?} - buf size: {}", range, self.len()))
+        unsafe { &self.data.get_unchecked(range.clone()) }
     }
 
     pub fn get_lines_as_slices(&self, first: metadata::Line, last: metadata::Line) -> Vec<&[char]> {
@@ -212,7 +209,11 @@ impl SimpleBuffer {
                     self.cursor_move_down();
                 }
             }
-            TextKind::Block => todo!(),
+            TextKind::Block => {
+                for _ in 0..count {
+                    self.move_cursor(Movement::End(TextKind::Block));
+                }
+            }
         }
     }
     /// Moves cursor backward, in the fashion specified by TextKind
@@ -262,25 +263,36 @@ impl SimpleBuffer {
                     self.cursor_move_up();
                 }
             }
-            TextKind::Block => todo!(),
+            TextKind::Block => {
+                for _ in 0..count {
+                    self.move_cursor(Movement::Begin(TextKind::Block));
+                }
+            }
         }
     }
 
     /// Copies the selected text (if any text is selected) otherwise copies the contents of the line
-    pub fn copy_range_or_line(&self) -> String {
+    pub fn copy_range_or_line(&self) -> Option<String> {
         if let Some(meta_cursor) = self.meta_cursor {
-            if meta_cursor < self.edit_cursor.pos {
-                String::from_iter(self.get_slice(*meta_cursor..*self.edit_cursor.pos.offset(1)))
+            if *self.cursor_abs() >= self.len() || *meta_cursor >= self.len() {
+                None
             } else {
-                String::from_iter(self.get_slice(*self.edit_cursor.pos..*meta_cursor.offset(1)))
+                if meta_cursor < self.edit_cursor.pos {
+                    Some(String::from_iter(self.get_slice(*meta_cursor..*self.edit_cursor.pos.offset(1))))
+                } else {
+                    Some(String::from_iter(self.get_slice(*self.edit_cursor.pos..*meta_cursor.offset(1))))
+                }
             }
         } else {
             let row = self.edit_cursor.row;
             self.meta_data
                 .get_line_start_index(row)
-                .zip(self.meta_data.get_line_start_index(row.offset(1)))
+                .zip(
+                    self.meta_data
+                        .get_line_start_index(row.offset(1))
+                        .or_else(|| Some(metadata::Index(self.len()))),
+                )
                 .map(|(begin, end)| String::from_iter(self.get_slice(*begin..*end)))
-                .unwrap_or(String::new())
         }
     }
 }
@@ -388,22 +400,23 @@ impl SimpleBuffer {
 
     fn cursor_move_up(&mut self) {
         if self.cursor_row() == metadata::Line(0) {
-            return;
+            self.cursor_goto(metadata::Index(0));
+        } else {
+            let prior_line = self.cursor_row().offset(-1);
+            self.edit_cursor = self
+                .meta_data
+                .get_line_start_index(prior_line)
+                .and_then(|index| {
+                    self.meta_data
+                        .get_line_length_of(prior_line)
+                        .map(|prior_line_len| {
+                            let pos = index.offset(min(prior_line_len.offset(-1).as_usize() as _, self.cursor_col().as_usize() as _));
+                            self.cursor_from_metadata(pos)
+                        })
+                        .unwrap_or(self.cursor_from_metadata(index))
+                })
+                .unwrap_or(BufferCursor::default())
         }
-        let prior_line = self.cursor_row().offset(-1);
-        self.edit_cursor = self
-            .meta_data
-            .get_line_start_index(prior_line)
-            .and_then(|index| {
-                self.meta_data
-                    .get_line_length_of(prior_line)
-                    .map(|prior_line_len| {
-                        let pos = index.offset(min(prior_line_len.offset(-1).as_usize() as _, self.cursor_col().as_usize() as _));
-                        self.cursor_from_metadata(pos)
-                    })
-                    .unwrap_or(self.cursor_from_metadata(index))
-            })
-            .unwrap_or(BufferCursor::default())
     }
 
     fn cursor_move_down(&mut self) {
@@ -784,5 +797,103 @@ pub fn predicate_generate(c: &char) -> fn(char) -> bool {
         |ch: char| !ch.is_alphanumeric()
     } else {
         |ch: char| !ch.is_ascii_punctuation()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // For using benchmarking
+    extern crate test;
+
+    use super::SimpleBuffer;
+    use crate::textbuffer::{metadata as md, CharBuffer, Movement, TextKind};
+
+    #[test]
+    fn cursor_move_in_empty() {
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        b.move_cursor(Movement::Forward(TextKind::Char, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+        b.move_cursor(Movement::Backward(TextKind::Char, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+
+        b.move_cursor(Movement::Forward(TextKind::Block, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+        b.move_cursor(Movement::Backward(TextKind::Block, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+
+        b.move_cursor(Movement::Forward(TextKind::Line, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+        b.move_cursor(Movement::Backward(TextKind::Line, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+    }
+
+    #[test]
+    fn length_checks() {
+        let v: Vec<char> = "Hello test world".chars().collect();
+
+        let slice = &v[..];
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        b.insert_slice(slice);
+        let mut multiple = 1;
+        assert_eq!(b.len(), v.len() * multiple);
+        b.insert_slice(slice);
+        multiple += 1;
+        assert_eq!(b.len(), v.len() * multiple);
+    }
+
+    #[test]
+    fn test_copy_only_line() {
+        let v: Vec<char> = "Hello test world".chars().collect();
+        let slice = &v[..];
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        b.insert_slice(slice);
+        let mut multiple = 1;
+        assert_eq!(b.len() * multiple, v.len());
+        b.insert_slice(slice);
+        multiple += 1;
+        let copy = b.copy_range_or_line();
+        assert_eq!(copy, Some(v.iter().chain(v.iter()).collect::<String>()));
+    }
+
+    #[test]
+    fn copy_paste_hello() {
+        let v: Vec<char> = "Hello test world".chars().collect();
+        let slice = &v[..];
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        for c in v {
+            b.insert(c);
+        }
+        b.move_cursor(Movement::Backward(TextKind::Line, 1));
+        assert_eq!(b.edit_cursor.pos, md::Index(0));
+        b.select_move_cursor(Movement::Forward(TextKind::Char, 4));
+        let copy = b.copy_range_or_line();
+        assert_eq!(Some("Hello".into()), copy);
+        b.move_cursor(Movement::End(TextKind::Word));
+        b.move_cursor(Movement::End(TextKind::Word));
+        for c in copy.unwrap().chars() {
+            b.insert(c);
+        }
+        let new_copy = b.copy_range_or_line();
+        assert_eq!(Some("Hello Hellotest world".into()), new_copy);
+        for c in new_copy.unwrap().chars() {
+            b.insert(c);
+        }
+        let last_copy = b.copy_range_or_line();
+        assert_eq!(Some("Hello HelloHello Hellotest worldtest world".into()), last_copy);
+        b.move_cursor(Movement::End(TextKind::Line));
+        assert_eq!(b.edit_cursor.pos, md::Index(b.len()));
+    }
+
+    #[bench]
+    fn copy_paste_per_char(b: &mut test::Bencher) {
+        let text_data = include_str!("simplebuffer.rs");
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        if b.edit_cursor.pos == md::Index(0) {}
+    }
+
+    #[bench]
+    fn copy_paste_as_slice(b: &mut test::Bencher) {
+        let text_data = include_str!("simplebuffer.rs");
+        let mut b = Box::new(SimpleBuffer::new(0, 1024));
     }
 }
