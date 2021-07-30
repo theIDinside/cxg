@@ -26,6 +26,14 @@ pub enum Movement {
     End(TextKind),
 }
 
+pub enum SelectMovement {
+    /// Communicate to the buffer to invalidate any existing meta cursor and move the edit cursor
+    NoSelection(Movement),
+    /// Communicate to the buffer to set a new meta cursor, if no meta cursor is set, at current edit_cursor position, before moving the edit_cursor.
+    /// If a meta_cursor already exist, leave the meta cursor intact and move the edit_cursor (effectively changing the selection range without changing it's start point)
+    ContinueSelection(Movement),
+}
+
 pub enum BufferState {
     Empty,
     Pristine,
@@ -46,6 +54,9 @@ pub trait CharBuffer<'a>: std::hash::Hash {
 
     /// Moves the cursor in the buffer
     fn move_cursor(&mut self, dir: Movement);
+
+    /// Moves the cursor and sets the meta cursor accordingly.
+    fn select_move_cursor(&mut self, movement: Movement);
     /// Capacity of the buffer
     fn capacity(&self) -> usize;
     /// Size of the used space in the buffer

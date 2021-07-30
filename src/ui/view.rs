@@ -24,7 +24,6 @@ use crate::textbuffer::{
 
 use crate::ui::coordinate::Coordinate;
 use std::fmt::Formatter;
-use std::iter::FromIterator;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -105,20 +104,28 @@ impl std::fmt::Debug for View {
 
 impl InputBehavior for View {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
+        let key_pressed = || action == Action::Press;
         match key {
             Key::Home | Key::Kp7 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
                 _ => self.move_cursor(Movement::Begin(TextKind::Line)),
             },
-            Key::End | Key::Kp1 => match modifier {
+            Key::End | Key::Kp1 if key_pressed() => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(self.buffer.len())),
+                Modifiers::Shift => {
+                    self.buffer.select_move_cursor(Movement::End(TextKind::Line));
+                }
                 _ => self.move_cursor(Movement::End(TextKind::Line)),
             },
             Key::Right if action == Action::Repeat || action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    self.move_cursor(Movement::End(TextKind::Word));
+                if modifier == Modifiers::Control | Modifiers::Shift {
+                    self.buffer.select_move_cursor(Movement::End(TextKind::Word));
                 } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
                     self.move_cursor(Movement::End(TextKind::Block));
+                } else if modifier == Modifiers::Control {
+                    self.move_cursor(Movement::End(TextKind::Word));
+                } else if modifier == Modifiers::Shift {
+                    self.buffer.select_move_cursor(Movement::Forward(TextKind::Char, 1));
                 } else {
                     self.move_cursor(Movement::Forward(TextKind::Char, 1));
                 }
@@ -126,17 +133,29 @@ impl InputBehavior for View {
             Key::Left if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
                     self.move_cursor(Movement::Begin(TextKind::Word));
-                } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
+                } else if modifier == Modifiers::Shift | Modifiers::Alt {
                     self.move_cursor(Movement::Begin(TextKind::Block));
+                } else if modifier == Modifiers::Shift {
+                    self.buffer.select_move_cursor(Movement::Backward(TextKind::Char, 1));
+                } else if modifier == Modifiers::Shift | Modifiers::Control {
+                    self.buffer.select_move_cursor(Movement::Begin(TextKind::Word));
                 } else {
                     self.move_cursor(Movement::Backward(TextKind::Char, 1));
                 }
             }
             Key::Up if action == Action::Repeat || action == Action::Press => {
-                self.move_cursor(Movement::Backward(TextKind::Line, 1));
+                if modifier == Modifiers::Shift {
+                    self.buffer.select_move_cursor(Movement::Backward(TextKind::Line, 1));
+                } else {
+                    self.move_cursor(Movement::Backward(TextKind::Line, 1));
+                }
             }
             Key::Down if action == Action::Repeat || action == Action::Press => {
-                self.move_cursor(Movement::Forward(TextKind::Line, 1));
+                if modifier == Modifiers::Shift {
+                    self.buffer.select_move_cursor(Movement::Forward(TextKind::Line, 1));
+                } else {
+                    self.move_cursor(Movement::Forward(TextKind::Line, 1));
+                }
             }
             Key::Backspace if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control {
@@ -167,6 +186,7 @@ impl InputBehavior for View {
             }
             _ => {}
         }
+        self.adjust_view_range();
         InputResponse::None
     }
 
@@ -361,7 +381,7 @@ impl View {
             );
             use crate::opengl::text_renderer as gltxt;
             self.cursor_renderer.clear_data();
-            if let &Some(marker) = &self.buffer.cursor_marker {
+            if let &Some(marker) = &self.buffer.meta_cursor {
                 let selection_color = RGBAColor { r: 0.75, g: 0.75, b: 0.95, a: 0.3 };
 
                 if marker < self.buffer.cursor_abs() {
@@ -744,7 +764,7 @@ impl Viewable for View {
     }
 
     fn mouse_clicked(&mut self, validated_inside_pos: Vec2i) {
-        self.buffer.cursor_marker = None;
+        self.buffer.meta_cursor = None;
         debugger_catch!(
             self.bounding_box().box_hit_check(validated_inside_pos),
             crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view"))
@@ -773,10 +793,10 @@ impl Viewable for View {
                        println!("Selection: {}", dbg_string);
             */
             self.buffer.cursor_goto(target_coord_idx);
-            self.buffer.cursor_marker = Some(begin_coord_idx);
+            self.buffer.meta_cursor = Some(begin_coord_idx);
             self.adjust_view_range();
         } else {
-            self.buffer.cursor_marker = None;
+            self.buffer.meta_cursor = None;
         }
     }
 }

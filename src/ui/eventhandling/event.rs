@@ -15,6 +15,16 @@ pub enum InputElement {
     TextView,
 }
 
+pub enum ModifierCombo {
+    Alt,
+    Control,
+    Shift,
+    AltControl,
+    AltShift,
+    AltControlShift,
+    ControlShift,
+}
+
 pub trait InputBehavior {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse;
     fn handle_char(&mut self, ch: char);

@@ -31,7 +31,7 @@ pub struct SimpleBuffer {
     pub id: u32,
     pub data: Vec<char>,
     edit_cursor: BufferCursor,
-    pub cursor_marker: Option<metadata::Index>,
+    pub meta_cursor: Option<metadata::Index>,
     size: usize,
     meta_data: metadata::MetaData,
 }
@@ -48,7 +48,7 @@ impl SimpleBuffer {
             id: id,
             data: Vec::with_capacity(capacity),
             edit_cursor: BufferCursor::default(),
-            cursor_marker: None,
+            meta_cursor: None,
             size: 0,
             meta_data: metadata::MetaData::new(None),
         }
@@ -60,6 +60,10 @@ impl SimpleBuffer {
 
     pub fn cursor(&self) -> BufferCursor {
         self.edit_cursor.clone()
+    }
+
+    pub fn set_cursor_marker(&mut self, pos: metadata::Index) {
+        self.meta_cursor = Some(pos);
     }
 
     pub fn get(&self, idx: metadata::Index) -> Option<&char> {
@@ -107,6 +111,18 @@ impl SimpleBuffer {
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
+        if let Some(marker) = self.meta_cursor {
+            let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                (*marker, *self.edit_cursor.pos)
+            } else {
+                (*self.edit_cursor.pos, *marker)
+            };
+            self.data.drain(erase_from..=erase_to);
+            self.meta_cursor = None;
+            self.size = self.data.len();
+            self.rebuild_metadata();
+            self.cursor_goto(metadata::Index(erase_from));
+        }
         if slice.len() > 128 {
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
             unsafe {
@@ -461,6 +477,18 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn insert(&mut self, ch: char) {
         use metadata::{Column as Col, Index};
         debug_assert!(self.edit_cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
+        if let Some(marker) = self.meta_cursor {
+            let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                (*marker, *self.edit_cursor.pos)
+            } else {
+                (*self.edit_cursor.pos, *marker)
+            };
+            self.data.drain(erase_from..=erase_to);
+            self.meta_cursor = None;
+            self.size = self.data.len();
+            self.rebuild_metadata();
+            self.cursor_goto(Index(erase_from));
+        }
         if ch == '\n' {
             self.data.insert(*self.edit_cursor.absolute(), ch);
             self.edit_cursor.pos = self.edit_cursor.pos.offset(1);
@@ -484,14 +512,14 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         if self.empty() {
             return;
         }
-        if let Some(marker) = self.cursor_marker {
+        if let Some(marker) = self.meta_cursor {
             let (erase_from, erase_to) = if marker < self.cursor_abs() {
                 (*marker, *self.edit_cursor.pos)
             } else {
                 (*self.edit_cursor.pos, *marker)
             };
             self.data.drain(erase_from..=erase_to);
-            self.cursor_marker = None;
+            self.meta_cursor = None;
             self.size = self.data.len();
             self.rebuild_metadata();
             self.cursor_goto(Index(erase_from));
@@ -593,9 +621,22 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         self.data.iter()
     }
 
-    #[allow(non_snake_case)]
+    fn select_move_cursor(&mut self, movement: Movement) {
+        if let Some(mc) = self.meta_cursor {
+            self.move_cursor(movement);
+            self.set_cursor_marker(mc);
+        } else {
+            let mc_idx = self.meta_cursor.unwrap_or(self.edit_cursor.pos);
+            self.move_cursor(movement);
+            self.set_cursor_marker(mc_idx);
+        }
+    }
+
+    /// Clears the meta cursor when moving, so if the desired action is to set a range of selected data
+    /// the start position of the meta cursor has to be set _after_ calling this method
     fn move_cursor(&mut self, dir: Movement) {
         use super::super::metadata::Index;
+        self.meta_cursor = None;
         match dir {
             Movement::Forward(kind, count) => {
                 self.cursor_move_forward(kind, count);

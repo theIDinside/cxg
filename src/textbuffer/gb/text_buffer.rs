@@ -95,4 +95,8 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn copy(&mut self, range: std::ops::Range<usize>) -> &[char] {
         todo!()
     }
+
+    fn select_move_cursor(&mut self, movement: crate::textbuffer::Movement) {
+        todo!()
+    }
 }

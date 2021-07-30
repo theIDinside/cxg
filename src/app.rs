@@ -336,14 +336,6 @@ impl<'app> Application<'app> {
         self.active_view = view as *const _ as *mut _;
     }
 
-    /*
-    /// Updates the string contents of the status bar
-    pub fn update_status_bar(&mut self, text: String) {
-        self.status_bar.update_string_contents(&text);
-         self.status_bar.update();
-    }
-     */
-
     fn sync_shader_uniform_projection(&mut self) {
         let (width, height) = self.window_size.values();
         let mvp = super::opengl::glinit::screen_projection_matrix(*width as _, *height as _, 0);
@@ -374,11 +366,6 @@ impl<'app> Application<'app> {
         }
 
         Application::set_dimensions(self, width, height);
-        /* Status bar usage uncommented for now
-               self.status_bar.size.width = width;
-               self.status_bar.anchor = Vec2i::new(0, height);
-               self.status_bar.update();
-        */
         self.debug_view.view.set_anchor(Vec2i::new(10, self.height() - 10));
         self.debug_view
             .view
