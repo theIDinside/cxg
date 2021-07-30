@@ -7,16 +7,37 @@ So far, only some 60-70% of the same features as the C++ version, with some mino
 
 
 Key-bindings are not re-mappable right now, but obviously will be
-- Ctrl + D:             Debug interface - show memory usage, frame time, fps, pid etc... more to come here
-- Ctrl + N:             New view & Buffer
-- Ctrl + W:             Close currently active view
-- Ctrl + Tab:           Cycle focused tab
-- Ctrl + F1:            Debug dump a rust source file to active buffer
-- Ctrl + End:           Go to end of file
-- Ctrl + Home:          Go to beginning of file
-- Ctrl + Left/Right:    Navigate cursor on word boundaries
-- Ctrl + P:             Show popup view (no other functionality than a normal view as of now)
-- Ctrl + shift + I:     Open Input box (screen shot below)
+
+- Select text
+  - Shift + Cursor movement
+  - Mouse click + drag
+- Debug interface, show memory usage, frame time, fps, pid etc... more to come here
+  - Ctrl + D
+- New view & Buffer
+  - Ctrl + N
+- Close currently active view
+  - Ctrl + W
+- Cycle focused tab
+  - Ctrl + Tab
+- Debug dump a rust source file to active buffer
+  - Ctrl + F1
+- Go to end of file
+  - Ctrl + End
+- Go to beginning of file
+  - Ctrl + Home
+- Navigate cursor on word boundaries
+  - Ctrl + Left/Right
+- Show popup view (no other functionality than a normal view as of now)
+  - Ctrl + P
+- Open Input box (screen shot below)
+  - Ctrl + shift + I
+- Navigate text on source code block boundary
+  - Shift + Alt Left/Right
+- Navigate text on "word" boundary
+  - Ctrl + Left/Right'
+- Move Text View To another view's position
+  - Ctrl + Mouse click & drag
+  - Mouse click on title bar and drag
 
 ## Code quality
 I have to be very clear and say that the quality of this code, how it's designed, is particularly awful. That mostly has to do with my inexperience
@@ -25,12 +46,13 @@ get it working, and once I've done that, start thinking about architecturing the
 did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 
 
-### Todos
+### Todos (both complex & simple basic features)
 - [ ] Syntax highlighting, using something like the regex crate which has been added to the [cargo configuration](Cargo.toml)
 - [ ] Todo source code parser. Scan documents for todo comments and present them in some nice way
 - [x] Buffer can now be hashed for comparison to saved contents, if the buffer is pristine / restored.
       etc.
 - [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is shit.
+- [x] Selecting text, with mouse and keyboard & rendering the selection properly
 - [ ] Other search / go to features (probably also using the regex crate)
 - [ ] Symbol navigation. Like most things, I could start by using dependencies here, since the rust eco system is so powerful.
       One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)

@@ -34,6 +34,8 @@ impl BoundingBox {
         BoundingBox::new(Vec2i::new(x, y - height), Vec2i::new(x + width, y))
     }
 
+    /// Aligns this bounding box on a position, on the center of the bounding box
+    /// * `pos` - the position which the bounding box's center point should snap to
     pub fn center_align_around(&mut self, pos: Vec2i) {
         let min = pos + Vec2i::new(self.width() / -2, self.height() / -2);
         let max = pos + Vec2i::new(self.width() / 2, self.height() / 2);

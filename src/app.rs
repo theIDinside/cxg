@@ -1,31 +1,36 @@
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
-use crate::opengl::polygon_renderer::{PolygonRenderer, TextureMap, TextureType};
-use crate::opengl::shaders::{RectShader, TextShader};
-use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
-use crate::textbuffer::Movement;
-use crate::textbuffer::{buffers::Buffers, CharBuffer};
+use crate::opengl::{
+    polygon_renderer::{PolygonRenderer, TextureMap, TextureType},
+    rectangle_renderer::RectRenderer,
+    shaders::{RectShader, TextShader},
+    text_renderer::TextRenderer,
+    types::RGBAColor,
+};
+use crate::textbuffer::{buffers::Buffers, CharBuffer, Movement};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
-use crate::ui::clipboard::ClipBoard;
-use crate::ui::debug_view::DebugView;
-use crate::ui::eventhandling::event::{InputBehavior, InputResponse, InvalidInputElement};
-use crate::ui::inputbox::{InputBox, Mode};
-use crate::ui::panel::{Panel, PanelId};
-use crate::ui::view::{Popup, View, ViewId};
-use crate::ui::{font::Font, UID};
-use crate::ui::{MouseState, Viewable};
+use crate::ui::{
+    clipboard::ClipBoard,
+    debug_view::DebugView,
+    eventhandling::event::{InputBehavior, InputResponse, InvalidInputElement},
+    font::Font,
+    inputbox::{InputBox, Mode},
+    panel::{Panel, PanelId},
+    view::{Popup, View, ViewId},
+    MouseState, Viewable, UID,
+};
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
+
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
-
 static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742123, a: 1.0 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.3242123, a: 1.0 };
 
@@ -345,7 +350,6 @@ impl<'app> Application<'app> {
     }
 
     fn handle_resize_event(&mut self, width: i32, height: i32) {
-        println!("App window {:?} ===> {}x{}", self.window_size, width, height);
         let ps_x = self.panel_space_size.width;
         let ps_y = self.panel_space_size.height;
         let ax = width as f64 / ps_x as f64;
@@ -755,16 +759,12 @@ impl<'app> Application<'app> {
         }
 
         self.input_box.draw();
-        // always draw the debug interface last, as it should overlay everything
         self.debug_view.draw();
 
         if let MouseState::UIElementDrag(.., pos) = self.mouse_state {
-            let pos = self.translate_screen_to_application_space(pos).to_i32();
             let v = unsafe { self.active_view.as_mut().unwrap() };
             let mut bb = v.bounding_box();
-
-            bb.center_align_around(pos);
-
+            bb.center_align_around(pos.to_i32());
             self.rect_animation_renderer
                 .set_rect(bb, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.25 });
             self.rect_animation_renderer.draw();

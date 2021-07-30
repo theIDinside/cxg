@@ -783,15 +783,6 @@ impl Viewable for View {
             .mouse_to_buffer_position(begin_coordinate)
             .zip(self.mouse_to_buffer_position(current_coordinate))
         {
-            /*
-                       let (begin, end) = if begin_coord_idx < target_coord_idx {
-                           (begin_coord_idx, target_coord_idx)
-                       } else {
-                           (target_coord_idx, begin_coord_idx)
-                       };
-                       let dbg_string = String::from_iter(self.buffer.get_slice(*begin..*end.offset(1)));
-                       println!("Selection: {}", dbg_string);
-            */
             self.buffer.cursor_goto(target_coord_idx);
             self.buffer.meta_cursor = Some(begin_coord_idx);
             self.adjust_view_range();

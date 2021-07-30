@@ -37,7 +37,6 @@ pub struct Font {
 fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {
     use std::fs::File;
     use std::io::BufWriter;
-    println!("we are in debug mode");
     let mut png_data: Vec<u8> = Vec::with_capacity(pixels.len() * 4);
 
     for _p in pixels.iter() {
@@ -55,7 +54,6 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
     }
     output_file.push(font_file_name);
     output_file.set_extension("png");
-    println!("Path: {}", &output_file.display());
     let path = output_file.as_path();
     let file = File::create(path).unwrap();
     let ref mut w = BufWriter::new(file);
@@ -65,7 +63,6 @@ fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_si
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header().unwrap();
     writer.write_image_data(&png_data).unwrap(); // Save
-    println!("Wrote to file {}", path.display());
 }
 
 // fn debug_write_font_texture_to_file(_font_path: &Path, _pixels: &Vec<u8>, _pixel_size: i32, _tex_width: u32, _tex_height: u32) {}

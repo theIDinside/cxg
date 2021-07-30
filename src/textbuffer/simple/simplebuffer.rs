@@ -720,9 +720,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     let cs = calculate_hash(self);
                     self.meta_data.set_checksum(cs);
                 }
+                // todo: remove debug println, and instead create a UI representation of this error message
                 Err(e) => println!("failed to read data: {}", e),
             },
             Err(e) => {
+                // todo: remove debug println, and instead create a UI representation of this error message
                 println!("failed to OPEN file: {}", e);
             }
         }
@@ -744,6 +746,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 Err(_err) => {}
             }
         } else {
+            // todo: remove debug println, and instead create a UI representation of this error message
             println!("File is already pristine!");
         }
     }

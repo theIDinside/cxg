@@ -28,6 +28,9 @@ pub enum UID {
     None,
 }
 
+/// Mouse state. Note that all Vec2d values *must* be translated to Application local understanding
+/// of the coordinate system (which has the Y-axis reveresed from GLFW). Not translating the GLFW -> Application coordinates
+/// will make the rendering etc involved with this state data, behave wrong.
 #[derive(Debug, Clone, Copy)]
 pub enum MouseState {
     /// Mouse state that immediately gets translated to, when a mouse click is registered

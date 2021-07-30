@@ -36,7 +36,6 @@ pub unsafe fn init_gl() {
     let mut flags = -1;
     gl::GetIntegerv(gl::CONTEXT_FLAGS, &mut flags);
     if flags & gl::CONTEXT_FLAG_DEBUG_BIT as i32 == 0 {
-        println!("Setting debug output function");
         gl::Enable(gl::DEBUG_OUTPUT);
         gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
         gl::DebugMessageCallback(Some(gl_debug_output), std::ptr::null());

@@ -50,10 +50,7 @@ impl TextureMap {
             let (info, mut reader) = decoder.read_info().unwrap();
             let mut buf = vec![0; reader.output_buffer_size()];
             reader.next_frame(&mut buf).unwrap();
-
-            println!("Texture color type: {:?}", info.color_type);
             let dimensions = Vec2i::new(info.width as _, info.height as _);
-
             let mut id = 0;
             unsafe {
                 gl::GenTextures(1, &mut id);
