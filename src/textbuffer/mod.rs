@@ -72,7 +72,8 @@ pub trait CharBuffer<'a>: std::hash::Hash {
         Self: std::hash::Hash + Sized,
     {
         let hash = calculate_hash(self);
-        self.meta_data().get_checksum() == hash
+
+        self.meta_data().get_pristine_hash() == hash
     }
 
     /// Available free space in the buffer

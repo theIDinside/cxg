@@ -31,6 +31,7 @@ pub struct MetaData {
     pub buffer_size: usize,
     /// real simple approach to checking file changes
     buf_hash: u64,
+    hash_on_open: u64,
 }
 
 impl std::fmt::Display for MetaData {
@@ -46,6 +47,7 @@ impl MetaData {
             line_begin_indices: vec![Index(0)],
             buffer_size: 0,
             buf_hash: 0,
+            hash_on_open: 0,
         }
     }
 
@@ -151,7 +153,15 @@ impl MetaData {
         self.buf_hash = sum;
     }
 
-    pub fn get_checksum(&self) -> u64 {
+    pub fn set_pristine_hash(&mut self, sum: u64) {
+        self.hash_on_open = sum;
+    }
+
+    pub fn get_pristine_hash(&self) -> u64 {
+        self.hash_on_open
+    }
+
+    pub fn get_current_checksum(&self) -> u64 {
         self.buf_hash
     }
 }

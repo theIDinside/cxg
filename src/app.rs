@@ -600,8 +600,8 @@ impl<'app> Application<'app> {
                 }
             }
             Key::KpAdd => {}
-            Key::W if modifier == Modifiers::Control && action == Action::Press => {
-                self.close_active_view();
+            Key::W if modifier.contains(Modifiers::Control) && action == Action::Press => {
+                self.close_active_view(modifier.contains(Modifiers::Shift));
             }
             Key::H if modifier == Modifiers::Control && action == Action::Press => {
                 let visible = all_views(&self.panels).filter(|v| v.visible).count();
@@ -792,7 +792,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn close_active_view(&mut self) {
+    pub fn close_active_view(&mut self, force_close: bool) {
         // we never detroy the popup window until the application is exited. So hitting "ctrl+w" or whatever keybinding we might have,
         // is just going to cancel the popup and hide it again
         if self.popup.visible {
@@ -804,7 +804,7 @@ impl<'app> Application<'app> {
 
         let view = unsafe { self.active_view.as_mut().unwrap() };
 
-        if view.buffer.pristine() {
+        if view.buffer.pristine() || force_close {
             let view_id = view.id;
             let panel_id = view.panel_id.unwrap();
 

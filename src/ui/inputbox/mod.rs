@@ -1,7 +1,6 @@
 pub mod line_text_box;
 pub mod listbox;
 
-use libc::input_id;
 use line_text_box::LineTextBox;
 use listbox::ListBox;
 
@@ -19,7 +18,6 @@ use super::{
 };
 use crate::{
     datastructure::generic::Vec2i,
-    debugger_catch,
     opengl::{
         rectangle_renderer::RectRenderer,
         shaders::{RectShader, TextShader},
@@ -150,7 +148,6 @@ impl InputBox {
     }
 
     fn draw_with_list(&mut self) {
-        debugger_catch!(self.input_box.data.len() < 3, crate::DebuggerCatch::Handle("Breakpoint set for when length of text is > 3".into()));
         let list_items = self.selection_list.data.len();
         let max_height = if list_items < ListBox::MAX_DISPLAYABLE_ITEMS_HINT {
             // todo: I have to start thinking about re-designing some of the UI elements so I don't have to rely on these magical

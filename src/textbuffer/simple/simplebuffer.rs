@@ -752,6 +752,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                     self.meta_data.file_name = Some(path.to_path_buf());
                     let cs = calculate_hash(self);
                     self.meta_data.set_checksum(cs);
+                    self.meta_data.set_pristine_hash(cs);
                 }
                 // todo: remove debug println, and instead create a UI representation of this error message
                 Err(e) => println!("failed to read data: {}", e),
@@ -765,7 +766,7 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
 
     fn save_file(&mut self, path: &Path) {
         let checksum = calculate_hash(self);
-        if checksum != self.meta_data.get_checksum() {
+        if checksum != self.meta_data.get_pristine_hash() {
             match std::fs::OpenOptions::new().write(true).create(true).open(path) {
                 Ok(mut file) => match file.write(self.data.iter().map(|c| *c).collect::<String>().as_bytes()) {
                     Ok(_bytes_written) => {
@@ -800,6 +801,7 @@ pub fn predicate_generate(c: &char) -> fn(char) -> bool {
     }
 }
 
+#[allow(unused)]
 #[cfg(test)]
 mod tests {
     // For using benchmarking
