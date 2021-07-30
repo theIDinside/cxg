@@ -8,9 +8,12 @@ So far, only some 60-70% of the same features as the C++ version, with some mino
 
 Key-bindings are not re-mappable right now, but obviously will be
 
+## General
 - Select text
   - Shift + Cursor movement
   - Mouse click + drag
+
+## View & Buffer actions 
 - Debug interface, show memory usage, frame time, fps, pid etc... more to come here
   - Ctrl + D
 - New view & Buffer
@@ -19,25 +22,40 @@ Key-bindings are not re-mappable right now, but obviously will be
   - Ctrl + W
 - Cycle focused tab
   - Ctrl + Tab
+- Move Text View To another view's position
+  - Ctrl + Mouse click & drag
+  - Mouse click on title bar and drag
+- Open Input box for opening files in current working directory (gif/screenshots below)
+  - Ctrl + shift + I
 - Debug dump a rust source file to active buffer
   - Ctrl + F1
+- Save file
+  - Ctrl + S, writes changes to disk if file exists, otherwise shows a file dialog
+    The file dialogue uses the C library nativefiledialogs (with the Rust binding here, nfd-rs).
+    The issue I have with it, is that as soon as one opens a dialogue, over 500 MB of Virtual memory
+    gets mapped to the user process. Now, if one hits ctrl+D to show the debug info, one can see
+    that the RSS (actual pages in memory) is not this high. But it still feels weird to me,
+    that the library is asking for that much memory, for no apparent reason. Once the dialog is closed
+    this VM does not get unmapped, either. I wonder what kind of performance issues this can cause (if any at all),
+## Navigating the text buffer
 - Go to end of file
   - Ctrl + End
 - Go to beginning of file
   - Ctrl + Home
-- Navigate cursor on word boundaries
-  - Ctrl + Left/Right
-- Show popup view (no other functionality than a normal view as of now)
-  - Ctrl + P
-- Open Input box (screen shot below)
-  - Ctrl + shift + I
 - Navigate text on source code block boundary
   - Shift + Alt Left/Right
 - Navigate text on "word" boundary
   - Ctrl + Left/Right'
-- Move Text View To another view's position
-  - Ctrl + Mouse click & drag
-  - Mouse click on title bar and drag
+- Navigate text on page boundary
+  - Page Up/Down
+- Navigate text in line steps
+  - Arrow Up/Down
+
+## Misc
+- Show popup view (no other functionality than a normal view as of now)
+  - Ctrl + P
+
+
 
 ## Code quality
 I have to be very clear and say that the quality of this code, how it's designed, is particularly awful. That mostly has to do with my inexperience
