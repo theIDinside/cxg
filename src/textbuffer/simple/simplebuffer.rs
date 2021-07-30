@@ -1,6 +1,7 @@
 use std::{
     cmp::min,
     io::{Read, Write},
+    iter::FromIterator,
     path::Path,
 };
 
@@ -264,6 +265,24 @@ impl SimpleBuffer {
             TextKind::Block => todo!(),
         }
     }
+
+    /// Copies the selected text (if any text is selected) otherwise copies the contents of the line
+    pub fn copy_range_or_line(&self) -> String {
+        if let Some(meta_cursor) = self.meta_cursor {
+            if meta_cursor < self.edit_cursor.pos {
+                String::from_iter(self.get_slice(*meta_cursor..*self.edit_cursor.pos.offset(1)))
+            } else {
+                String::from_iter(self.get_slice(*self.edit_cursor.pos..*meta_cursor.offset(1)))
+            }
+        } else {
+            let row = self.edit_cursor.row;
+            self.meta_data
+                .get_line_start_index(row)
+                .zip(self.meta_data.get_line_start_index(row.offset(1)))
+                .map(|(begin, end)| String::from_iter(self.get_slice(*begin..*end)))
+                .unwrap_or(String::new())
+        }
+    }
 }
 
 /// Private interface implementation
@@ -514,10 +533,11 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         }
         if let Some(marker) = self.meta_cursor {
             let (erase_from, erase_to) = if marker < self.cursor_abs() {
-                (*marker, *self.edit_cursor.pos)
+                (*marker, std::cmp::min(*self.edit_cursor.pos, self.len() - 1))
             } else {
-                (*self.edit_cursor.pos, *marker)
+                (*self.edit_cursor.pos, std::cmp::min(*marker, self.len() - 1))
             };
+
             self.data.drain(erase_from..=erase_to);
             self.meta_cursor = None;
             self.size = self.data.len();
@@ -678,14 +698,14 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                         let new_pos = self.find_index_of_next_from(start, predicate).unwrap_or(Index(self.len())); // .and_then(|i| self.cursor_from_metadata(i));
                         let step_length = *(new_pos - self.edit_cursor.pos);
                         self.cursor_step_forward(step_length);
-
-                        // self.cursor = new_pos.unwrap_or(self.cursor_from_metadata(Index(self.len())).unwrap());
                     }
                 }
                 TextKind::Line => {
-                    if let Some(end) = self.meta_data.get(self.cursor_row().offset(1)).map(|Index(start)| Index(start - 1)) {
-                        self.cursor_goto(end);
-                    }
+                    let end = self
+                        .meta_data
+                        .get(self.cursor_row().offset(1))
+                        .map_or(Index(self.len()), |Index(start)| Index(start - 1));
+                    self.cursor_goto(end);
                 }
                 TextKind::Block => {
                     if let Some(block_begin) = self.find_index_of_next_from(self.edit_cursor.pos.offset(1), |f| f == '}') {
@@ -751,8 +771,8 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         }
     }
 
-    fn copy(&mut self, range: std::ops::Range<usize>) -> &[char] {
-        &self.data[range]
+    fn copy(&mut self, range: std::ops::Range<usize>) -> String {
+        String::from_iter(&self.data[range])
     }
 }
 

@@ -13,6 +13,7 @@ use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
+use crate::ui::eventhandling::event::key_press;
 use crate::ui::{
     clipboard::ClipBoard,
     debug_view::DebugView,
@@ -329,6 +330,14 @@ impl<'app> Application<'app> {
         }
     }
 
+    pub fn get_view_unchecked(&mut self, view_id: ViewId) -> &mut View {
+        self.panels
+            .iter_mut()
+            .flat_map(|p| p.children.iter_mut())
+            .find(|v| v.id == view_id)
+            .unwrap()
+    }
+
     pub fn get_active_view_ptr(&mut self) -> *mut View {
         if self.popup.visible {
             &mut self.popup.view as *mut _
@@ -384,7 +393,7 @@ impl<'app> Application<'app> {
         unsafe { gl::Viewport(0, 0, width, height) }
     }
 
-    pub fn process_events(&mut self, window: &mut Window, events: &Receiver<(f64, glfw::WindowEvent)>) {
+    pub fn process_all_events(&mut self, window: &mut Window, events: &Receiver<(f64, glfw::WindowEvent)>) {
         for (_, event) in glfw::flush_messages(events) {
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
@@ -414,23 +423,17 @@ impl<'app> Application<'app> {
                     match self.mouse_state {
                         MouseState::UIElementClicked(view, btn, pos) => {
                             // If control is pressed, we want to activate the Drag action for the UI element itsef
-
-                            let clicked_view = self
-                                .panels
-                                .iter_mut()
-                                .flat_map(|p| p.children.iter_mut())
-                                .find(|v| v.bounding_box().box_hit_check(pos.to_i32()));
-
-                            if let Some(cv) = clicked_view {
-                                if cv.title_frame.to_bb().box_hit_check(pos.to_i32()) {}
-                            }
-
-                            if window.get_key(glfw::Key::LeftControl) == Action::Press || window.get_key(glfw::Key::RightControl) == Action::Press {
-                                self.mouse_state = MouseState::UIElementDrag(view, btn, new_pos)
+                            let cv = self.get_view_unchecked(view);
+                            if cv.title_frame.to_bb().box_hit_check(pos.to_i32()) {
+                                self.mouse_state = MouseState::UIElementDrag(view, btn, new_pos);
                             } else {
-                                // Otherwise, we want to tell the UI element to handle the drag action for us; e.g. for selecting text
-                                let new_state = MouseState::UIElementDragAction(view, btn, pos, new_pos);
-                                self.handle_mouse_input(new_state);
+                                if window.get_key(glfw::Key::LeftControl) == Action::Press || window.get_key(glfw::Key::RightControl) == Action::Press {
+                                    self.mouse_state = MouseState::UIElementDrag(view, btn, new_pos);
+                                } else {
+                                    // Otherwise, we want to tell the UI element to handle the drag action for us; e.g. for selecting text
+                                    let new_state = MouseState::UIElementDragAction(view, btn, pos, new_pos);
+                                    self.handle_mouse_input(new_state);
+                                }
                             }
                         }
                         MouseState::UIElementDrag(view, btn, _) => {
@@ -611,7 +614,17 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-            // Key::F if modifier == Modifiers::Control && action == Action::Press =>
+            // Paste
+            Key::V if key_press(action) && modifier == Modifiers::Control => {
+                // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
+                //  which obviously introduces function call overhead, etc, etc
+                for cb_data in self.clipboard.give() {
+                    for ch in cb_data.chars() {
+                        self.active_input.handle_char(ch);
+                    }
+                }
+            }
+
             Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
                 let p = &mut self.panels;
                 all_views_mut(p).for_each(|v| v.visible = true);
@@ -669,6 +682,7 @@ impl<'app> Application<'app> {
                 let size = self.window_size;
                 self.open_text_view(self.active_panel(), Some("new view".into()), size);
             }
+            // dispatches handler to current active input, which we handle a possible response from
             _ => match self.active_input.handle_key(key, action, modifier) {
                 InputResponse::OpenFile(path) => {
                     let v = self.get_active_view();
@@ -715,6 +729,10 @@ impl<'app> Application<'app> {
                             }
                         }
                     }
+                }
+                InputResponse::ClipboardCopy(data) => {
+                    println!("Application clip board copy: '{}'", data);
+                    self.clipboard.take(data);
                 }
                 _ => {}
             },

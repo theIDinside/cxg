@@ -1,7 +1,7 @@
 use glfw::{Action, Key, Modifiers};
 
 use super::boundingbox::BoundingBox;
-use super::eventhandling::event::{InputBehavior, InputResponse};
+use super::eventhandling::event::{key_press, key_press_repeat, InputBehavior, InputResponse};
 use super::panel::PanelId;
 use super::Viewable;
 use super::{
@@ -104,13 +104,12 @@ impl std::fmt::Debug for View {
 
 impl InputBehavior for View {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
-        let key_pressed = || action == Action::Press;
         match key {
             Key::Home | Key::Kp7 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
                 _ => self.move_cursor(Movement::Begin(TextKind::Line)),
             },
-            Key::End | Key::Kp1 if key_pressed() => match modifier {
+            Key::End | Key::Kp1 if key_press(action) => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(self.buffer.len())),
                 Modifiers::Shift => {
                     self.buffer.select_move_cursor(Movement::End(TextKind::Line));
@@ -130,7 +129,7 @@ impl InputBehavior for View {
                     self.move_cursor(Movement::Forward(TextKind::Char, 1));
                 }
             }
-            Key::Left if action == Action::Repeat || action == Action::Press => {
+            Key::Left if key_press_repeat(action) => {
                 if modifier == Modifiers::Control {
                     self.move_cursor(Movement::Begin(TextKind::Word));
                 } else if modifier == Modifiers::Shift | Modifiers::Alt {
@@ -143,47 +142,63 @@ impl InputBehavior for View {
                     self.move_cursor(Movement::Backward(TextKind::Char, 1));
                 }
             }
-            Key::Up if action == Action::Repeat || action == Action::Press => {
+            Key::Up if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer.select_move_cursor(Movement::Backward(TextKind::Line, 1));
                 } else {
                     self.move_cursor(Movement::Backward(TextKind::Line, 1));
                 }
             }
-            Key::Down if action == Action::Repeat || action == Action::Press => {
+            Key::Down if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer.select_move_cursor(Movement::Forward(TextKind::Line, 1));
                 } else {
                     self.move_cursor(Movement::Forward(TextKind::Line, 1));
                 }
             }
-            Key::Backspace if action == Action::Repeat || action == Action::Press => {
+            Key::PageDown if key_press_repeat(action) => {
+                if modifier == Modifiers::Shift {
+                    self.buffer
+                        .select_move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
+                } else {
+                    self.move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
+                }
+            }
+            Key::PageUp if key_press_repeat(action) => {
+                if modifier == Modifiers::Shift {
+                    self.buffer
+                        .select_move_cursor(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
+                } else {
+                    self.move_cursor(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
+                }
+            }
+            Key::Backspace if key_press_repeat(action) => {
                 if modifier == Modifiers::Control {
                     self.delete(Movement::Backward(TextKind::Word, 1));
                 } else {
                     self.delete(Movement::Backward(TextKind::Char, 1));
                 }
             }
-            Key::Delete if action == Action::Repeat || action == Action::Press => {
+            Key::Delete if key_press_repeat(action) => {
                 if modifier == Modifiers::Control {
                     self.delete(Movement::Forward(TextKind::Word, 1));
                 } else if modifier.is_empty() {
                     self.delete(Movement::Forward(TextKind::Char, 1));
                 }
             }
-            Key::F1 => {
-                if action == Action::Press {
-                    if modifier == Modifiers::Shift {
-                        self.insert_str(TEST_DATA);
-                    }
+            Key::F1 if key_press(action) => {
+                if modifier == Modifiers::Shift {
+                    self.insert_str(TEST_DATA);
                 }
             }
-            Key::S if action == Action::Press && modifier == Modifiers::Control => {
-                return InputResponse::SaveFile(self.buffer.file_name().map(Path::to_path_buf))
-            }
-            Key::Enter if action == Action::Press || action == Action::Repeat => {
+            Key::S if key_press(action) && modifier == Modifiers::Control => return InputResponse::SaveFile(self.buffer.file_name().map(Path::to_path_buf)),
+            Key::Enter if key_press_repeat(action) => {
                 self.insert_ch('\n');
             }
+            // Copy
+            Key::C if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
+            // Cut. todo: for now it just copies it. change it so it actually cuts
+            Key::X if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
             _ => {}
         }
         self.adjust_view_range();

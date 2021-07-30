@@ -92,7 +92,7 @@ impl<'a> CharBuffer<'a> for TextBuffer {
         todo!()
     }
 
-    fn copy(&mut self, range: std::ops::Range<usize>) -> &[char] {
+    fn copy(&mut self, range: std::ops::Range<usize>) -> String {
         todo!()
     }
 

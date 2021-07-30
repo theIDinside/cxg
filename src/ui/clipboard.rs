@@ -7,8 +7,12 @@ impl ClipBoard {
         ClipBoard { data: String::new() }
     }
 
-    pub fn take(&mut self, data: &str) {
+    pub fn copy(&mut self, data: &str) {
         self.data = data.to_owned();
+    }
+
+    pub fn take(&mut self, data: String) {
+        self.data = data;
     }
 
     pub fn give(&self) -> Option<&String> {

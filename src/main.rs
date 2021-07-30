@@ -144,7 +144,7 @@ fn main() -> Main {
             let frame_time = (1.0 / fps) * 1000.0;
             app.debug_view.do_update_view(fps, frame_time);
         }
-        app.process_events(&mut window, &events);
+        app.process_all_events(&mut window, &events);
         app.update_window();
         window.swap_buffers();
         glfw_handle.poll_events();
