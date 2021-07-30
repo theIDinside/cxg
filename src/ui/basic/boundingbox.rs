@@ -43,6 +43,20 @@ impl BoundingBox {
         self.max = max;
     }
 
+    pub fn center_horizontal_align(&mut self, x: i32) {
+        let min = Vec2i::new(x, self.min.y) + Vec2i::new(self.width() / -2, 0);
+        let max = Vec2i::new(x, self.max.y) + Vec2i::new(self.width() / 2, 0);
+        self.min = min;
+        self.max = max;
+    }
+
+    pub fn center_vertical_align(&mut self, y: i32) {
+        let min = Vec2i::new(self.min.x, y) + Vec2i::new(0, self.height() / -2);
+        let max = Vec2i::new(self.max.x, y) + Vec2i::new(0, self.height() / 2);
+        self.min = min;
+        self.max = max;
+    }
+
     pub fn shrink(bounding_box: &BoundingBox, margin: Margin) -> BoundingBox {
         let mut b = bounding_box.clone();
         match margin {
