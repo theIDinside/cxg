@@ -166,6 +166,8 @@ pub trait CharBuffer<'a>: std::hash::Hash {
 
     fn copy(&mut self, range: std::ops::Range<usize>) -> String;
 
+    /// Goes to a line in buffer if it exists
+    /// * `line` - Line to go to
     fn goto_line(&mut self, line: usize);
 
     /// This operation only succeeds, if lines is a valid range of lines in the buffer.
