@@ -473,6 +473,34 @@ impl ContiguousBuffer {
             });
         self.set_cursor(new_cursor.unwrap_or(self.edit_cursor));
     }
+
+    pub fn search_next(&mut self, find: &str) {
+        let v: Vec<char> = find.chars().collect();
+        let mut idx = *self.edit_cursor.pos + 1;
+        while idx < self.len() {
+            if self.data[idx] == v[0] {
+                if let Some(sub_ref_slice) = &self.data.get(idx..idx + v.len()) {
+                    if sub_ref_slice[v.len() - 1] == v[v.len() - 1] {
+                        if sub_ref_slice[..] == v[..] {
+                            println!("Found {} at {} ({:?})", find, idx, &self.data[idx..(idx + v.len())]);
+                            self.cursor_goto(metadata::Index(idx));
+                            return;
+                        } else {
+                            idx += v.len();
+                        }
+                    } else {
+                        idx += v.len();
+                    }
+                } else {
+                    println!("could not find __{}__", find);
+                    return;
+                }
+            } else {
+                idx += 1;
+            }
+        }
+        println!("could not find {}", find);
+    }
 }
 
 /// Trait implementation definitions for SimpleBuffer

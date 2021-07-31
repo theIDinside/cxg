@@ -44,7 +44,7 @@ impl Default for TextRenderSetting {
         TextRenderSetting { _scale: 1.0, text_color: RGBColor { r: 0.0, g: 1.0, b: 1.0 } }
     }
 }
-
+#[derive(PartialEq, Eq)]
 pub enum Mode {
     // todo(feature): add SymbolList
     Command(CommandTag),
@@ -315,7 +315,7 @@ impl InputBox {
                     .parse()
                     .map(|v| InputResponse::Goto(v))
                     .unwrap_or(InputResponse::None),
-                CommandTag::Find => todo!(),
+                CommandTag::Find => InputResponse::Find(self.input_box.data.iter().collect::<String>()),
             },
             Mode::FileList => self.handle_file_selection(),
         }

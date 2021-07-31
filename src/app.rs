@@ -583,8 +583,9 @@ impl<'app> Application<'app> {
     pub fn toggle_input_box(&mut self, mode: Mode) {
         if self.input_box.visible {
             self.active_input = cast_ptr_to_input(self.active_view);
-            self.input_box.visible = false;
             self.input_box.clear();
+            self.input_box.visible = false;
+            self.input_box.mode = mode;
         } else {
             self.input_box.mode = mode;
             // self.active_input = &mut self.input_box as &'app mut dyn Input;
@@ -597,11 +598,16 @@ impl<'app> Application<'app> {
         let _op = translate_key_input(key, action, modifier);
 
         match key {
-            Key::Escape if key_press(action) => {
+            Key::Escape | Key::CapsLock if key_press(action) => {
                 if self.input_box.visible {
                     self.toggle_input_box(Mode::Command(CommandTag::Goto));
                 } else {
                     self.active_input.handle_key(key, action, modifier);
+                }
+            }
+            Key::F if key_press(action) && modifier == Modifiers::Control => {
+                if key_press(action) {
+                    self.toggle_input_box(Mode::Command(CommandTag::Find));
                 }
             }
             Key::KpAdd => {}
@@ -724,6 +730,13 @@ impl<'app> Application<'app> {
                     self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
                     self.input_box.visible = false;
                     self.input_box.clear();
+                }
+                InputResponse::Find(find) => {
+                    // todo: use the regex crate for searching
+                    let v = self.get_active_view();
+                    v.buffer.search_next(&find);
+                    v.set_view_on_buffer_cursor();
+                    v.set_need_redraw();
                 }
                 InputResponse::SaveFile(file_path) => {
                     if let Some(p) = file_path {
