@@ -147,8 +147,8 @@ fn main() -> Main {
         app.process_all_events(&mut window, &events);
         app.update_window();
         window.swap_buffers();
-        glfw_handle.poll_events();
-        // glfw_handle.wait_events_timeout(1.0 / 90.0);
+        glfw_handle.wait_events_timeout(1.0 / 125.0);
+        // glfw_handle.poll_events();
     }
 
     Ok(())

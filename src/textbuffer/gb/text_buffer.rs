@@ -99,4 +99,8 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn select_move_cursor(&mut self, movement: crate::textbuffer::Movement) {
         todo!()
     }
+
+    fn goto_line(&mut self, line: usize) {
+        todo!()
+    }
 }
