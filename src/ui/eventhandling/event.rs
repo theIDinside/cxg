@@ -9,6 +9,8 @@ pub enum InputResponse {
     ClipboardCopy(Option<String>),
     OpenFile(PathBuf),
     SaveFile(Option<PathBuf>),
+    Goto(u32),
+    Find(String),
     None,
 }
 

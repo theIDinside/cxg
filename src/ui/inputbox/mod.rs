@@ -17,6 +17,7 @@ use super::{
     Viewable, ACTIVE_VIEW_BACKGROUND,
 };
 use crate::{
+    cmd::CommandTag,
     datastructure::generic::Vec2i,
     opengl::{
         rectangle_renderer::RectRenderer,
@@ -44,10 +45,9 @@ impl Default for TextRenderSetting {
     }
 }
 
-#[derive(PartialEq, Eq)]
 pub enum Mode {
     // todo(feature): add SymbolList
-    Command,
+    Command(CommandTag),
     FileList,
 }
 
@@ -88,21 +88,23 @@ impl InputBox {
             frame,
             text_renderer,
             rect_renderer,
-            mode: Mode::Command,
+            mode: Mode::Command(CommandTag::Goto),
             needs_update: true,
             font,
         }
     }
 
     pub fn open(&mut self, mode: Mode) {
-        match mode {
-            Mode::Command => {}
-            Mode::FileList => {}
-        }
-        if mode != self.mode {}
         self.mode = mode;
         self.needs_update = true;
         self.draw();
+    }
+
+    fn update_frame(&mut self) {
+        match self.mode {
+            Mode::Command(_) => {}
+            Mode::FileList => {}
+        }
     }
 
     /// updates the list of possible selections that contains what the user has input into the
@@ -139,12 +141,62 @@ impl InputBox {
         if self.needs_update {
             self.text_renderer.clear_data();
             self.rect_renderer.clear_data();
-            self.draw_with_list();
+
+            match self.mode {
+                Mode::Command(cmd) => {
+                    self.draw_without_list(cmd);
+                }
+                Mode::FileList => {
+                    self.draw_with_list();
+                }
+            }
+
             self.needs_update = false;
         }
 
         self.rect_renderer.draw();
         self.text_renderer.draw_clipped_list(self.frame);
+    }
+
+    fn draw_without_list(&mut self, cmd: CommandTag) {
+        const MARGIN: i32 = 2;
+        let color = self.input_box.text_render_settings.text_color;
+        let input_box_frame = Frame {
+            anchor: self.frame.anchor,
+            size: Size::new(self.frame.size.width, self.font.row_height() + MARGIN * 4),
+        };
+        let mut frame_bb = BoundingBox::from_frame(&self.frame);
+        frame_bb.min.y = frame_bb.max.y - self.font.row_height() + MARGIN * 4;
+
+        // self.rect_renderer.add_rect(frame_bb, self.selection_list.background_color);
+
+        let input_inner_frame = make_inner_frame(&input_box_frame, MARGIN);
+
+        let text_area_frame = BoundingBox::from_frame(&input_box_frame);
+        let text_area = BoundingBox::from_frame(&input_inner_frame);
+        let white_border_bb = BoundingBox::expand(&text_area_frame, Margin::Perpendicular { h: 2, v: 2 });
+        self.rect_renderer.add_rect(white_border_bb, RGBAColor::gray());
+        // frame color, of border around user input text box
+        let input_textbox_frame_color = RGBAColor { r: 1.0, g: 0.5, b: 0.0, a: 1.0 };
+        // the background color behind the user typed text
+        let input_textbox_color = RGBAColor { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+        self.rect_renderer.add_rect(text_area_frame, input_textbox_frame_color);
+        self.rect_renderer.add_rect(text_area.clone(), input_textbox_color);
+
+        let text_top_left_anchor = Vec2i::new(text_area.min.x, text_area.max.y);
+        if !self.input_box.data.is_empty() {
+            self.text_renderer.push_draw_command(
+                self.input_box.data.iter().map(|c| *c),
+                color,
+                text_top_left_anchor.x,
+                text_top_left_anchor.y,
+                self.font.clone(),
+            );
+        } else {
+            let msg: &'static str = From::from(cmd);
+            self.text_renderer
+                .push_draw_command(msg.chars(), color, text_top_left_anchor.x, text_top_left_anchor.y, self.font.clone());
+        }
     }
 
     fn draw_with_list(&mut self) {
@@ -258,6 +310,23 @@ impl InputBox {
             InputResponse::None
         }
     }
+
+    fn process_input(&mut self) -> InputResponse {
+        match self.mode {
+            Mode::Command(cmd) => match cmd {
+                CommandTag::Goto => self
+                    .input_box
+                    .data
+                    .iter()
+                    .collect::<String>()
+                    .parse()
+                    .map(|v| InputResponse::Goto(v))
+                    .unwrap_or(InputResponse::None),
+                CommandTag::Find => todo!(),
+            },
+            Mode::FileList => self.handle_file_selection(),
+        }
+    }
 }
 
 impl InputBehavior for InputBox {
@@ -284,10 +353,7 @@ impl InputBehavior for InputBox {
                 self.selection_list.scroll_selection_down();
                 InputResponse::None
             }
-            glfw::Key::Enter if key_pressed() => match self.mode {
-                Mode::Command => InputResponse::None,
-                Mode::FileList => self.handle_file_selection(),
-            },
+            glfw::Key::Enter if key_pressed() => self.process_input(),
             _ => InputResponse::None,
         };
         self.needs_update = true;
@@ -299,7 +365,7 @@ impl InputBehavior for InputBox {
         self.input_box.cursor += 1;
         self.selection_list.selection = None;
         match self.mode {
-            Mode::Command => {}
+            Mode::Command(cmd) => {}
             Mode::FileList => {
                 self.update_list();
             }

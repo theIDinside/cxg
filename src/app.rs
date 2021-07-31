@@ -1,3 +1,4 @@
+use crate::cmd::CommandTag;
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
@@ -193,8 +194,14 @@ impl<'app> Application<'app> {
         debug_view.update(Some(tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap()));
         // debug_view.window_renderer.set_color(RGBAColor { r: 0.35, g: 0.7, b: 1.0, a: 0.95 });
         let debug_view = DebugView::new(debug_view, debug_info, tex_map.textures.get(&TextureType::Background(2)).unwrap().clone());
-
-        let ib_frame = Frame { anchor: Vec2i::new(250, 700), size: Size { width: 500, height: 500 } };
+        let ib_border_margin = 2;
+        let ib_frame = Frame {
+            anchor: Vec2i::new(250, 700),
+            size: Size {
+                width: 500,
+                height: 500 + 2 * ib_border_margin, // fonts[1].row_height() + 2 * ib_border_margin
+            },
+        };
         let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
@@ -596,7 +603,7 @@ impl<'app> Application<'app> {
         match key {
             Key::Escape => {
                 if self.input_box.visible {
-                    self.toggle_input_box(Mode::Command);
+                    self.toggle_input_box(Mode::Command(CommandTag::Goto));
                 }
             }
             Key::KpAdd => {}
@@ -624,7 +631,9 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-
+            Key::G if modifier == Modifiers::Control && key_press(action) => {
+                self.toggle_input_box(Mode::Command(CommandTag::Goto));
+            }
             Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
                 let p = &mut self.panels;
                 all_views_mut(p).for_each(|v| v.visible = true);
@@ -638,9 +647,7 @@ impl<'app> Application<'app> {
                 }
             }
             Key::I if action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    self.toggle_input_box(Mode::Command);
-                } else if modifier == (Modifiers::Control | Modifiers::Shift) {
+                if modifier == (Modifiers::Control | Modifiers::Shift) {
                     self.toggle_input_box(Mode::FileList);
                 }
             }
@@ -703,6 +710,16 @@ impl<'app> Application<'app> {
                         v.update(None);
                         self.input_box.visible = false;
                     }
+                    self.input_box.clear();
+                }
+                InputResponse::Goto(line) => {
+                    let v = self.get_active_view();
+                    v.buffer.goto_line(line as usize);
+                    v.set_view_on_buffer_cursor();
+                    v.set_need_redraw();
+                    v.update(None);
+                    self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+                    self.input_box.visible = false;
                     self.input_box.clear();
                 }
                 InputResponse::SaveFile(file_path) => {

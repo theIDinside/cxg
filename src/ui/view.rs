@@ -156,7 +156,7 @@ impl InputBehavior for View {
                     self.move_cursor(Movement::Forward(TextKind::Line, 1));
                 }
             }
-            Key::PageDown if key_press_repeat(action) => {
+            Key::PageDown | Key::Kp3 if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer
                         .select_move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
@@ -164,7 +164,7 @@ impl InputBehavior for View {
                     self.move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
                 }
             }
-            Key::PageUp if key_press_repeat(action) => {
+            Key::PageUp | Key::Kp9 if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer
                         .select_move_cursor(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
@@ -201,7 +201,7 @@ impl InputBehavior for View {
             Key::X if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
             _ => {}
         }
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
         InputResponse::None
     }
 
@@ -249,7 +249,7 @@ impl View {
             bg_color,
             visible: true,
             background_image,
-            text_margin_left: 2,
+            text_margin_left: 4,
         };
 
         v.update(None);
@@ -294,7 +294,7 @@ impl View {
     }
 
     pub fn set_need_redraw(&mut self) {
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
         self.view_changed = true;
     }
 
@@ -421,7 +421,7 @@ impl View {
                             top_x + end_x + self.get_text_font().get_max_glyph_width() - 2,
                             top_y - rows_down_in_view * self.get_text_font().row_height(),
                         );
-                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(self.text_margin_left / 2, -3));
                         self.cursor_renderer.add_rect(rect, selection_color);
                         self.render_normal_cursor();
                     } else {
@@ -512,7 +512,7 @@ impl View {
         let max = Vec2i::new(min_x + self.get_text_font().get_max_glyph_width() - 2, 0 - (rows_down * self.get_text_font().row_height()));
 
         let cursor_bound_box = BoundingBox::new(min, max)
-            .translate(Vec2i::new(2, -3))
+            .translate(Vec2i::new(self.text_margin_left, -3))
             .translate(self.view_frame.anchor);
         let mut line_bounding_box = cursor_bound_box.clone();
         line_bounding_box.min.x = self.view_frame.anchor.x + 2;
@@ -587,7 +587,7 @@ impl View {
         debugger_catch!(self.buffer.empty(), crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file")));
         if self.buffer.empty() {
             self.buffer.load_file(path);
-            self.adjust_view_range();
+            self.set_view_on_buffer_cursor();
         }
     }
 
@@ -598,14 +598,17 @@ impl View {
 
         self.buffer.insert(ch);
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
-            self.adjust_view_range();
+            self.set_view_on_buffer_cursor();
         } else {
             self.buffer_in_view.end += 1;
             self.view_changed = true;
         }
     }
 
-    pub fn adjust_view_range(&mut self) {
+    /// Sets the view of the buffer, so that it "sees" the buffer cursor.
+    /// This will be called quite often, since what we edit, is what we should see in the view.
+    /// So this should get called whenever the buffer cursor moves.
+    pub fn set_view_on_buffer_cursor(&mut self) {
         let md = self.buffer.meta_data();
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
             let diff = std::cmp::max((*self.buffer.cursor_row() as i32) - (self.topmost_line_in_buffer + self.rows_displayable()) as i32, 1);
@@ -638,7 +641,7 @@ impl View {
         self.buffer.insert_slice(s);
         self.text_renderer.pristine = false;
         self.validate_range();
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
 
     pub fn insert_str(&mut self, s: &str) {
@@ -646,23 +649,23 @@ impl View {
         self.buffer_in_view = 0..s.len();
         self.buffer.insert_slice(&d[..]);
         self.text_renderer.pristine = false;
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
 
     pub fn cursor_goto(&mut self, pos: Index) {
         self.buffer.cursor_goto(pos);
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
     pub fn move_cursor(&mut self, dir: Movement) {
         self.buffer.move_cursor(dir);
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
 
     pub fn delete(&mut self, dir: Movement) {
         self.buffer.delete(dir);
         self.view_changed = true;
         self.validate_range();
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
 
     pub fn backspace_handle(&mut self, kind: TextKind) {
@@ -674,7 +677,7 @@ impl View {
         }
         self.view_changed = true;
         self.validate_range();
-        self.adjust_view_range();
+        self.set_view_on_buffer_cursor();
     }
 
     pub fn validate_range(&mut self) {
@@ -800,7 +803,7 @@ impl Viewable for View {
         {
             self.buffer.cursor_goto(target_coord_idx);
             self.buffer.meta_cursor = Some(begin_coord_idx);
-            self.adjust_view_range();
+            self.set_view_on_buffer_cursor();
         } else {
             self.buffer.meta_cursor = None;
         }

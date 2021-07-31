@@ -76,6 +76,14 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
       One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)
       and do it like that. No semantical analysis, nothing. Just eat_char(ch) until done, and figure out what are types, values, etc and use this to syntax highlight.
       Or, we can pull in parsers and lexers from other crates. We'll see. 
+- [ ] File caching, to prevent loss of data
+- [ ] Linux IPC
+
+- UI elements
+  - [ ] Scrollbars
+  - [ ] Input box re-design for non-list display
+  - [ ] Resizing individual views
+  - [ ] File, symbol, or whatever browser
 
 
 ## Screenshots

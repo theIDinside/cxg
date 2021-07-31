@@ -788,6 +788,14 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn copy(&mut self, range: std::ops::Range<usize>) -> String {
         String::from_iter(&self.data[range])
     }
+
+    fn goto_line(&mut self, line: usize) {
+        self.cursor_goto(
+            self.meta_data
+                .get_line_start_index(metadata::Line(line))
+                .unwrap_or(self.cursor_abs()),
+        );
+    }
 }
 
 #[inline(always)]
@@ -852,7 +860,6 @@ mod tests {
         let mut multiple = 1;
         assert_eq!(b.len() * multiple, v.len());
         b.insert_slice(slice);
-        multiple += 1;
         let copy = b.copy_range_or_line();
         assert_eq!(copy, Some(v.iter().chain(v.iter()).collect::<String>()));
     }
@@ -860,7 +867,6 @@ mod tests {
     #[test]
     fn copy_paste_hello() {
         let v: Vec<char> = "Hello test world".chars().collect();
-        let slice = &v[..];
         let mut b = Box::new(SimpleBuffer::new(0, 1024));
         for c in v {
             b.insert(c);
