@@ -460,11 +460,6 @@ impl<'app> Application<'app> {
         }
     }
 
-    #[allow(unused)]
-    fn overlay_clicked(&self, pos: Vec2i) -> Option<&dyn Viewable> {
-        None
-    }
-
     fn handle_mouse_input(&mut self, new_state: MouseState) {
         match new_state {
             MouseState::Click(btn, p) => {
@@ -605,6 +600,8 @@ impl<'app> Application<'app> {
             Key::Escape if key_press(action) => {
                 if self.input_box.visible {
                     self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                } else {
+                    self.active_input.handle_key(key, action, modifier);
                 }
             }
             Key::KpAdd => {}

@@ -13,7 +13,7 @@ use crate::debugger_catch;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
 use crate::textbuffer::cursor::MetaCursor;
-use crate::textbuffer::LineOperation;
+use crate::textbuffer::operations::LineOperation;
 use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
@@ -62,7 +62,6 @@ pub struct View {
     /// we return it back to the Buffers type, which manages live buffers and we replace this one with another Box<SimpleBuffer>, taking ownership of that
     pub buffer: Box<ContiguousBuffer>,
     buffer_in_view: std::ops::Range<usize>,
-    _buffer_selection: Option<std::ops::Range<Index>>,
     pub view_changed: bool,
     pub bg_color: RGBAColor,
     pub visible: bool,
@@ -217,6 +216,12 @@ impl InputBehavior for View {
             Key::C if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
             // Cut. todo: for now it just copies it. change it so it actually cuts
             Key::X if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
+            Key::Escape if key_press(action) => {
+                if self.buffer.meta_cursor.is_some() {
+                    self.buffer.meta_cursor = None;
+                    self.set_need_redraw();
+                }
+            }
             _ => {}
         }
         self.set_view_on_buffer_cursor();
@@ -262,7 +267,6 @@ impl View {
             panel_id: None,
             buffer,
             buffer_in_view: 0..0,
-            _buffer_selection: None,
             view_changed: true,
             bg_color,
             visible: true,
@@ -373,6 +377,7 @@ impl View {
         let total_size = self.total_size();
         if self.view_changed {
             self.text_renderer.clear_data();
+            self.cursor_renderer.clear_data();
             // self.menu_text_renderer.clear_data();
             let BufferCursor { row, col, .. } = self.buffer.cursor();
             let title = format!(
@@ -420,7 +425,7 @@ impl View {
                         self.render_absolute_selection(*abs_pos);
                     }
                     #[allow(unused)]
-                    crate::textbuffer::cursor::MetaCursor::LineRange { begin, end } => {
+                    crate::textbuffer::cursor::MetaCursor::LineRange { column, begin, end } => {
                         todo!();
                     }
                 }

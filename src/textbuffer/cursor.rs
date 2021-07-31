@@ -17,7 +17,11 @@ pub struct BufferCursor {
 #[derive(Clone, Copy)]
 pub enum MetaCursor {
     Absolute(Index),
-    LineRange { begin: Line, end: Line },
+    LineRange {
+        column: Column,
+        begin: Line,
+        end: Line,
+    },
 }
 
 impl Into<BufferCursor> for (usize, usize, usize) {

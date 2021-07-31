@@ -2,7 +2,10 @@ use std::path::Path;
 
 use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
-use self::metadata::{calculate_hash, MetaData};
+use self::{
+    metadata::{calculate_hash, MetaData},
+    operations::LineOperation,
+};
 
 /// Buffer manager module
 pub mod buffers;
@@ -16,23 +19,6 @@ pub mod gb;
 pub mod metadata;
 // Definitions of abstractions of operations on buffers
 pub mod operations;
-
-pub enum LineOperation<'a> {
-    ShiftLeft {
-        shift_by: usize,
-    },
-    ShiftRight {
-        shift_by: usize,
-    },
-    InsertElement {
-        at_column: metadata::Column,
-        insertion: char,
-    },
-    InsertString {
-        at_column: metadata::Column,
-        insertion: &'a str,
-    },
-}
 
 #[derive(Debug)]
 pub enum TextKind {
@@ -48,14 +34,6 @@ pub enum Movement {
     Backward(TextKind, usize),
     Begin(TextKind),
     End(TextKind),
-}
-
-pub enum SelectMovement {
-    /// Communicate to the buffer to invalidate any existing meta cursor and move the edit cursor
-    NoSelection(Movement),
-    /// Communicate to the buffer to set a new meta cursor, if no meta cursor is set, at current edit_cursor position, before moving the edit_cursor.
-    /// If a meta_cursor already exist, leave the meta cursor intact and move the edit_cursor (effectively changing the selection range without changing it's start point)
-    ContinueSelection(Movement),
 }
 
 pub enum BufferState {

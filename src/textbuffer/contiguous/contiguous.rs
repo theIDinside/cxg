@@ -116,7 +116,7 @@ impl ContiguousBuffer {
                     self.cursor_goto(metadata::Index(erase_from));
                 }
                 #[allow(unused)]
-                MetaCursor::LineRange { begin, end } => todo!(),
+                MetaCursor::LineRange { column, begin, end } => todo!(),
             }
         }
         if slice.len() > 128 {
@@ -285,7 +285,7 @@ impl ContiguousBuffer {
                     }
                 }
                 #[allow(unused)]
-                MetaCursor::LineRange { begin, end } => todo!(),
+                MetaCursor::LineRange { column, begin, end } => todo!(),
             }
         } else {
             let row = self.edit_cursor.row;
@@ -312,7 +312,8 @@ impl ContiguousBuffer {
                         Some((self.edit_cursor.pos, meta_cursor))
                     }
                 }
-                MetaCursor::LineRange { begin, end } => {
+                #[allow(unused)]
+                MetaCursor::LineRange { column, begin, end } => {
                     let md = self.meta_data();
                     md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1)))
                 }
@@ -550,7 +551,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     self.cursor_goto(Index(erase_from));
                 }
                 #[allow(unused)]
-                MetaCursor::LineRange { begin, end } => todo!(),
+                MetaCursor::LineRange { column, begin, end } => todo!(),
             }
         }
         if ch == '\n' {
@@ -592,7 +593,8 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     self.cursor_goto(Index(erase_from));
                     return;
                 }
-                MetaCursor::LineRange { begin, end } => {
+                #[allow(unused)]
+                MetaCursor::LineRange { column, begin, end } => {
                     let md = self.meta_data();
                     if let Some((begin, end)) = md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1))) {
                         self.data.drain(*begin..=*end);
@@ -707,7 +709,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 self.set_absolute_meta_cursor(i);
             }
             #[allow(unused)]
-            Some(MetaCursor::LineRange { begin, end }) => {
+            Some(MetaCursor::LineRange { column, begin, end }) => {
                 todo!();
             }
             None => {
@@ -922,7 +924,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     *i = i.offset(shift_tracking as _);
                 }
             }
-            Some(MetaCursor::LineRange { begin, end }) => todo!(),
+            Some(MetaCursor::LineRange { column, begin, end }) => todo!(),
             None => todo!(),
         }
     }
