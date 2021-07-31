@@ -589,6 +589,7 @@ impl<'app> Application<'app> {
         if self.input_box.visible {
             self.active_input = cast_ptr_to_input(self.active_view);
             self.input_box.visible = false;
+            self.input_box.clear();
         } else {
             self.input_box.mode = mode;
             // self.active_input = &mut self.input_box as &'app mut dyn Input;
@@ -601,7 +602,7 @@ impl<'app> Application<'app> {
         let _op = translate_key_input(key, action, modifier);
 
         match key {
-            Key::Escape => {
+            Key::Escape if key_press(action) => {
                 if self.input_box.visible {
                     self.toggle_input_box(Mode::Command(CommandTag::Goto));
                 }
@@ -623,11 +624,19 @@ impl<'app> Application<'app> {
             }
             // Paste
             Key::V if key_press(action) && modifier == Modifiers::Control => {
-                // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
-                //  which obviously introduces function call overhead, etc, etc
-                for cb_data in self.clipboard.give() {
-                    for ch in cb_data.chars() {
+                if let Some(v) = _window.get_clipboard_string() {
+                    // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
+                    //  which obviously introduces function call overhead, etc, etc
+                    for ch in v.chars() {
                         self.active_input.handle_char(ch);
+                    }
+                } else {
+                    // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
+                    //  which obviously introduces function call overhead, etc, etc
+                    for cb_data in self.clipboard.give() {
+                        for ch in cb_data.chars() {
+                            self.active_input.handle_char(ch);
+                        }
                     }
                 }
             }
@@ -655,10 +664,7 @@ impl<'app> Application<'app> {
                 if modifier == Modifiers::Control {
                     self.cycle_focus();
                 } else {
-                    self.active_input.handle_char(' ');
-                    self.active_input.handle_char(' ');
-                    self.active_input.handle_char(' ');
-                    self.active_input.handle_char(' ');
+                    self.active_input.handle_key(key, action, modifier);
                 }
             }
             Key::Q if modifier == Modifiers::Control => {

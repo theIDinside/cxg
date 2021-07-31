@@ -100,13 +100,6 @@ impl InputBox {
         self.draw();
     }
 
-    fn update_frame(&mut self) {
-        match self.mode {
-            Mode::Command(_) => {}
-            Mode::FileList => {}
-        }
-    }
-
     /// updates the list of possible selections that contains what the user has input into the
     /// input box.
     pub fn update_list(&mut self) {
@@ -365,7 +358,7 @@ impl InputBehavior for InputBox {
         self.input_box.cursor += 1;
         self.selection_list.selection = None;
         match self.mode {
-            Mode::Command(cmd) => {}
+            Mode::Command(_cmd) => {}
             Mode::FileList => {
                 self.update_list();
             }

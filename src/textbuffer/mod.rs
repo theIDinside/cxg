@@ -10,6 +10,23 @@ pub mod gb;
 pub mod metadata;
 pub mod simple;
 
+pub enum LineOperation<'a> {
+    ShiftLeft {
+        shift_by: usize,
+    },
+    ShiftRight {
+        shift_by: usize,
+    },
+    InsertElement {
+        at_column: metadata::Column,
+        insertion: char,
+    },
+    InsertString {
+        at_column: metadata::Column,
+        insertion: &'a str,
+    },
+}
+
 #[derive(Debug)]
 pub enum TextKind {
     Char,
@@ -150,6 +167,15 @@ pub trait CharBuffer<'a>: std::hash::Hash {
     fn copy(&mut self, range: std::ops::Range<usize>) -> String;
 
     fn goto_line(&mut self, line: usize);
+
+    /// This operation only succeeds, if lines is a valid range of lines in the buffer.
+    /// If the end is beyond the actual amount of lines in the buffer, no operation will be performed.
+    /// It is therefore up to the call site to make sure that the line range is contained inside the buffer.
+    /// This makes it possible to wrap a "safe" or "always succeed" API around it.
+    /// * `lines` -
+    fn line_operation<RangeType>(&mut self, lines: RangeType, op: LineOperation)
+    where
+        RangeType: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>;
 }
 
 /// Traits that defines behavior for cloning a sub string of the buffer.

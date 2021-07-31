@@ -1,4 +1,4 @@
-#![feature(core_intrinsics, step_trait, test)]
+#![feature(core_intrinsics, step_trait, test, option_result_unwrap_unchecked)]
 #[rustfmt::skip::macros(debugger_catch)]
 extern crate freetype as ft;
 extern crate gl;

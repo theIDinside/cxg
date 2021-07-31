@@ -2,6 +2,7 @@ use std::{
     cmp::min,
     io::{Read, Write},
     iter::FromIterator,
+    ops::Bound,
     path::Path,
 };
 
@@ -10,7 +11,7 @@ use crate::{
     debugger_catch, only_in_debug,
     textbuffer::{
         metadata::{self, calculate_hash},
-        TextKind,
+        LineOperation, TextKind,
     },
     utils::{copy_slice_to, AsUsize},
 };
@@ -293,6 +294,20 @@ impl SimpleBuffer {
                         .or_else(|| Some(metadata::Index(self.len()))),
                 )
                 .map(|(begin, end)| String::from_iter(self.get_slice(*begin..*end)))
+        }
+    }
+
+    /// Returns the (possibly) selected range. This always makes sure to return begin .. end, since the meta cursor can be both behind and in front
+    /// of the edit_cursor
+    pub fn get_selection(&self) -> Option<(metadata::Index, metadata::Index)> {
+        if let Some(meta_cursor) = self.meta_cursor {
+            if meta_cursor < self.edit_cursor.pos {
+                Some((meta_cursor, self.edit_cursor.pos))
+            } else {
+                Some((self.edit_cursor.pos, meta_cursor))
+            }
+        } else {
+            None
         }
     }
 }
@@ -796,6 +811,79 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
                 .unwrap_or(self.cursor_abs()),
         );
     }
+
+    #[allow(unused)]
+    fn line_operation<T>(&mut self, lines: T, op: LineOperation)
+    where
+        T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
+    {
+        let a = match lines.start_bound() {
+            Bound::Included(a) => *a,
+            Bound::Excluded(a) => *a,
+            Bound::Unbounded => self.len(),
+        };
+
+        let mut shift_tracking = 0;
+        match op {
+            LineOperation::ShiftLeft { shift_by } => {
+                if let Some(lines) = self.meta_data.get_lines(lines.clone()).or(self.meta_data.get_lines(a..)) {
+                    for (cnt, &lb) in lines.iter().enumerate() {
+                        if let Some(next_line_begin) = self.meta_data.get(metadata::Line(a + cnt + 1)) {
+                            let line_len = *next_line_begin - *lb;
+                            let lb = *lb.offset(shift_tracking as isize);
+                            let shiftable = self.data[lb..lb + std::cmp::min(shift_by, line_len)]
+                                .iter()
+                                .take_while(|c| c.is_ascii_whitespace() && **c != '\n')
+                                .take(shift_by)
+                                .count();
+                            if shiftable > 0 {
+                                let drain = lb..lb + shiftable;
+                                let cnt = drain.len();
+                                assert_eq!(cnt, shiftable);
+                                self.data.drain(drain);
+                                shift_tracking -= cnt as i32;
+                            }
+                        } else {
+                            let lb = *lb.offset(shift_tracking as isize);
+                            let shiftable = self.data[lb..]
+                                .iter()
+                                .take_while(|c| c.is_ascii_whitespace() && **c != '\n')
+                                .take(shift_by)
+                                .count();
+                            if shiftable > 0 {
+                                let drain = lb..lb + shiftable;
+                                let cnt = drain.len();
+                                assert_eq!(cnt, shiftable);
+                                self.data.drain(drain);
+                                shift_tracking -= cnt as i32;
+                            }
+                        }
+                    }
+                }
+            }
+            LineOperation::ShiftRight { shift_by } => {
+                if let Some(lines) = self.meta_data.get_lines(lines) {
+                    let data: Vec<_> = (0..shift_by).map(|_| ' ').collect();
+                    for &lb in lines.iter() {
+                        let lb = lb.offset(shift_tracking as _);
+                        self.data.splice(*lb..*lb, data.iter().copied());
+                        shift_tracking += shift_by as i32;
+                    }
+                }
+            }
+            LineOperation::InsertElement { at_column, insertion } => todo!(),
+            LineOperation::InsertString { at_column, insertion } => todo!(),
+        }
+
+        self.rebuild_metadata();
+        if let Some(mut mc) = self.meta_cursor {
+            if mc < self.edit_cursor.pos {
+                self.cursor_goto(self.edit_cursor.pos.offset(shift_tracking as _));
+            } else {
+                mc = mc.offset(shift_tracking as _);
+            }
+        }
+    }
 }
 
 #[inline(always)]
@@ -809,6 +897,7 @@ pub fn predicate_generate(c: &char) -> fn(char) -> bool {
     }
 }
 
+#[rustfmt::skip]
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
@@ -816,7 +905,7 @@ mod tests {
     extern crate test;
 
     use super::SimpleBuffer;
-    use crate::textbuffer::{metadata as md, CharBuffer, Movement, TextKind};
+    use crate::textbuffer::{metadata as md, CharBuffer, LineOperation, Movement, TextKind};
 
     #[test]
     fn cursor_move_in_empty() {
@@ -890,6 +979,109 @@ mod tests {
         assert_eq!(Some("Hello HelloHello Hellotest worldtest world".into()), last_copy);
         b.move_cursor(Movement::End(TextKind::Line));
         assert_eq!(b.edit_cursor.pos, md::Index(b.len()));
+    }
+
+    #[test]
+    fn test_4_shift_left_of_lines() {
+        // this tests shifting by four, it also tests shifting lines with
+        // length less than 4, and it also tests shifting lines with less than 4 whitespaces in front
+        let d = format!(
+            "    // this is going to test shifting
+fn main() {{
+    println!('hello world')
+   if let Some(foo) = test {{
+        println!('test');
+   }}
+  //
+
+
+}}
+    //");
+        let assert_str = format!(
+            "// this is going to test shifting
+fn main() {{
+println!('hello world')
+if let Some(foo) = test {{
+    println!('test');
+}}
+//
+
+
+}}
+//");
+        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        for c in d.chars() {
+            sb.insert(c);
+        }
+        let validate_first: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(d, validate_first);
+
+        sb.cursor_goto(md::Index(0));
+        sb.line_operation(0..11, LineOperation::ShiftLeft { shift_by: 4 });
+        let res: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(assert_str, res);
+    }
+
+    #[test]
+    fn test_4_shift_right_of_lines() {
+        // this tests shifting by four, it also tests shifting lines with
+        // length less than 4, and it also tests shifting lines with less than 4 whitespaces in front
+        let d = format!(
+"// this is going to test shifting
+fn main() {{
+    println!('hello world')
+   if let Some(foo) = test {{
+        println!('test');
+   }}
+}}");
+        let assert_str = format!(
+"    // this is going to test shifting
+    fn main() {{
+        println!('hello world')
+       if let Some(foo) = test {{
+            println!('test');
+       }}
+    }}");
+
+        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        for c in d.chars() {
+            sb.insert(c);
+        }
+        let validate_first: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(d, validate_first);
+
+        sb.cursor_goto(md::Index(0));
+        sb.line_operation(0..7, LineOperation::ShiftRight { shift_by: 4 });
+        let res: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(assert_str, res);
+    }
+
+    #[test]
+    fn test_shift_should_not_alter() {
+        // this tests shifting by four, it also tests shifting lines with
+        // length less than 4, and it also tests shifting lines with less than 4 whitespaces in front
+        let assert_str = format!(
+            "// this is going to test shifting
+fn main() {{
+    println!('hello world')
+   if let Some(foo) = test {{
+        println!('test');
+   }}
+}}"
+        );
+
+        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        for c in assert_str.chars() {
+            sb.insert(c);
+        }
+        let validate_first: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(assert_str, validate_first);
+
+        sb.cursor_goto(md::Index(0));
+        // lines range (the end) are out of bounds. No operation should be done
+        sb.line_operation(0..10, LineOperation::ShiftRight { shift_by: 4 });
+        let res: String = sb.data.iter().map(|v| *v).collect();
+        assert_eq!(assert_str, res);
     }
 
     #[bench]

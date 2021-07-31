@@ -117,6 +117,13 @@ impl MetaData {
         })
     }
 
+    pub fn get_lines<T>(&self, lines: T) -> Option<&[Index]>
+    where
+        T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[Index], Output = [Index]>,
+    {
+        self.line_begin_indices.get(lines)
+    }
+
     /// Insert line begin buffer index, of new line created at line_number
     pub fn insert_line_begin(&mut self, buffer_index: Index, line_number: Line) {
         self.line_begin_indices.insert(*line_number, buffer_index);

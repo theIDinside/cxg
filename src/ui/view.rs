@@ -12,6 +12,7 @@ use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
+use crate::textbuffer::LineOperation;
 use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
@@ -105,6 +106,22 @@ impl std::fmt::Debug for View {
 impl InputBehavior for View {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
         match key {
+            Key::Tab if key_press(action) => {
+                if let Some((begin, end)) = self.buffer.get_selection() {
+                    let md = self.buffer.meta_data();
+                    let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
+                    let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
+                    if modifier == Modifiers::Shift {
+                        self.buffer
+                            .line_operation(a..b_inclusive + 1, LineOperation::ShiftLeft { shift_by: 4 });
+                    } else {
+                        self.buffer
+                            .line_operation(a..b_inclusive + 1, LineOperation::ShiftRight { shift_by: 4 });
+                    }
+                } else {
+                    self.insert_slice(&[' ', ' ', ' ', ' ']);
+                }
+            }
             Key::Home | Key::Kp7 => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
                 _ => self.move_cursor(Movement::Begin(TextKind::Line)),

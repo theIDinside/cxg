@@ -103,4 +103,11 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     fn goto_line(&mut self, line: usize) {
         todo!()
     }
+
+    fn line_operation<RangeType>(&mut self, lines: RangeType, op: crate::textbuffer::LineOperation)
+    where
+        RangeType: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
+    {
+        todo!()
+    }
 }
