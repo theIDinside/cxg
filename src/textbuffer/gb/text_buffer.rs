@@ -96,7 +96,7 @@ impl<'a> CharBuffer<'a> for TextBuffer {
         todo!()
     }
 
-    fn select_move_cursor(&mut self, movement: crate::textbuffer::Movement) {
+    fn select_move_cursor_absolute(&mut self, movement: crate::textbuffer::Movement) {
         todo!()
     }
 

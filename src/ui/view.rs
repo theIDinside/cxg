@@ -12,14 +12,15 @@ use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
+use crate::textbuffer::cursor::MetaCursor;
 use crate::textbuffer::LineOperation;
 use crate::ui::basic::coordinate::Margin;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
 use crate::textbuffer::{
+    contiguous::contiguous::ContiguousBuffer,
     cursor::BufferCursor,
     metadata::{Index, Line},
-    simple::simplebuffer::SimpleBuffer,
     CharBuffer, Movement, TextKind,
 };
 
@@ -44,7 +45,7 @@ impl Into<ViewId> for u32 {
         ViewId(self)
     }
 }
-
+use crate::opengl::text_renderer as gltxt;
 pub struct View {
     pub name: String,
     pub id: ViewId,
@@ -59,7 +60,7 @@ pub struct View {
     pub panel_id: Option<PanelId>,
     /// The currently edited buffer. We have sole ownership over it. If we want to edit another buffer in this view, (and thus hide the contents of this buffer)
     /// we return it back to the Buffers type, which manages live buffers and we replace this one with another Box<SimpleBuffer>, taking ownership of that
-    pub buffer: Box<SimpleBuffer>,
+    pub buffer: Box<ContiguousBuffer>,
     buffer_in_view: std::ops::Range<usize>,
     _buffer_selection: Option<std::ops::Range<Index>>,
     pub view_changed: bool,
@@ -129,19 +130,19 @@ impl InputBehavior for View {
             Key::End | Key::Kp1 if key_press(action) => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(self.buffer.len())),
                 Modifiers::Shift => {
-                    self.buffer.select_move_cursor(Movement::End(TextKind::Line));
+                    self.buffer.select_move_cursor_absolute(Movement::End(TextKind::Line));
                 }
                 _ => self.move_cursor(Movement::End(TextKind::Line)),
             },
             Key::Right if action == Action::Repeat || action == Action::Press => {
                 if modifier == Modifiers::Control | Modifiers::Shift {
-                    self.buffer.select_move_cursor(Movement::End(TextKind::Word));
+                    self.buffer.select_move_cursor_absolute(Movement::End(TextKind::Word));
                 } else if modifier == (Modifiers::Shift | Modifiers::Alt) {
                     self.move_cursor(Movement::End(TextKind::Block));
                 } else if modifier == Modifiers::Control {
                     self.move_cursor(Movement::End(TextKind::Word));
                 } else if modifier == Modifiers::Shift {
-                    self.buffer.select_move_cursor(Movement::Forward(TextKind::Char, 1));
+                    self.buffer.select_move_cursor_absolute(Movement::Forward(TextKind::Char, 1));
                 } else {
                     self.move_cursor(Movement::Forward(TextKind::Char, 1));
                 }
@@ -152,23 +153,23 @@ impl InputBehavior for View {
                 } else if modifier == Modifiers::Shift | Modifiers::Alt {
                     self.move_cursor(Movement::Begin(TextKind::Block));
                 } else if modifier == Modifiers::Shift {
-                    self.buffer.select_move_cursor(Movement::Backward(TextKind::Char, 1));
+                    self.buffer.select_move_cursor_absolute(Movement::Backward(TextKind::Char, 1));
                 } else if modifier == Modifiers::Shift | Modifiers::Control {
-                    self.buffer.select_move_cursor(Movement::Begin(TextKind::Word));
+                    self.buffer.select_move_cursor_absolute(Movement::Begin(TextKind::Word));
                 } else {
                     self.move_cursor(Movement::Backward(TextKind::Char, 1));
                 }
             }
             Key::Up if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
-                    self.buffer.select_move_cursor(Movement::Backward(TextKind::Line, 1));
+                    self.buffer.select_move_cursor_absolute(Movement::Backward(TextKind::Line, 1));
                 } else {
                     self.move_cursor(Movement::Backward(TextKind::Line, 1));
                 }
             }
             Key::Down if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
-                    self.buffer.select_move_cursor(Movement::Forward(TextKind::Line, 1));
+                    self.buffer.select_move_cursor_absolute(Movement::Forward(TextKind::Line, 1));
                 } else {
                     self.move_cursor(Movement::Forward(TextKind::Line, 1));
                 }
@@ -176,7 +177,7 @@ impl InputBehavior for View {
             Key::PageDown | Key::Kp3 if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer
-                        .select_move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
+                        .select_move_cursor_absolute(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
                 } else {
                     self.move_cursor(Movement::Forward(TextKind::Line, self.rows_displayable() as _));
                 }
@@ -184,7 +185,7 @@ impl InputBehavior for View {
             Key::PageUp | Key::Kp9 if key_press_repeat(action) => {
                 if modifier == Modifiers::Shift {
                     self.buffer
-                        .select_move_cursor(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
+                        .select_move_cursor_absolute(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
                 } else {
                     self.move_cursor(Movement::Backward(TextKind::Line, self.rows_displayable() as _));
                 }
@@ -234,7 +235,7 @@ impl InputBehavior for View {
 impl View {
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
-        bg_color: RGBAColor, mut buffer: Box<SimpleBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
+        bg_color: RGBAColor, mut buffer: Box<ContiguousBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
     ) -> View {
         let title_height = title_font.row_height() + 5;
 
@@ -399,7 +400,8 @@ impl View {
                 gl::ClearColor(0.8, 0.3, 0.3, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
             }
-            // either way of these two works
+
+            // render text contents
             self.text_renderer.push_draw_command(
                 self.buffer
                     .iter()
@@ -411,89 +413,21 @@ impl View {
                 top_y,
                 self.get_text_font(),
             );
-            use crate::opengl::text_renderer as gltxt;
             self.cursor_renderer.clear_data();
-            if let &Some(marker) = &self.buffer.meta_cursor {
-                let selection_color = RGBAColor { r: 0.75, g: 0.75, b: 0.95, a: 0.3 };
-
-                if marker < self.buffer.cursor_abs() {
-                    // means we have drag-selected downwards/forwards
-                    let first_line = self
-                        .buffer
-                        .meta_data()
-                        .get_line_number_of_buffer_index(marker)
-                        .map_or(Line(0), |l| Line(l));
-                    let last_line = self.buffer.cursor_row();
-                    if first_line == last_line {
-                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
-                        let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-                        let begin_selection = marker - line_begin;
-                        let end_selection = self.buffer.cursor_col();
-                        let slice = self.buffer.get_slice(*line_begin..*self.buffer.cursor_abs());
-                        let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
-                        let end_x = gltxt::calculate_text_dimensions(&slice[0..*end_selection], self.edit_font.as_ref()).x();
-
-                        let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
-                        let max = Vec2i::new(
-                            top_x + end_x + self.get_text_font().get_max_glyph_width() - 2,
-                            top_y - rows_down_in_view * self.get_text_font().row_height(),
-                        );
-                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(self.text_margin_left / 2, -3));
-                        self.cursor_renderer.add_rect(rect, selection_color);
-                        self.render_normal_cursor();
-                    } else {
-                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
-                        let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
-                        let rendered = self.render_selection_requires_translation(marker, self.buffer.cursor_abs());
-                        for bb in rendered {
-                            let translated = bb.translate(translate_vector);
-                            self.cursor_renderer.add_rect(translated, selection_color);
-                        }
-                        self.render_normal_cursor();
-                        self.view_changed = false;
+            if let Some(marker) = self.buffer.meta_cursor {
+                match marker {
+                    crate::textbuffer::cursor::MetaCursor::Absolute(ref abs_pos) => {
+                        self.render_absolute_selection(*abs_pos);
                     }
-                } else {
-                    // means we drag-selected upwards/backwards
-                    let md = self.buffer.meta_data();
-                    let first_line = self.buffer.cursor_row();
-                    let last_line = md
-                        .get_line_number_of_buffer_index(marker)
-                        .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
-
-                    if first_line == last_line {
-                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
-                        let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-                        // let begin_selection = marker - line_begin;
-                        let begin_selection = Index(*self.buffer.cursor_col());
-                        let end_selection = *marker - *line_begin;
-                        let slice = self.buffer.get_slice(*line_begin..*marker);
-                        let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
-                        let end_x = gltxt::calculate_text_dimensions(&slice[0..end_selection], self.edit_font.as_ref()).x();
-
-                        let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
-                        let max = Vec2i::new(
-                            top_x + end_x + self.get_text_font().get_max_glyph_width() - 2,
-                            top_y - rows_down_in_view * self.get_text_font().row_height(),
-                        );
-                        let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
-                        self.cursor_renderer.add_rect(rect, selection_color);
-                        self.render_normal_cursor();
-                    } else {
-                        let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
-                        let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
-                        let rendered = self.render_selection_requires_translation(self.buffer.cursor_abs(), marker);
-                        for bb in rendered {
-                            let translated = bb.translate(translate_vector);
-                            self.cursor_renderer.add_rect(translated, selection_color);
-                        }
-                        self.render_normal_cursor();
-                        self.view_changed = false;
+                    #[allow(unused)]
+                    crate::textbuffer::cursor::MetaCursor::LineRange { begin, end } => {
+                        todo!();
                     }
                 }
             } else {
-                self.render_normal_cursor();
                 self.view_changed = false;
             }
+            self.render_normal_cursor();
             self.view_changed = false;
         }
 
@@ -504,7 +438,7 @@ impl View {
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x + 2, top_y - total_size.height, total_size.width - 4, total_size.height);
         }
-        self.text_renderer.draw_list();
+        self.text_renderer.execute_draw_list();
         // self.text_renderer.draw();
         self.cursor_renderer.draw();
         //self.menu_text_renderer.draw();
@@ -514,8 +448,81 @@ impl View {
         }
     }
 
+    fn render_absolute_selection(&mut self, absolute_metacursor_position: Index) {
+        let selection_color = RGBAColor { r: 0.75, g: 0.75, b: 0.95, a: 0.3 };
+        // draw text view
+        let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
+        let top_x = top_x + self.text_margin_left;
+        if absolute_metacursor_position < self.buffer.cursor_abs() {
+            // means we have drag-selected downwards/forwards
+            let first_line = self
+                .buffer
+                .meta_data()
+                .get_line_number_of_buffer_index(absolute_metacursor_position)
+                .map_or(Line(0), |l| Line(l));
+            let last_line = self.buffer.cursor_row();
+            if first_line == last_line {
+                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+                let begin_selection = absolute_metacursor_position - line_begin;
+                let end_selection = self.buffer.cursor_col();
+                let slice = self.buffer.get_slice(*line_begin..*self.buffer.cursor_abs());
+                let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
+                let end_x = gltxt::calculate_text_dimensions(&slice[0..*end_selection], self.edit_font.as_ref()).x();
+
+                let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
+                let max =
+                    Vec2i::new(top_x + end_x + self.get_text_font().get_max_glyph_width() - 2, top_y - rows_down_in_view * self.get_text_font().row_height());
+                let rect = BoundingBox::new(min, max).translate(Vec2i::new(self.text_margin_left / 2, -3));
+                self.cursor_renderer.add_rect(rect, selection_color);
+            } else {
+                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
+                let rendered = self.render_selection_requires_translation(absolute_metacursor_position, self.buffer.cursor_abs());
+                for bb in rendered {
+                    let translated = bb.translate(translate_vector);
+                    self.cursor_renderer.add_rect(translated, selection_color);
+                }
+                self.view_changed = false;
+            }
+        } else {
+            // means we drag-selected upwards/backwards
+            let md = self.buffer.meta_data();
+            let first_line = self.buffer.cursor_row();
+            let last_line = md
+                .get_line_number_of_buffer_index(absolute_metacursor_position)
+                .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
+
+            if first_line == last_line {
+                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
+                // let begin_selection = marker - line_begin;
+                let begin_selection = Index(*self.buffer.cursor_col());
+                let end_selection = *absolute_metacursor_position - *line_begin;
+                let slice = self.buffer.get_slice(*line_begin..*absolute_metacursor_position);
+                let begin_x = gltxt::calculate_text_dimensions(&slice[0..*begin_selection], self.edit_font.as_ref()).x();
+                let end_x = gltxt::calculate_text_dimensions(&slice[0..end_selection], self.edit_font.as_ref()).x();
+
+                let min = Vec2i::new(top_x + begin_x, top_y - (rows_down_in_view + 1) * self.get_text_font().row_height());
+                let max =
+                    Vec2i::new(top_x + end_x + self.get_text_font().get_max_glyph_width() - 2, top_y - rows_down_in_view * self.get_text_font().row_height());
+                let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
+                self.cursor_renderer.add_rect(rect, selection_color);
+            } else {
+                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
+                let rendered = self.render_selection_requires_translation(self.buffer.cursor_abs(), absolute_metacursor_position);
+                for bb in rendered {
+                    let translated = bb.translate(translate_vector);
+                    self.cursor_renderer.add_rect(translated, selection_color);
+                }
+
+                self.view_changed = false;
+            }
+        }
+    }
+
     fn render_normal_cursor(&mut self) {
-        use crate::opengl::text_renderer as gltxt;
         let total_size = self.total_size();
         // Rendering the "normal" cursor stuff, i.e. the block cursor, and the line highlighter
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
@@ -546,7 +553,6 @@ impl View {
     // of a job. Therefore, the first bounding box, will have it's origin (the min member and its x,y values, that is): Vec2i(0, 0)
     // and if spanning multiple lines, each subsequent line will have Vec2i(0, (line * row_height) * -1). This should make remapping fairly easy
     fn render_selection_requires_translation(&self, begin: Index, end: Index) -> Vec<BoundingBox> {
-        use crate::opengl::text_renderer as gltxt;
         debug_assert!(begin < end);
         let mut render_infos = Vec::with_capacity(10);
         let md = self.buffer.meta_data();
@@ -819,7 +825,7 @@ impl Viewable for View {
             .zip(self.mouse_to_buffer_position(current_coordinate))
         {
             self.buffer.cursor_goto(target_coord_idx);
-            self.buffer.meta_cursor = Some(begin_coord_idx);
+            self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
             self.set_view_on_buffer_cursor();
         } else {
             self.buffer.meta_cursor = None;

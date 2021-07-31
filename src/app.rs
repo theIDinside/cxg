@@ -32,7 +32,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
-pub static TEST_DATA: &str = include_str!("./textbuffer/simple/simplebuffer.rs");
+pub static TEST_DATA: &str = include_str!("./textbuffer/contiguous/contiguous.rs");
 static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742123, a: 1.0 };
 static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.3242123, a: 1.0 };
 

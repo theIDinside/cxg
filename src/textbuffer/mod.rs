@@ -4,11 +4,18 @@ use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
 use self::metadata::{calculate_hash, MetaData};
 
+/// Buffer manager module
 pub mod buffers;
+/// ContiguousBuffer module - a buffer that keeps a simple String-like buffer, no extra bookkeeping tricks like for instance GapBuffer
+pub mod contiguous;
+/// Cursor module - definitions of BufferCursor and MetaCursor objects
 pub mod cursor;
+/// GapBuffer module
 pub mod gb;
+/// Buffer metadata module
 pub mod metadata;
-pub mod simple;
+// Definitions of abstractions of operations on buffers
+pub mod operations;
 
 pub enum LineOperation<'a> {
     ShiftLeft {
@@ -73,7 +80,7 @@ pub trait CharBuffer<'a>: std::hash::Hash {
     fn move_cursor(&mut self, dir: Movement);
 
     /// Moves the cursor and sets the meta cursor accordingly.
-    fn select_move_cursor(&mut self, movement: Movement);
+    fn select_move_cursor_absolute(&mut self, movement: Movement);
     /// Capacity of the buffer
     fn capacity(&self) -> usize;
     /// Size of the used space in the buffer

@@ -187,7 +187,7 @@ impl TextRenderer {
         self.pristine = false;
     }
 
-    pub fn draw_list(&mut self) {
+    pub fn execute_draw_list(&mut self) {
         self.gl_handle.bind();
         if !self.pristine {
             self.reserve_gpu_memory_if_needed();
@@ -210,7 +210,7 @@ impl TextRenderer {
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x, top_y - size.height, size.width, size.height);
         }
-        self.draw_list();
+        self.execute_draw_list();
         unsafe {
             gl::Disable(gl::SCISSOR_TEST);
         }

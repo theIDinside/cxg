@@ -1,12 +1,23 @@
 use super::metadata::{Column, Index, Line};
 use std::cmp::Ordering;
 
+pub enum CursorType {
+    Absolute,
+    LineRange,
+}
+
 #[derive(Default, Debug, Copy, Clone)]
 pub struct BufferCursor {
     /// Absolute index into buffer
     pub pos: Index,
     pub row: Line,
     pub col: Column,
+}
+
+#[derive(Clone, Copy)]
+pub enum MetaCursor {
+    Absolute(Index),
+    LineRange { begin: Line, end: Line },
 }
 
 impl Into<BufferCursor> for (usize, usize, usize) {

@@ -115,6 +115,6 @@ impl DebugView {
             return;
         }
         self.view.window_renderer.execute_draw_list();
-        self.view.text_renderer.draw_list();
+        self.view.text_renderer.execute_draw_list();
     }
 }

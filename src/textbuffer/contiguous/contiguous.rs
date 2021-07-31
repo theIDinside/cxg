@@ -10,6 +10,7 @@ use super::super::{cursor::BufferCursor, CharBuffer, Movement};
 use crate::{
     debugger_catch, only_in_debug,
     textbuffer::{
+        cursor::MetaCursor,
         metadata::{self, calculate_hash},
         LineOperation, TextKind,
     },
@@ -19,34 +20,24 @@ use crate::{
 #[cfg(debug_assertions)]
 use crate::DebuggerCatch;
 
-pub enum OperationParameter {
-    Char(char),
-    Range(String),
-}
-
-pub enum Operation {
-    Insert(metadata::Index, OperationParameter),
-    Delete(metadata::Index, OperationParameter),
-}
-
-pub struct SimpleBuffer {
+pub struct ContiguousBuffer {
     pub id: u32,
     pub data: Vec<char>,
     edit_cursor: BufferCursor,
-    pub meta_cursor: Option<metadata::Index>,
+    pub meta_cursor: Option<MetaCursor>,
     size: usize,
     meta_data: metadata::MetaData,
 }
 
-impl std::hash::Hash for SimpleBuffer {
+impl std::hash::Hash for ContiguousBuffer {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.data.hash(state);
     }
 }
 
-impl SimpleBuffer {
-    pub fn new(id: u32, capacity: usize) -> SimpleBuffer {
-        SimpleBuffer {
+impl ContiguousBuffer {
+    pub fn new(id: u32, capacity: usize) -> ContiguousBuffer {
+        ContiguousBuffer {
             id: id,
             data: Vec::with_capacity(capacity),
             edit_cursor: BufferCursor::default(),
@@ -64,8 +55,8 @@ impl SimpleBuffer {
         self.edit_cursor.clone()
     }
 
-    pub fn set_cursor_marker(&mut self, pos: metadata::Index) {
-        self.meta_cursor = Some(pos);
+    pub fn set_absolute_meta_cursor(&mut self, pos: metadata::Index) {
+        self.meta_cursor = Some(MetaCursor::Absolute(pos));
     }
 
     pub fn get(&self, idx: metadata::Index) -> Option<&char> {
@@ -110,17 +101,23 @@ impl SimpleBuffer {
     }
 
     pub fn insert_slice(&mut self, slice: &[char]) {
-        if let Some(marker) = self.meta_cursor {
-            let (erase_from, erase_to) = if marker < self.cursor_abs() {
-                (*marker, *self.edit_cursor.pos)
-            } else {
-                (*self.edit_cursor.pos, *marker)
-            };
-            self.data.drain(erase_from..=erase_to);
-            self.meta_cursor = None;
-            self.size = self.data.len();
-            self.rebuild_metadata();
-            self.cursor_goto(metadata::Index(erase_from));
+        if let Some(mc) = &self.meta_cursor {
+            match *mc {
+                MetaCursor::Absolute(marker) => {
+                    let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                        (*marker, *self.edit_cursor.pos)
+                    } else {
+                        (*self.edit_cursor.pos, *marker)
+                    };
+                    self.data.drain(erase_from..=erase_to);
+                    self.meta_cursor = None;
+                    self.size = self.data.len();
+                    self.rebuild_metadata();
+                    self.cursor_goto(metadata::Index(erase_from));
+                }
+                #[allow(unused)]
+                MetaCursor::LineRange { begin, end } => todo!(),
+            }
         }
         if slice.len() > 128 {
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
@@ -274,15 +271,21 @@ impl SimpleBuffer {
 
     /// Copies the selected text (if any text is selected) otherwise copies the contents of the line
     pub fn copy_range_or_line(&self) -> Option<String> {
-        if let Some(meta_cursor) = self.meta_cursor {
-            if *self.cursor_abs() >= self.len() || *meta_cursor >= self.len() {
-                None
-            } else {
-                if meta_cursor < self.edit_cursor.pos {
-                    Some(String::from_iter(self.get_slice(*meta_cursor..*self.edit_cursor.pos.offset(1))))
-                } else {
-                    Some(String::from_iter(self.get_slice(*self.edit_cursor.pos..*meta_cursor.offset(1))))
+        if let Some(meta_cursor) = &self.meta_cursor {
+            match *meta_cursor {
+                MetaCursor::Absolute(meta_cursor) => {
+                    if *self.cursor_abs() >= self.len() || *meta_cursor >= self.len() {
+                        None
+                    } else {
+                        if meta_cursor < self.edit_cursor.pos {
+                            Some(String::from_iter(self.get_slice(*meta_cursor..*self.edit_cursor.pos.offset(1))))
+                        } else {
+                            Some(String::from_iter(self.get_slice(*self.edit_cursor.pos..*meta_cursor.offset(1))))
+                        }
+                    }
                 }
+                #[allow(unused)]
+                MetaCursor::LineRange { begin, end } => todo!(),
             }
         } else {
             let row = self.edit_cursor.row;
@@ -300,11 +303,19 @@ impl SimpleBuffer {
     /// Returns the (possibly) selected range. This always makes sure to return begin .. end, since the meta cursor can be both behind and in front
     /// of the edit_cursor
     pub fn get_selection(&self) -> Option<(metadata::Index, metadata::Index)> {
-        if let Some(meta_cursor) = self.meta_cursor {
-            if meta_cursor < self.edit_cursor.pos {
-                Some((meta_cursor, self.edit_cursor.pos))
-            } else {
-                Some((self.edit_cursor.pos, meta_cursor))
+        if let Some(meta_cursor) = &self.meta_cursor {
+            match *meta_cursor {
+                MetaCursor::Absolute(meta_cursor) => {
+                    if meta_cursor < self.edit_cursor.pos {
+                        Some((meta_cursor, self.edit_cursor.pos))
+                    } else {
+                        Some((self.edit_cursor.pos, meta_cursor))
+                    }
+                }
+                MetaCursor::LineRange { begin, end } => {
+                    let md = self.meta_data();
+                    md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1)))
+                }
             }
         } else {
             None
@@ -313,7 +324,7 @@ impl SimpleBuffer {
 }
 
 /// Private interface implementation
-impl SimpleBuffer {
+impl ContiguousBuffer {
     /// Takes a buffer index and tries to build a BufferCursor, using the MetaData member of the SimpleBuffer
     /// After some deliberation, this is the core function that all movement functions of the Buffer will use.
     /// Instead of having each function individually updating the cursor and keeping track of rows and columns
@@ -465,7 +476,7 @@ impl SimpleBuffer {
 
 /// Trait implementation definitions for SimpleBuffer
 
-impl std::ops::Index<usize> for SimpleBuffer {
+impl std::ops::Index<usize> for ContiguousBuffer {
     type Output = char;
     #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
@@ -473,13 +484,13 @@ impl std::ops::Index<usize> for SimpleBuffer {
     }
 }
 
-impl std::ops::IndexMut<usize> for SimpleBuffer {
+impl std::ops::IndexMut<usize> for ContiguousBuffer {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         unsafe { self.data.get_unchecked_mut(index) }
     }
 }
 
-impl std::ops::Index<std::ops::Range<usize>> for SimpleBuffer {
+impl std::ops::Index<std::ops::Range<usize>> for ContiguousBuffer {
     type Output = [char];
     #[inline(always)]
     fn index(&self, index: std::ops::Range<usize>) -> &Self::Output {
@@ -487,13 +498,13 @@ impl std::ops::Index<std::ops::Range<usize>> for SimpleBuffer {
     }
 }
 
-impl std::ops::IndexMut<std::ops::Range<usize>> for SimpleBuffer {
+impl std::ops::IndexMut<std::ops::Range<usize>> for ContiguousBuffer {
     fn index_mut(&mut self, index: std::ops::Range<usize>) -> &mut Self::Output {
         unsafe { self.data.get_unchecked_mut(index) }
     }
 }
 
-impl<'a> CharBuffer<'a> for SimpleBuffer {
+impl<'a> CharBuffer<'a> for ContiguousBuffer {
     type ItemIterator = std::slice::Iter<'a, char>;
 
     fn file_name(&self) -> Option<&Path> {
@@ -524,17 +535,23 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
     fn insert(&mut self, ch: char) {
         use metadata::{Column as Col, Index};
         debug_assert!(self.edit_cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
-        if let Some(marker) = self.meta_cursor {
-            let (erase_from, erase_to) = if marker < self.cursor_abs() {
-                (*marker, *self.edit_cursor.pos)
-            } else {
-                (*self.edit_cursor.pos, *marker)
-            };
-            self.data.drain(erase_from..=erase_to);
-            self.meta_cursor = None;
-            self.size = self.data.len();
-            self.rebuild_metadata();
-            self.cursor_goto(Index(erase_from));
+        if let Some(marker) = &self.meta_cursor {
+            match *marker {
+                MetaCursor::Absolute(marker) => {
+                    let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                        (*marker, *self.edit_cursor.pos)
+                    } else {
+                        (*self.edit_cursor.pos, *marker)
+                    };
+                    self.data.drain(erase_from..=erase_to);
+                    self.meta_cursor = None;
+                    self.size = self.data.len();
+                    self.rebuild_metadata();
+                    self.cursor_goto(Index(erase_from));
+                }
+                #[allow(unused)]
+                MetaCursor::LineRange { begin, end } => todo!(),
+            }
         }
         if ch == '\n' {
             self.data.insert(*self.edit_cursor.absolute(), ch);
@@ -559,19 +576,33 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         if self.empty() {
             return;
         }
-        if let Some(marker) = self.meta_cursor {
-            let (erase_from, erase_to) = if marker < self.cursor_abs() {
-                (*marker, std::cmp::min(*self.edit_cursor.pos, self.len() - 1))
-            } else {
-                (*self.edit_cursor.pos, std::cmp::min(*marker, self.len() - 1))
-            };
+        if let Some(marker) = &self.meta_cursor {
+            match *marker {
+                MetaCursor::Absolute(marker) => {
+                    let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                        (*marker, std::cmp::min(*self.edit_cursor.pos, self.len() - 1))
+                    } else {
+                        (*self.edit_cursor.pos, std::cmp::min(*marker, self.len() - 1))
+                    };
 
-            self.data.drain(erase_from..=erase_to);
-            self.meta_cursor = None;
-            self.size = self.data.len();
-            self.rebuild_metadata();
-            self.cursor_goto(Index(erase_from));
-            return;
+                    self.data.drain(erase_from..=erase_to);
+                    self.meta_cursor = None;
+                    self.size = self.data.len();
+                    self.rebuild_metadata();
+                    self.cursor_goto(Index(erase_from));
+                    return;
+                }
+                MetaCursor::LineRange { begin, end } => {
+                    let md = self.meta_data();
+                    if let Some((begin, end)) = md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1))) {
+                        self.data.drain(*begin..=*end);
+                        self.meta_cursor = None;
+                        self.size = self.data.len();
+                        self.rebuild_metadata();
+                        self.cursor_goto(begin);
+                    }
+                }
+            }
         }
 
         match dir {
@@ -669,14 +700,21 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         self.data.iter()
     }
 
-    fn select_move_cursor(&mut self, movement: Movement) {
-        if let Some(mc) = self.meta_cursor {
-            self.move_cursor(movement);
-            self.set_cursor_marker(mc);
-        } else {
-            let mc_idx = self.meta_cursor.unwrap_or(self.edit_cursor.pos);
-            self.move_cursor(movement);
-            self.set_cursor_marker(mc_idx);
+    fn select_move_cursor_absolute(&mut self, movement: Movement) {
+        match self.meta_cursor {
+            Some(MetaCursor::Absolute(i)) => {
+                self.move_cursor(movement);
+                self.set_absolute_meta_cursor(i);
+            }
+            #[allow(unused)]
+            Some(MetaCursor::LineRange { begin, end }) => {
+                todo!();
+            }
+            None => {
+                let mc_idx = self.edit_cursor.pos;
+                self.move_cursor(movement);
+                self.set_absolute_meta_cursor(mc_idx);
+            }
         }
     }
 
@@ -876,12 +914,16 @@ impl<'a> CharBuffer<'a> for SimpleBuffer {
         }
 
         self.rebuild_metadata();
-        if let Some(mut mc) = self.meta_cursor {
-            if mc < self.edit_cursor.pos {
-                self.cursor_goto(self.edit_cursor.pos.offset(shift_tracking as _));
-            } else {
-                mc = mc.offset(shift_tracking as _);
+        match self.meta_cursor {
+            Some(MetaCursor::Absolute(ref mut i)) => {
+                if *i < self.edit_cursor.pos {
+                    self.cursor_goto(self.edit_cursor.pos.offset(shift_tracking as _));
+                } else {
+                    *i = i.offset(shift_tracking as _);
+                }
             }
+            Some(MetaCursor::LineRange { begin, end }) => todo!(),
+            None => todo!(),
         }
     }
 }
@@ -904,12 +946,12 @@ mod tests {
     // For using benchmarking
     extern crate test;
 
-    use super::SimpleBuffer;
+    use super::ContiguousBuffer;
     use crate::textbuffer::{metadata as md, CharBuffer, LineOperation, Movement, TextKind};
 
     #[test]
     fn cursor_move_in_empty() {
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         b.move_cursor(Movement::Forward(TextKind::Char, 1));
         assert_eq!(b.edit_cursor.pos, md::Index(0));
         b.move_cursor(Movement::Backward(TextKind::Char, 1));
@@ -931,7 +973,7 @@ mod tests {
         let v: Vec<char> = "Hello test world".chars().collect();
 
         let slice = &v[..];
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         b.insert_slice(slice);
         let mut multiple = 1;
         assert_eq!(b.len(), v.len() * multiple);
@@ -944,7 +986,7 @@ mod tests {
     fn test_copy_only_line() {
         let v: Vec<char> = "Hello test world".chars().collect();
         let slice = &v[..];
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         b.insert_slice(slice);
         let mut multiple = 1;
         assert_eq!(b.len() * multiple, v.len());
@@ -956,13 +998,13 @@ mod tests {
     #[test]
     fn copy_paste_hello() {
         let v: Vec<char> = "Hello test world".chars().collect();
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         for c in v {
             b.insert(c);
         }
         b.move_cursor(Movement::Backward(TextKind::Line, 1));
         assert_eq!(b.edit_cursor.pos, md::Index(0));
-        b.select_move_cursor(Movement::Forward(TextKind::Char, 4));
+        b.select_move_cursor_absolute(Movement::Forward(TextKind::Char, 4));
         let copy = b.copy_range_or_line();
         assert_eq!(Some("Hello".into()), copy);
         b.move_cursor(Movement::End(TextKind::Word));
@@ -1009,7 +1051,7 @@ if let Some(foo) = test {{
 
 }}
 //");
-        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in d.chars() {
             sb.insert(c);
         }
@@ -1043,7 +1085,7 @@ fn main() {{
        }}
     }}");
 
-        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in d.chars() {
             sb.insert(c);
         }
@@ -1070,7 +1112,7 @@ fn main() {{
 }}"
         );
 
-        let mut sb = Box::new(SimpleBuffer::new(0, 1024));
+        let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in assert_str.chars() {
             sb.insert(c);
         }
@@ -1086,14 +1128,14 @@ fn main() {{
 
     #[bench]
     fn copy_paste_per_char(b: &mut test::Bencher) {
-        let text_data = include_str!("simplebuffer.rs");
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let text_data = include_str!("contiguous.rs");
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         if b.edit_cursor.pos == md::Index(0) {}
     }
 
     #[bench]
     fn copy_paste_as_slice(b: &mut test::Bencher) {
-        let text_data = include_str!("simplebuffer.rs");
-        let mut b = Box::new(SimpleBuffer::new(0, 1024));
+        let text_data = include_str!("contiguous.rs");
+        let mut b = Box::new(ContiguousBuffer::new(0, 1024));
     }
 }
