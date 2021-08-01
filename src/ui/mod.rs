@@ -19,6 +19,7 @@ pub mod view;
 
 pub mod clipboard;
 pub mod debug_view;
+pub mod scrollbar;
 
 #[derive(Clone, Copy, Debug)]
 pub enum UID {

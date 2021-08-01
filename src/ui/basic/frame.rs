@@ -2,7 +2,7 @@ use crate::datastructure::generic::Vec2i;
 
 use super::{
     boundingbox::BoundingBox,
-    coordinate::{Margin, Size},
+    coordinate::{Coordinate, Margin, Size},
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -18,6 +18,18 @@ impl Frame {
 
     pub fn to_bb(&self) -> BoundingBox {
         BoundingBox::from_frame(&self)
+    }
+
+    pub fn from_bb(bb: &BoundingBox) -> Frame {
+        Frame { anchor: Vec2i::new(bb.min.x, bb.max.y), size: Size::new(bb.max.x - bb.min.x, bb.max.y - bb.min.y) }
+    }
+
+    pub fn height(&self) -> i32 {
+        self.size.height
+    }
+
+    pub fn width(&self) -> i32 {
+        self.size.width
     }
 }
 

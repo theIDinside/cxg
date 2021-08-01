@@ -3,6 +3,7 @@ use glfw::{Action, Key, Modifiers};
 use super::boundingbox::BoundingBox;
 use super::eventhandling::event::{key_press, key_press_repeat, InputBehavior, InputResponse};
 use super::panel::PanelId;
+use super::scrollbar::{ScrollBar, ScrollBarLayout};
 use super::Viewable;
 use super::{
     basic::{coordinate::Size, frame::Frame},
@@ -25,6 +26,8 @@ use crate::textbuffer::{
 };
 
 use crate::ui::coordinate::Coordinate;
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::rc::Rc;
@@ -67,6 +70,7 @@ pub struct View {
     pub visible: bool,
     background_image: Texture,
     text_margin_left: i32,
+    scroll_bar: ScrollBar,
 }
 
 pub struct Popup {
@@ -93,8 +97,6 @@ impl std::fmt::Debug for View {
         f.debug_struct("View")
             .field("id", &self.id)
             .field("name", &self.name)
-            .field("title_frame", &self.title_frame)
-            .field("view_frame", &self.view_frame)
             .field("size", &self.total_size())
             .field("top buffer line", &self.topmost_line_in_buffer)
             .field("displayable lines", &self.rows_displayable())
@@ -238,6 +240,7 @@ impl InputBehavior for View {
 }
 
 impl View {
+    const SCROLL_BAR_WIDTH: i32 = 20;
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
         bg_color: RGBAColor, mut buffer: Box<ContiguousBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
@@ -248,9 +251,13 @@ impl View {
         let title_size = Size::new(width, title_height);
         let title_frame = Frame::new(tmp_anchor, title_size);
         let view_anchor = Vec2i::new(0, height - title_height);
-        let view_size = Size::new(width, height - title_height);
+        let view_size = Size::new(width - View::SCROLL_BAR_WIDTH, height - title_height);
         let view_frame = Frame::new(view_anchor, view_size);
         buffer.rebuild_metadata();
+
+        let scroll_bar_frame = Frame::new(view_frame.anchor + Vec2i::new(width - View::SCROLL_BAR_WIDTH, 0), Size::new(20, height - title_height));
+
+        let sb = ScrollBar::new(scroll_bar_frame, buffer.meta_data().line_count(), ScrollBarLayout::Vertical, 0);
 
         cursor_renderer.set_color(RGBAColor { r: 0.5, g: 0.5, b: 0.5, a: 0.5 });
         let mut v = View {
@@ -272,6 +279,7 @@ impl View {
             visible: true,
             background_image,
             text_margin_left: 4,
+            scroll_bar: sb,
         };
 
         v.update(None);
@@ -284,6 +292,8 @@ impl View {
 
     pub fn mouse_to_buffer_position(&self, mouse_pos: Vec2i) -> Option<Index> {
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(mouse_pos) {
+            None
+        } else if self.scroll_bar.frame.to_bb().box_hit_check(mouse_pos) {
             None
         } else {
             let Vec2i { x: ax, y: ay } = self.view_frame.anchor;
@@ -316,8 +326,10 @@ impl View {
     }
 
     pub fn set_need_redraw(&mut self) {
-        self.set_view_on_buffer_cursor();
+        // self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+        // self.set_view_on_buffer_cursor();
         self.view_changed = true;
+        self.scroll_bar.ui_update();
     }
 
     #[inline(always)]
@@ -376,8 +388,25 @@ impl View {
         }
         let total_size = self.total_size();
         if self.view_changed {
+            self.scroll_bar.max = self.buffer.meta_data().line_count();
             self.text_renderer.clear_data();
             self.cursor_renderer.clear_data();
+            self.update(None);
+
+            self.window_renderer.make_bordered_rect(
+                self.scroll_bar.frame.to_bb(),
+                RGBColor::new(0.5, 0.5, 0.5),
+                (1, RGBColor::black()),
+                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+            );
+
+            self.window_renderer.make_bordered_rect(
+                self.scroll_bar.slider.to_bb(),
+                RGBColor::green(),
+                (1, RGBColor::white()),
+                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+            );
+
             // self.menu_text_renderer.clear_data();
             let BufferCursor { row, col, .. } = self.buffer.cursor();
             let title = format!(
@@ -441,7 +470,7 @@ impl View {
         unsafe {
             let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
             gl::Enable(gl::SCISSOR_TEST);
-            gl::Scissor(top_x + 2, top_y - total_size.height, total_size.width - 4, total_size.height);
+            gl::Scissor(top_x + 2, top_y - total_size.height, self.view_frame.width() - self.text_margin_left, total_size.height);
         }
         self.text_renderer.execute_draw_list();
         // self.text_renderer.draw();
@@ -545,7 +574,7 @@ impl View {
             .translate(self.view_frame.anchor);
         let mut line_bounding_box = cursor_bound_box.clone();
         line_bounding_box.min.x = self.view_frame.anchor.x + 2;
-        line_bounding_box.max.x = self.view_frame.anchor.x + 2 + total_size.width;
+        line_bounding_box.max.x = self.view_frame.anchor.x + 2 + self.view_frame.width();
 
         self.cursor_renderer
             .add_rect(line_bounding_box, RGBAColor { r: 0.75, g: 0.75, b: 0.75, a: 0.2 });
@@ -617,6 +646,7 @@ impl View {
             self.buffer.load_file(path);
             self.set_view_on_buffer_cursor();
         }
+        self.scroll_bar.max = self.buffer.meta_data().line_count();
     }
 
     pub fn insert_ch(&mut self, ch: char) {
@@ -625,12 +655,14 @@ impl View {
         }
 
         self.buffer.insert(ch);
+
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
             self.set_view_on_buffer_cursor();
         } else {
             self.buffer_in_view.end += 1;
             self.view_changed = true;
         }
+        self.scroll_bar.max = self.buffer.meta_data().line_count();
     }
 
     /// Sets the view of the buffer, so that it "sees" the buffer cursor.
@@ -662,6 +694,8 @@ impl View {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         }
+        self.scroll_bar.scroll_value = *self.buffer.cursor_row();
+        self.scroll_bar.update_ui_position_by_value();
         self.view_changed = true;
     }
 
@@ -718,43 +752,6 @@ impl View {
         self.id
     }
 
-    pub fn debug_viewcursor(&self) {
-        let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
-        let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
-        let cols_in = *self.buffer.cursor_col() as i32;
-
-        let text_font = self.get_text_font();
-
-        let g = text_font.get_glyph(*self.buffer.get(self.buffer.cursor_abs()).unwrap_or(&'\0'));
-        let cursor_width = g
-            .map(|glyph| if glyph.width() == 0 as _ { glyph.advance } else { glyph.width() as _ })
-            .unwrap_or(text_font.get_max_glyph_width());
-
-        let nl_buf_idx = *self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
-        let line_contents = self.buffer.get_slice(nl_buf_idx..(nl_buf_idx + cols_in as usize));
-
-        let min_x = top_x
-            + line_contents
-                .iter()
-                .map(|&c| text_font.get_glyph(c).map(|g| g.advance as _).unwrap_or(cursor_width))
-                .sum::<i32>();
-
-        let min = Vec2i::new(min_x, top_y - (rows_down * text_font.row_height()) - text_font.row_height());
-        let max = Vec2i::new(min_x + cursor_width, top_y - (rows_down * text_font.row_height()));
-
-        let bb = BoundingBox::new(min, max);
-
-        println!("View cursor: {:?}", bb);
-    }
-
-    pub fn debug_viewed_range(&self) {
-        println!(
-            "Viewed data in buffer range {:?}: \n'{}'",
-            self.buffer_in_view,
-            &self.buffer.data[self.buffer_in_view.clone()].iter().map(|c| c).collect::<String>()
-        );
-    }
-
     pub fn get_file_info(&self) -> (Option<&Path>, BufferCursor) {
         self.buffer.buffer_info()
     }
@@ -771,7 +768,7 @@ impl View {
 
     pub fn total_size(&self) -> Size {
         Size {
-            width: self.view_frame.size.width,
+            width: self.title_frame.size.width,
             height: self.view_frame.size.height + self.title_frame.size.height,
         }
     }
@@ -793,16 +790,23 @@ impl Viewable for View {
         debug_assert!(size.height > 20, "resize size invalid. Must be larger than 20");
         size.height -= self.get_title_font().row_height() + 5;
         self.title_frame.size.width = size.width;
+        size.width -= View::SCROLL_BAR_WIDTH;
         self.view_frame.anchor.y = self.title_frame.anchor.y - self.title_frame.size.height;
         // self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.row_height - 5);
         self.view_frame.size = size;
         assert_eq!(self.view_frame.anchor, self.title_frame.anchor + Vec2i::new(0, -self.get_title_font().row_height() - 5));
-        assert_eq!(self.view_frame.size.width, self.title_frame.size.width);
+        let sb_frame =
+            Frame::new(self.view_frame.anchor + Vec2i::new(self.view_frame.size.width, 0), Size::new(View::SCROLL_BAR_WIDTH, self.view_frame.size.height));
+        self.scroll_bar.frame = sb_frame;
+        self.scroll_bar.ui_update();
+        self.scroll_bar.max = self.buffer.meta_data().line_count();
     }
 
     fn set_anchor(&mut self, anchor: Vec2i) {
         self.title_frame.anchor = anchor;
         self.view_frame.anchor = self.title_frame.anchor + Vec2i::new(0, -self.title_frame.size.height);
+        self.scroll_bar.frame.anchor = self.view_frame.anchor + Vec2i::new(self.view_frame.width(), 0);
+        self.scroll_bar.ui_update();
     }
 
     fn bounding_box(&self) -> BoundingBox {
@@ -817,6 +821,24 @@ impl Viewable for View {
         );
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
+        } else if self.scroll_bar.frame.to_bb().box_hit_check(validated_inside_pos) {
+            self.scroll_bar.scroll_to_ui_pos(validated_inside_pos);
+            let md = self.buffer.meta_data();
+            let buf_view_begin = *self
+                .buffer
+                .meta_data()
+                .get_line_start_index(Line(self.scroll_bar.scroll_value.clamp(0, md.line_count() - 1)))
+                .unwrap();
+            let buf_view_end = self
+                .buffer
+                .meta_data()
+                .get_line_start_index(Line(self.scroll_bar.scroll_value).offset(self.rows_displayable() as _))
+                .map_or(self.buffer.len(), |v| *v);
+
+            self.buffer_in_view = buf_view_begin..buf_view_end;
+            self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+            self.view_changed = true;
+            self.set_need_redraw();
         } else {
             if let Some(final_index_pos) = self.mouse_to_buffer_position(validated_inside_pos) {
                 self.cursor_goto(final_index_pos);
@@ -832,6 +854,29 @@ impl Viewable for View {
             self.buffer.cursor_goto(target_coord_idx);
             self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
             self.set_view_on_buffer_cursor();
+        } else if self.scroll_bar.frame.to_bb().box_hit_check(begin_coordinate) {
+            match self.scroll_bar.layout {
+                ScrollBarLayout::Horizontal => todo!(),
+                ScrollBarLayout::Vertical => {
+                    let translated = Vec2i::new(self.scroll_bar.frame.anchor.x, current_coordinate.y);
+                    self.scroll_bar.scroll_to_ui_pos(translated);
+                    let md = self.buffer.meta_data();
+                    let buf_view_begin = *self
+                        .buffer
+                        .meta_data()
+                        .get_line_start_index(Line(self.scroll_bar.scroll_value.clamp(0, md.line_count() - 1)))
+                        .unwrap();
+                    let buf_view_end = self
+                        .buffer
+                        .meta_data()
+                        .get_line_start_index(Line(self.scroll_bar.scroll_value).offset(self.rows_displayable() as _))
+                        .map_or(self.buffer.len(), |v| *v);
+
+                    self.buffer_in_view = buf_view_begin..buf_view_end;
+                    self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+                    self.view_changed = true;
+                }
+            }
         } else {
             self.buffer.meta_cursor = None;
         }

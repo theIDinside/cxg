@@ -856,6 +856,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         only_in_debug!(println!("wrote {} bytes to {}", _bytes_written, path.display()));
                         let checksum = calculate_hash(self);
                         self.meta_data.set_checksum(checksum);
+                        self.meta_data.set_pristine_hash(checksum);
                         self.meta_data.file_name = Some(path.to_path_buf());
                     }
                     Err(_err) => {}

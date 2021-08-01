@@ -182,8 +182,8 @@ impl<'app> Application<'app> {
             tr,
             rr,
             pr,
-            0,
-            0,
+            1024,
+            768,
             dbg_view_bg_color,
             Buffers::free_buffer(),
             fonts[0].clone(),
@@ -681,16 +681,8 @@ impl<'app> Application<'app> {
                     if modifier == Modifiers::Shift {
                         self.active_input.handle_key(key, action, modifier);
                     } else {
-                        self.set_debug(!self.debug);
-                        // self.debug = !self.debug;
-                        println!("Opening debug interface...");
-                        println!("Application window: {:?}", &self.window_size);
-                        for p in self.panels.iter() {
-                            println!("{:?}", p);
-                            for c in p.children.iter() {
-                                c.debug_viewcursor();
-                            }
-                        }
+                        let v = self.get_active_view();
+                        println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
                     }
                 }
             }
@@ -808,14 +800,25 @@ impl<'app> Application<'app> {
         for v in self.panels.iter_mut().flat_map(|p| p.children.iter_mut()) {
             v.draw();
         }
+        unsafe {
+            gl::Scissor(0, 0, self.width(), self.height());
+        }
 
         if self.popup.visible {
             self.popup.view.draw();
         }
+        unsafe {
+            gl::Scissor(0, 0, self.width(), self.height());
+        }
 
         self.input_box.draw();
+        unsafe {
+            gl::Scissor(0, 0, self.width(), self.height());
+        }
         self.debug_view.draw();
-
+        unsafe {
+            gl::Scissor(0, 0, self.width(), self.height());
+        }
         if let MouseState::UIElementDrag(.., pos) = self.mouse_state {
             let v = unsafe { self.active_view.as_mut().unwrap() };
             let mut bb = v.bounding_box();
