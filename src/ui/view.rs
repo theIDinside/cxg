@@ -26,8 +26,6 @@ use crate::textbuffer::{
 };
 
 use crate::ui::coordinate::Coordinate;
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::rc::Rc;
@@ -351,7 +349,7 @@ impl View {
             BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
             RGBColor::new(0.5, 0.5, 0.5),
             (1, RGBColor::black()),
-            PolygonType::RoundedUndecorated { corner_radius: 10.0 },
+            PolygonType::RoundedUndecorated { corner_radius: 5.0 },
         );
 
         let RGBAColor { r, g, b, .. } = self.bg_color;
@@ -361,14 +359,14 @@ impl View {
                 self.view_frame.to_bb(),
                 bg_color,
                 (2, RGBColor::black()),
-                PolygonType::RoundedDecorated { corner_radius: 10.0, texture },
+                PolygonType::RoundedDecorated { corner_radius: 5.0, texture },
             );
         } else {
             self.window_renderer.make_bordered_rect(
                 self.view_frame.to_bb(),
                 bg_color,
                 (2, RGBColor::black()),
-                PolygonType::RoundedUndecorated { corner_radius: 10.0 },
+                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
             );
         }
 
@@ -393,18 +391,20 @@ impl View {
             self.cursor_renderer.clear_data();
             self.update(None);
 
+            // create the scroll bar
+
             self.window_renderer.make_bordered_rect(
                 self.scroll_bar.frame.to_bb(),
                 RGBColor::new(0.5, 0.5, 0.5),
                 (1, RGBColor::black()),
-                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+                PolygonType::Undecorated, // RoundedUndecorated { corner_radius: 10.0 },
             );
 
             self.window_renderer.make_bordered_rect(
                 self.scroll_bar.slider.to_bb(),
                 RGBColor::green(),
                 (1, RGBColor::white()),
-                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+                PolygonType::RoundedUndecorated { corner_radius: 10.0 },
             );
 
             // self.menu_text_renderer.clear_data();
@@ -544,6 +544,7 @@ impl View {
                 self.cursor_renderer.add_rect(rect, selection_color);
             } else {
                 let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                // let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
                 let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
                 let rendered = self.render_selection_requires_translation(self.buffer.cursor_abs(), absolute_metacursor_position);
                 for bb in rendered {
@@ -557,7 +558,6 @@ impl View {
     }
 
     fn render_normal_cursor(&mut self) {
-        let total_size = self.total_size();
         // Rendering the "normal" cursor stuff, i.e. the block cursor, and the line highlighter
         let rows_down: i32 = *self.buffer.cursor_row() as i32 - self.topmost_line_in_buffer;
         let cols_in = *self.buffer.cursor_col() as i32;
