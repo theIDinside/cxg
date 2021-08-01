@@ -23,22 +23,17 @@ pub struct ScrollBar {
 
 impl ScrollBar {
     pub fn ui_update(&mut self) {
-        let percent = self.scroll_value as f32 / self.max as f32;
         match self.layout {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
-                self.slider.size.height = std::cmp::max(15, self.frame.size.height / self.max as i32);
-                let block_center_y = self.frame.anchor.y - (percent as f32 * self.frame.size.height as f32) as i32;
-                let mut tmp_bb = super::basic::boundingbox::BoundingBox::from_frame(&self.slider);
+                self.slider.size.height = std::cmp::max(35, self.frame.size.height / self.max as i32);
                 // tmp_bb.center_vertical_align(block_center_y);
-                self.slider = Frame::from_bb(&tmp_bb);
                 self.slider.anchor.x = self.frame.anchor.x;
             }
         }
     }
 
     pub fn new(frame: Frame, end: usize, layout: ScrollBarLayout, scroll_value: usize) -> ScrollBar {
-        let step = end / frame.size.height as usize;
         let mut slider = frame.clone();
         match layout {
             ScrollBarLayout::Horizontal => todo!(),

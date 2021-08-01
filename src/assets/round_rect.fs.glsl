@@ -23,7 +23,7 @@ void main()
         vec2 location = rect_pos;
         float boundary = texel_coords.y;
         float cutoff = location.y + size.y / 2.0;
-        if(boundary > cutoff) {
+        // if(boundary > cutoff) {
             float edgeSoftness  = 1.0f;
             // Calculate distance to edge.   
             float dist = box_signed_distance_field_rounding(texel_coords.xy - location - (size/2.0f), size / 2.0f, radius);
@@ -33,9 +33,11 @@ void main()
             // This will be our resulting "shape". 
             vec4 quadColor		= mix(vec4(0.0, 0.0, 0.0, 0.0), vec4(rect_color.rgb, smoothedAlpha), smoothedAlpha);
             FragColor 			 = quadColor;
+        /*
         } else {
             FragColor = rect_color;    
         }
+        */
     } else {
         FragColor = rect_color;
     }    
