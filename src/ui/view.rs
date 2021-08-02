@@ -122,7 +122,7 @@ impl InputBehavior for View {
                     self.insert_slice(&[' ', ' ', ' ', ' ']);
                 }
             }
-            Key::Home | Key::Kp7 => match modifier {
+            Key::Home | Key::Kp7 if key_press(action) => match modifier {
                 Modifiers::Control => self.cursor_goto(crate::textbuffer::metadata::Index(0)),
                 _ => self.move_cursor(Movement::Begin(TextKind::Line)),
             },
@@ -238,7 +238,7 @@ impl InputBehavior for View {
 }
 
 impl View {
-    const SCROLL_BAR_WIDTH: i32 = 20;
+    const SCROLL_BAR_WIDTH: i32 = 15;
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
         bg_color: RGBAColor, mut buffer: Box<ContiguousBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,
@@ -253,7 +253,8 @@ impl View {
         let view_frame = Frame::new(view_anchor, view_size);
         buffer.rebuild_metadata();
 
-        let scroll_bar_frame = Frame::new(view_frame.anchor + Vec2i::new(width - View::SCROLL_BAR_WIDTH, 0), Size::new(20, height - title_height));
+        let scroll_bar_frame =
+            Frame::new(view_frame.anchor + Vec2i::new(width - View::SCROLL_BAR_WIDTH, 0), Size::new(View::SCROLL_BAR_WIDTH, height - title_height));
 
         let sb = ScrollBar::new(scroll_bar_frame, buffer.meta_data().line_count(), ScrollBarLayout::Vertical, 0);
 
@@ -390,21 +391,25 @@ impl View {
             self.text_renderer.clear_data();
             self.cursor_renderer.clear_data();
             self.update(None);
-
+            let RGBAColor { r, g, b, a } = self.bg_color;
             // create the scroll bar
+            self.window_renderer
+                .push_draw_command(self.scroll_bar.frame.to_bb(), RGBColor::new(r, g, b).uniform_scale(-0.05), PolygonType::Undecorated);
+            /*
+                       self.window_renderer.make_bordered_rect(
+                           self.scroll_bar.frame.to_bb(),
+                           RGBColor::new(0.5, 0.5, 0.5),
+                           (1, RGBColor::black()),
+                           PolygonType::Undecorated, // RoundedUndecorated { corner_radius: 10.0 },
+                       );
+            */
 
-            self.window_renderer.make_bordered_rect(
-                self.scroll_bar.frame.to_bb(),
-                RGBColor::new(0.5, 0.5, 0.5),
-                (1, RGBColor::black()),
-                PolygonType::Undecorated, // RoundedUndecorated { corner_radius: 10.0 },
-            );
-
+            assert_eq!(self.scroll_bar.slider.width(), self.scroll_bar.frame.width());
             self.window_renderer.make_bordered_rect(
                 self.scroll_bar.slider.to_bb(),
-                RGBColor::green(),
+                self.bg_color.to_rgb().uniform_scale(0.2),
                 (1, RGBColor::white()),
-                PolygonType::RoundedUndecorated { corner_radius: 10.0 },
+                PolygonType::RoundedUndecorated { corner_radius: 7.5 },
             );
 
             // self.menu_text_renderer.clear_data();
@@ -467,13 +472,17 @@ impl View {
 
         // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
         self.window_renderer.execute_draw_list();
+        let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
         unsafe {
-            let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
             gl::Enable(gl::SCISSOR_TEST);
             gl::Scissor(top_x + 2, top_y - total_size.height, self.view_frame.width() - self.text_margin_left, total_size.height);
         }
         self.text_renderer.execute_draw_list();
-        // self.text_renderer.draw();
+
+        // we clip here as well, because otherwise the cursor might show up "on top" of the title bar, which is undesirable
+        unsafe {
+            gl::Scissor(top_x + 2, top_y - total_size.height, self.view_frame.width() - self.text_margin_left, self.view_frame.height());
+        }
         self.cursor_renderer.draw();
         //self.menu_text_renderer.draw();
 
@@ -655,7 +664,6 @@ impl View {
         }
 
         self.buffer.insert(ch);
-
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
             self.set_view_on_buffer_cursor();
         } else {
@@ -814,7 +822,6 @@ impl Viewable for View {
     }
 
     fn mouse_clicked(&mut self, validated_inside_pos: Vec2i) {
-        self.buffer.meta_cursor = None;
         debugger_catch!(
             self.bounding_box().box_hit_check(validated_inside_pos),
             crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view"))
@@ -840,6 +847,7 @@ impl Viewable for View {
             self.view_changed = true;
             self.set_need_redraw();
         } else {
+            self.buffer.meta_cursor = None;
             if let Some(final_index_pos) = self.mouse_to_buffer_position(validated_inside_pos) {
                 self.cursor_goto(final_index_pos);
             }
@@ -851,8 +859,15 @@ impl Viewable for View {
             .mouse_to_buffer_position(begin_coordinate)
             .zip(self.mouse_to_buffer_position(current_coordinate))
         {
-            self.buffer.cursor_goto(target_coord_idx);
-            self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
+            match self.buffer.meta_cursor {
+                Some(MetaCursor::Absolute(..)) => {
+                    self.buffer.cursor_goto(target_coord_idx);
+                }
+                _ => {
+                    self.buffer.cursor_goto(target_coord_idx);
+                    self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
+                }
+            }
             self.set_view_on_buffer_cursor();
         } else if self.scroll_bar.frame.to_bb().box_hit_check(begin_coordinate) {
             match self.scroll_bar.layout {

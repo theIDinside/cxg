@@ -101,7 +101,6 @@ fn main() -> Main {
         glinit::init_gl();
     };
     let font_program = opengl::shaders::TextShader::new();
-
     let rectangle_program = opengl::shaders::RectShader::new(Path::new("./src/assets/round_rect.vs.glsl"), Path::new("./src/assets/round_rect.fs.glsl"));
     let poly_program = opengl::shaders::RectShader::new(Path::new("./src/assets/rectangle.vs.glsl"), Path::new("./src/assets/rectangle.fs.glsl"));
 
@@ -114,7 +113,7 @@ fn main() -> Main {
         .chain(crate::utils::convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265]))
         .collect();
 
-    let font = ui::font::Font::new(font_path, 16, &char_range).expect("Failed to create font");
+    let font = ui::font::Font::new(font_path, 14, &char_range).expect("Failed to create font");
     let menu_font = ui::font::Font::new(menu_font_path, 14, &char_range).expect("Failed to create font");
     let fonts = vec![Rc::new(font), Rc::new(menu_font)];
 

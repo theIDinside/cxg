@@ -14,6 +14,14 @@ pub struct RGBColor {
     pub b: glfloat,
 }
 
+impl std::ops::Add for RGBColor {
+    type Output = RGBColor;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        RGBColor { r: self.r + rhs.r, g: self.g + rhs.g, b: self.b + rhs.b }
+    }
+}
+
 impl RGBColor {
     pub fn new(r: f32, g: f32, b: f32) -> RGBColor {
         RGBColor { r, g, b }
@@ -58,6 +66,11 @@ pub struct RGBAColor {
 }
 
 impl RGBAColor {
+    pub fn to_rgb(self) -> RGBColor {
+        let RGBAColor { r, g, b, .. } = self;
+        RGBColor { r, g, b }
+    }
+
     pub fn new(r: glfloat, g: glfloat, b: glfloat, a: glfloat) -> RGBAColor {
         RGBAColor { r, g, b, a }
     }

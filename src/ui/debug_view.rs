@@ -47,9 +47,10 @@ impl DebugView {
             (1, bg_color.uniform_scale(-1.0)),
             PolygonType::RoundedUndecorated { corner_radius: 15.0 },
         );
-
+        let mut view_bb = self.view.view_frame.to_bb();
+        view_bb.max.x = self.view.title_frame.anchor.x + self.view.title_frame.width();
         self.view.window_renderer.make_bordered_rect(
-            self.view.view_frame.to_bb(),
+            view_bb,
             bg_color,
             (2, bg_color.uniform_scale(-1.0)),
             PolygonType::RoundedUndecorated { corner_radius: 15.0 },
@@ -66,7 +67,7 @@ impl DebugView {
             let proc_info = ProcessInfo::new();
             let ProcessInfo { name, pid, virtual_mem_usage_peak, virtual_mem_usage, rss, shared_lib_code } = proc_info.unwrap();
             let title = "Debug Information";
-            let r = format!(
+            let all_debug_info_string = format!(
                 "
    Application 
    > name                                       [{}] 
@@ -91,21 +92,25 @@ impl DebugView {
                 fps
             );
 
-            let it: Vec<char> = r.chars().collect();
-            let mut size = gltxt::calculate_text_dimensions(&it, &self.view.edit_font);
+            let mut size = gltxt::calculate_text_dimensions_iter(&all_debug_info_string, &self.view.edit_font);
             size.height += self.view.title_frame.size.height + 40;
             size.width += 20;
             self.resize(size);
             self.update();
 
             let Vec2i { x: tx, y: ty } = self.view.title_frame.anchor;
+            let text_title_rect = gltxt::calculate_text_dimensions_iter(title, &self.view.title_font);
+            let half = text_title_rect.width / 2;
+            let title_frame_half = self.view.title_frame.width() / 2;
+            let start_x = title_frame_half - half;
+
             self.view
                 .text_renderer
-                .push_draw_command(title.chars().map(|c| c), RGBColor::black(), tx + 3, ty, self.view.title_font.clone());
+                .push_draw_command(title.chars(), RGBColor::black(), tx + start_x, ty, self.view.title_font.clone());
             let color = RGBColor::white();
             self.view
                 .text_renderer
-                .push_draw_command(it.iter().map(|c| *c), color, top_x, top_y, self.view.edit_font.clone());
+                .push_draw_command(all_debug_info_string.chars(), color, top_x, top_y, self.view.edit_font.clone());
             self.view.set_need_redraw();
         }
     }

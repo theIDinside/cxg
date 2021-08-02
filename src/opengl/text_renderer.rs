@@ -290,3 +290,45 @@ pub fn calculate_text_dimensions(text: &[char], font: &Font) -> Size {
     size.width = max_x;
     size
 }
+
+pub fn calculate_text_dimensions_iter(text: &str, font: &Font) -> Size {
+    let mut size = Size { width: 0, height: font.row_height() };
+    let mut max_x = 0;
+
+    for (index, c) in text.chars().enumerate() {
+        if c == '\n' {
+            size.height += font.row_height();
+            size.width = 0;
+        } else {
+            let c = if c == '<' || c == '>' || c == '!' {
+                if let Some("=") = text.get(index + 1..index + 2) {
+                    let resulting_unicode_char = if c == '<' {
+                        unsafe { std::char::from_u32_unchecked(0x2264) }
+                    } else if c == '>' {
+                        unsafe { std::char::from_u32_unchecked(0x2265) }
+                    } else {
+                        unsafe { std::char::from_u32_unchecked(0x2260) }
+                    };
+                    resulting_unicode_char
+                } else {
+                    c
+                }
+            } else {
+                c
+            };
+            if c == '=' {
+                size.width += match text.get(index - 1..index) {
+                    Some("<") | Some(">") | Some("!") => None,
+                    _ => font.get_glyph(c),
+                }
+                .map_or(0, |g| g.advance);
+            } else {
+                size.width += font.get_glyph(c).unwrap().advance;
+            }
+        }
+        max_x = std::cmp::max(size.width, max_x);
+    }
+
+    size.width = max_x;
+    size
+}

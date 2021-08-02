@@ -599,7 +599,6 @@ impl<'app> Application<'app> {
         //  input against, and it will have to return an InputTranslation, which instead match on in this function, instead of matching
         //  directly on key input.
         let _op = translate_key_input(key, action, modifier);
-
         match key {
             Key::Escape | Key::CapsLock if key_press(action) => {
                 if self.input_box.visible {
@@ -683,6 +682,7 @@ impl<'app> Application<'app> {
                     } else {
                         let v = self.get_active_view();
                         println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
+                        println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
                     }
                 }
             }

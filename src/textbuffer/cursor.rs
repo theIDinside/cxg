@@ -14,7 +14,7 @@ pub struct BufferCursor {
     pub col: Column,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum MetaCursor {
     Absolute(Index),
     LineRange {
