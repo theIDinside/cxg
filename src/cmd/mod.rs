@@ -1,3 +1,6 @@
+pub mod keybindings;
+pub mod translation;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CommandTag {
     Goto,

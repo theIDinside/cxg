@@ -11,7 +11,7 @@ in vec2 u_size;
 in vec2 texel_coords;
 
 // the texture coordinates
-in vec2 uv_coords;
+in vec2 texture_coordinates;
 // radius of the corners
 uniform float radius;
 uniform vec2 rect_pos;
@@ -32,7 +32,7 @@ void main()
     if(interpolation == 0.0) {
         chosen_color = vec4(rect_color2, 1.0);
     } else {
-        vec4 sampledTexture = texture(texture_sampler, uv_coords);
+        vec4 sampledTexture = texture(texture_sampler, texture_coordinates);
         chosen_color = 
         mix(sampledTexture, vec4(rect_color2, 1.0), 0.005);
     }

@@ -10,7 +10,7 @@ pub enum Operation {
     Delete(metadata::Index, OperationParameter),
 }
 
-pub enum LineOperation<'a> {
+pub enum LineOperation {
     ShiftLeft {
         shift_by: usize,
     },
@@ -19,10 +19,10 @@ pub enum LineOperation<'a> {
     },
     InsertElement {
         at_column: metadata::Column,
-        insertion: char,
+        insertion: Option<char>,
     },
     InsertString {
         at_column: metadata::Column,
-        insertion: &'a str,
+        insertion: Option<String>,
     },
 }

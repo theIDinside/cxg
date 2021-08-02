@@ -1,3 +1,4 @@
+use crate::cmd::translation::{translate_key_input, InputTranslation};
 use crate::cmd::CommandTag;
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
@@ -9,6 +10,7 @@ use crate::opengl::{
     text_renderer::TextRenderer,
     types::RGBAColor,
 };
+use crate::textbuffer::operations::LineOperation;
 use crate::textbuffer::{buffers::Buffers, CharBuffer, Movement};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
@@ -28,6 +30,7 @@ use crate::ui::{
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -92,6 +95,8 @@ pub struct Application<'app> {
     pub tex_map: TextureMap,
 
     pub clipboard: ClipBoard,
+
+    key_bindings: HashMap<(glfw::Key, glfw::Action, glfw::Modifiers), InputTranslation>,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -228,6 +233,7 @@ impl<'app> Application<'app> {
             rect_animation_renderer,
             tex_map,
             clipboard: ClipBoard::new(),
+            key_bindings: HashMap::new(),
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -594,11 +600,41 @@ impl<'app> Application<'app> {
         }
     }
 
+    #[rustfmt::skip]
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         // todo: this is where we will hook the config library into. It will read from a config -> parse that into a map, which we map the
         //  input against, and it will have to return an InputTranslation, which instead match on in this function, instead of matching
         //  directly on key input.
         let _op = translate_key_input(key, action, modifier);
+
+         {
+            match _op {
+                InputTranslation::Cancel                                    => {}
+                InputTranslation::Movement(_)                               => {}
+                InputTranslation::ChangeValueOfAssignment                   => {}
+                InputTranslation::StaticInsertStr(_)                        => {}
+                InputTranslation::Cut                                       => {}
+                InputTranslation::Copy                                      => {}
+                InputTranslation::Paste                                     => {}
+                InputTranslation::Delete                                    => {}
+                InputTranslation::Undo                                      => {}
+                InputTranslation::Redo                                      => {}
+                InputTranslation::OpenFile                                  => {}
+                InputTranslation::SaveFile                                  => {}
+                InputTranslation::Search                                    => {}
+                InputTranslation::Goto                                      => {}
+                InputTranslation::CycleFocus                                => {}
+                InputTranslation::HideFocused                               => {}
+                InputTranslation::ShowAll                                   => {}
+                InputTranslation::ShowDebugInterface                        => {},
+                InputTranslation::CloseActiveView                           => {},
+                InputTranslation::Quit                                      => {},
+                InputTranslation::OpenNewView                               => {}
+                InputTranslation::TextSelect(movement)              => {},
+                InputTranslation::LineOperation(line_op)        => {},
+            }
+        }
+
         match key {
             Key::Escape | Key::CapsLock if key_press(action) => {
                 if self.input_box.visible {
@@ -868,36 +904,6 @@ impl<'app> Application<'app> {
     pub fn set_debug(&mut self, set: bool) {
         self.debug = set;
     }
-}
-
-/// Command enum. This is what user input gets translated to, so that we can have configurability, by reading text files and re-mapping the internal HashMap of KeyInput => Command translations
-/// In the examples below, whenever you see two bars around a text item like so: |foo| means the cursor & and it's sibling (meta cursor(s)) cursor has foo selected
-/// This way we can textually and visually represent cursor movement and actions
-pub enum InputTranslation {
-    Cancel,
-    Movement(Movement),
-    /// let |v| = vec![1, 2] <br>
-    /// moves cursor to => "let v = vec![|1, 2|]" => next user input will replace what's between |1, 2|
-    ChangeValueOfAssignment,
-    StaticInsertStr(&'static str),
-    Cut,
-    Copy,
-    Paste,
-    Delete,
-    Undo,
-    Redo,
-    OpenFile,
-    SaveFile,
-    Search,
-    Goto,
-    CycleFocus,
-    HideFocused,
-    ShowAll,
-    ShowDebugInterface,
-}
-
-fn translate_key_input(_key: Key, _action: Action, _modifier: Modifiers) -> InputTranslation {
-    InputTranslation::Cancel
 }
 
 pub fn cast_ptr_to_input<'app, T: InputBehavior>(t: *mut T) -> &'app mut dyn InputBehavior

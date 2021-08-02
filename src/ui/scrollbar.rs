@@ -27,7 +27,6 @@ impl ScrollBar {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
                 self.slider.size.height = std::cmp::max(35, self.frame.size.height / self.max as i32);
-                // tmp_bb.center_vertical_align(block_center_y);
                 self.slider.anchor.x = self.frame.anchor.x;
             }
         }

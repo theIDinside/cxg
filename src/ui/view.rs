@@ -325,8 +325,6 @@ impl View {
     }
 
     pub fn set_need_redraw(&mut self) {
-        // self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
-        // self.set_view_on_buffer_cursor();
         self.view_changed = true;
         self.scroll_bar.ui_update();
     }
@@ -391,19 +389,10 @@ impl View {
             self.text_renderer.clear_data();
             self.cursor_renderer.clear_data();
             self.update(None);
-            let RGBAColor { r, g, b, a } = self.bg_color;
+            let RGBAColor { r, g, b, .. } = self.bg_color;
             // create the scroll bar
             self.window_renderer
                 .push_draw_command(self.scroll_bar.frame.to_bb(), RGBColor::new(r, g, b).uniform_scale(-0.05), PolygonType::Undecorated);
-            /*
-                       self.window_renderer.make_bordered_rect(
-                           self.scroll_bar.frame.to_bb(),
-                           RGBColor::new(0.5, 0.5, 0.5),
-                           (1, RGBColor::black()),
-                           PolygonType::Undecorated, // RoundedUndecorated { corner_radius: 10.0 },
-                       );
-            */
-
             assert_eq!(self.scroll_bar.slider.width(), self.scroll_bar.frame.width());
             self.window_renderer.make_bordered_rect(
                 self.scroll_bar.slider.to_bb(),
@@ -435,10 +424,6 @@ impl View {
             // draw text view
             let Vec2i { x: top_x, y: top_y } = self.view_frame.anchor;
             let top_x = top_x + self.text_margin_left;
-            unsafe {
-                gl::ClearColor(0.8, 0.3, 0.3, 1.0);
-                gl::Clear(gl::COLOR_BUFFER_BIT);
-            }
 
             // render text contents
             self.text_renderer.push_draw_command(
@@ -597,13 +582,13 @@ impl View {
     // and if spanning multiple lines, each subsequent line will have Vec2i(0, (line * row_height) * -1). This should make remapping fairly easy
     fn render_selection_requires_translation(&self, begin: Index, end: Index) -> Vec<BoundingBox> {
         debug_assert!(begin < end);
-        let mut render_infos = Vec::with_capacity(10);
+
         let md = self.buffer.meta_data();
         let first_line = md.get_line_number_of_buffer_index(begin).map_or(Line(0), |l| Line(l));
         let last_line = md
             .get_line_number_of_buffer_index(end)
             .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
-
+        let mut render_infos = Vec::with_capacity(*last_line - *first_line);
         let mut lines_contents = self.buffer.get_lines_as_slices(first_line, last_line);
         let mut rows_down_in_view: i32 = 0;
         let first_selected_col_position = *begin - *md.get_line_start_index(first_line).unwrap();
