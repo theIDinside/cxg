@@ -38,7 +38,7 @@ impl std::hash::Hash for ContiguousBuffer {
 impl ContiguousBuffer {
     pub fn new(id: u32, capacity: usize) -> ContiguousBuffer {
         ContiguousBuffer {
-            id: id,
+            id,
             data: Vec::with_capacity(capacity),
             edit_cursor: BufferCursor::default(),
             meta_cursor: None,
