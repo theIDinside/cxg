@@ -712,7 +712,7 @@ impl<'app> Application<'app> {
             Key::Q if modifier == Modifiers::Control => {
                 self.close_requested = true;
             }
-            Key::    => {
+            Key::F1  => {
                 if action == Action::Press {
                     if modifier == Modifiers::Shift {
                         self.active_input.handle_key(key, action, modifier);
