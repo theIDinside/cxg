@@ -1,18 +1,21 @@
 use crate::textbuffer::{operations::LineOperation, Movement};
 use glfw::{Action, Key, Modifiers};
+use serde::{Deserialize, Serialize};
 
 /// Command enum. This is what user input gets translated to, so that we can have configurability, by reading text files and re-mapping the internal HashMap of KeyInput => Command translations
 /// In the examples below, whenever you see two bars around a text item like so: |foo| means the cursor & and it's sibling (meta cursor(s)) cursor has foo selected
 /// This way we can textually and visually represent cursor movement and actions
+#[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Deserialize, Serialize)]
 pub enum InputTranslation {
     Cancel,
+    Enter,
     Movement(Movement),
     TextSelect(Movement),
     Delete(Movement),
     /// let |v| = vec![1, 2] <br>
     /// moves cursor to => "let v = vec![|1, 2|]" => next user input will replace what's between |1, 2|
     ChangeValueOfAssignment,
-    StaticInsertStr(&'static str),
+    InsertStr(String),
     Cut,
     Copy,
     Paste,
@@ -26,15 +29,43 @@ pub enum InputTranslation {
     HideFocused,
     ShowAll,
     ShowDebugInterface,
-    CloseActiveView,
+    CloseActiveView(bool),
     Quit,
     OpenNewView,
     LineOperation(LineOperation),
-    Debug   
+    Debug,
+}
+
+pub enum ViewUserInput {
+    Enter,
+    Movement(Movement),
+    TextSelect(Movement),
+    Delete(Movement),
+    ChangeValueOfAssignment,
+    InsertStr(String),
+    Search,
+    Goto,
+    LineOperation(LineOperation),
+    Undo,
+    Redo,
+    Copy,
+    Cut,
+    Paste,
+}
+
+pub enum CommandUserInput {
+    Cancel,
+    Enter,
+    Movement(Movement),
+    TextSelect(Movement),
+    Cut,
+    Copy,
+    Paste,
 }
 
 pub enum InputContext {
     ActiveView(InputTranslation),
+    InputBox(InputTranslation),
     Application(InputTranslation),
 }
 

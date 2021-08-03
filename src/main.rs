@@ -10,6 +10,9 @@ extern crate walkdir;
 // These will be used for serializing and deserializing configurations, like keymapping etc
 extern crate serde;
 extern crate serde_json;
+// we use this to re-implement the glfw::Key and glfw::Modifiers structures
+// because it is _way_ easier since they are POD, so that we can serialize them easily with serde
+extern crate bitflags;
 
 #[macro_use]
 pub mod opengl;

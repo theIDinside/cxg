@@ -17,8 +17,9 @@ walkdir = "*"
 nfd = "0.0.4"
 # Used for syntax highlighting, and other things (obviously). I suck at performant sub string searching.. so why the hell not use this
 regex = "*"
-serde = "*"
+serde = { version = "*", features = ["derive"] } 
 serde_json = "*"
+bitflags = "1.2.1"
 
 [profile.release]
 debug = true

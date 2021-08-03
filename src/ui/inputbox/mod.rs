@@ -369,6 +369,74 @@ impl InputBehavior for InputBox {
     fn get_uid(&self) -> Option<super::UID> {
         todo!()
     }
+
+    fn handle_enter(&mut self) -> InputResponse {
+        self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
+        self.process_input()
+    }
+
+    fn move_cursor(&mut self, movement: crate::textbuffer::Movement) {
+        match movement {
+            crate::textbuffer::Movement::Forward(kind, _) => match kind {
+                crate::textbuffer::TextKind::Line => {
+                    self.selection_list.scroll_selection_down();
+                }
+                _ => {}
+            },
+            crate::textbuffer::Movement::Backward(kind, _) => match kind {
+                crate::textbuffer::TextKind::Line => {
+                    self.selection_list.scroll_selection_up();
+                }
+                _ => {}
+            },
+            crate::textbuffer::Movement::Begin(kind) => {
+                self.input_box.cursor = 0;
+            }
+            crate::textbuffer::Movement::End(kind) => {
+                self.input_box.cursor = self.input_box.data.len();
+            }
+        }
+        self.needs_update = true;
+    }
+
+    fn context(&self) -> super::eventhandling::event::InputContext {
+        super::eventhandling::event::InputContext::Command
+    }
+
+    fn select_move_cursor(&mut self, _movement: crate::textbuffer::Movement) {
+        todo!()
+    }
+
+    fn delete(&mut self, _movement: crate::textbuffer::Movement) {
+        match _movement {
+            crate::textbuffer::Movement::Forward(kind, _) => {}
+            crate::textbuffer::Movement::Backward(kind, _) => {
+                if let Some(_) = self.input_box.data.pop() {
+                    self.input_box.cursor -= 1;
+                }
+                if self.input_box.data.is_empty() {
+                    self.selection_list.data.clear();
+                } else {
+                    self.update_list();
+                }
+            }
+            crate::textbuffer::Movement::Begin(_) => {
+                self.input_box.data.clear();
+                self.input_box.cursor = 0;
+                self.update_list();
+            }
+            crate::textbuffer::Movement::End(_) => {}
+        }
+        self.needs_update = true;
+    }
+
+    fn copy(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn cut(&self) -> Option<String> {
+        todo!()
+    }
 }
 
 impl Viewable for InputBox {

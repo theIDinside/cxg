@@ -1,3 +1,4 @@
+
 pub enum DebuggerCatch {
     Handle(String),
     Panic(String),
@@ -108,7 +109,7 @@ macro_rules! Assert {
 #[macro_export]
 macro_rules! IndexingType {
     ($(#[$attr:meta])*, $safe_type:ident, $wrapped_type:ty) => {
-        #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+        #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash, serde::Serialize, serde::Deserialize)]
         $(#[$attr])*
         pub struct $safe_type(pub $wrapped_type);
         impl std::ops::Deref for $safe_type {

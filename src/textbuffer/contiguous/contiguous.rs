@@ -212,7 +212,9 @@ impl ContiguousBuffer {
                     self.move_cursor(Movement::End(TextKind::Block));
                 }
             }
-            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+            _ => {
+                todo!("TextKind::{:?} not yet implemented", kind)
+            }
         }
     }
     /// Moves cursor backward, in the fashion specified by TextKind
@@ -267,7 +269,9 @@ impl ContiguousBuffer {
                     self.move_cursor(Movement::Begin(TextKind::Block));
                 }
             }
-            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+            _ => {
+                todo!("TextKind::{:?} not yet implemented", kind)
+            }
         }
     }
 
@@ -666,7 +670,9 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         }
                     }
                 }
-                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+                _ => {
+                    todo!("TextKind::{:?} not yet implemented", kind)
+                }
             },
 
             Movement::Backward(kind, count) if self.edit_cursor.absolute() != Index(0) => match kind {
@@ -689,7 +695,9 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.remove();
                     }
                 }
-                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+                _ => {
+                    todo!("TextKind::{:?} not yet implemented", kind)
+                }
             },
             _ => {}
         }
@@ -783,8 +791,13 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     if let Some(block_begin) = self.find_index_of_prev_from(self.edit_cursor.pos.offset(-1), |f| f == '{') {
                         self.cursor_goto(block_begin);
                     }
-                },
-                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+                }
+                TextKind::File => {
+                    self.cursor_goto(Index(0));
+                }
+                _ => {
+                    todo!("TextKind::{:?} not yet implemented", kind)
+                }
             },
             Movement::End(kind) => match kind {
                 TextKind::Char => self.cursor_step_forward(1),
@@ -809,7 +822,10 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.cursor_goto(block_begin);
                     }
                 }
-                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+                TextKind::File => self.cursor_goto(metadata::Index(self.len()).offset(-1)),
+                _ => {
+                    todo!("TextKind::{:?} not yet implemented", kind)
+                }
             },
         }
     }

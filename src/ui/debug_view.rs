@@ -23,11 +23,12 @@ pub struct DebugView {
     pub visibile: bool,
     debug_info: DebugInfo,
     pub bg_texture: Texture,
+    pub handle_key_time: u128,
 }
 
 impl DebugView {
     pub fn new(view: View, debug_info: DebugInfo, bg_texture: Texture) -> DebugView {
-        DebugView { view, visibile: false, debug_info, bg_texture }
+        DebugView { view, visibile: false, debug_info, bg_texture, handle_key_time: 0 }
     }
 
     pub fn resize(&mut self, size: Size) {
@@ -80,7 +81,8 @@ impl DebugView {
    > Allocated heap since start                 [{:.2}MB]
    Timing           
    > Frame time:                                [{:.5}ms]
-   > Frame speed                                [{:.2}f/s]",
+   > Frame speed                                [{:.2}f/s]
+   > Key translation time                       [{:.5}ms]",
                 name,
                 pid,
                 virtual_mem_usage as f64 / 1024.0,
@@ -89,7 +91,8 @@ impl DebugView {
                 rss as f64 / 1024.0,
                 self.debug_info.heap_allocated_since_begin() as f64 / (1024.0 * 1024.0), // we read *actual* heap addresses, and these obviously are measured in bytes. The others are values from syscall proc, and they return in KB
                 frame_time,
-                fps
+                fps,
+                self.handle_key_time as f64 / 1000.0
             );
 
             let mut size = gltxt::calculate_text_dimensions_iter(&all_debug_info_string, &self.view.edit_font);

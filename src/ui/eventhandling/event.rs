@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::ui::UID;
+use crate::{textbuffer::Movement, ui::UID};
 
 /// InputResponse is communcation that goes from objects that implement InputBehavior trait
 /// and as such, might need to communicate back results, to the Application object, such as results from run commands,
@@ -38,9 +38,22 @@ pub(crate) fn key_press_repeat(action: glfw::Action) -> bool {
     action == glfw::Action::Press || action == glfw::Action::Repeat
 }
 
+pub enum InputContext {
+    View,
+    Command,
+}
+
 pub trait InputBehavior {
     fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse;
     fn handle_char(&mut self, ch: char);
+    fn handle_enter(&mut self) -> InputResponse;
+    fn move_cursor(&mut self, movement: Movement);
+    fn select_move_cursor(&mut self, movement: Movement);
+    fn delete(&mut self, movement: Movement);
+    fn copy(&self) -> Option<String>;
+    fn cut(&self) -> Option<String>;
+
+    fn context(&self) -> InputContext;
     fn get_uid(&self) -> Option<UID>;
 }
 
@@ -60,5 +73,33 @@ impl InputBehavior for InvalidInputElement {
 
     fn get_uid(&self) -> Option<UID> {
         None
+    }
+
+    fn handle_enter(&mut self) -> InputResponse {
+        todo!()
+    }
+
+    fn move_cursor(&mut self, _movement: Movement) {
+        todo!()
+    }
+
+    fn context(&self) -> InputContext {
+        todo!()
+    }
+
+    fn select_move_cursor(&mut self, _movement: Movement) {
+        todo!()
+    }
+
+    fn delete(&mut self, _movement: Movement) {
+        todo!()
+    }
+
+    fn copy(&self) -> Option<String> {
+        todo!()
+    }
+
+    fn cut(&self) -> Option<String> {
+        todo!()
     }
 }

@@ -1,4 +1,6 @@
 pub mod keybindings;
+#[rustfmt::skip]
+pub mod keyimpl;
 pub mod translation;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

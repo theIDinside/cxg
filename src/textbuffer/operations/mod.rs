@@ -1,4 +1,5 @@
 use super::metadata;
+use serde::{Deserialize, Serialize};
 
 pub enum OperationParameter {
     Char(char),
@@ -10,6 +11,7 @@ pub enum Operation {
     Delete(metadata::Index, OperationParameter),
 }
 
+#[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Deserialize, Serialize)]
 pub enum LineOperation {
     ShiftLeft {
         shift_by: usize,

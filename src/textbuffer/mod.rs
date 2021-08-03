@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
@@ -20,22 +21,49 @@ pub mod metadata;
 // Definitions of abstractions of operations on buffers
 pub mod operations;
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Deserialize, Serialize)]
 pub enum TextKind {
     Char,
     Word,
     Line,
     Block,
     Page,
-    File
+    File,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Deserialize, Serialize)]
 pub enum Movement {
     Forward(TextKind, usize),
     Backward(TextKind, usize),
     Begin(TextKind),
     End(TextKind),
+}
+
+impl Movement {
+    pub fn transform_page_param(self, view_page_size: usize) -> Movement {
+        match self {
+            Movement::Forward(a, c) => match a {
+                TextKind::Page => Movement::Forward(TextKind::Line, c * view_page_size),
+                _ => self,
+            },
+            Movement::Backward(a, c) => match a {
+                TextKind::Page => Movement::Backward(TextKind::Line, c * view_page_size),
+                _ => self,
+            },
+            Movement::Begin(a) => match a {
+                TextKind::Page => {
+                    todo!("Movement to Begin TextKind::Page does not make sense")
+                }
+                _ => self,
+            },
+            Movement::End(a) => match a {
+                TextKind::Page => {
+                    todo!("Movement to End TextKind::Page does not make sense")
+                }
+                _ => self,
+            },
+        }
+    }
 }
 
 pub enum BufferState {

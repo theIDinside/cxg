@@ -1,4 +1,5 @@
-use crate::cmd::translation::{translate_key_input, InputTranslation};
+use crate::cmd::keybindings::KeyBindings;
+use crate::cmd::translation::InputTranslation;
 use crate::cmd::CommandTag;
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
@@ -10,13 +11,12 @@ use crate::opengl::{
     text_renderer::TextRenderer,
     types::RGBAColor,
 };
-use crate::textbuffer::operations::LineOperation;
-use crate::textbuffer::{buffers::Buffers, CharBuffer, Movement};
+use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
-use crate::ui::eventhandling::event::key_press;
+use crate::ui::eventhandling::event::{key_press, InputContext};
 use crate::ui::{
     clipboard::ClipBoard,
     debug_view::DebugView,
@@ -30,7 +30,7 @@ use crate::ui::{
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
 
-use std::collections::HashMap;
+use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -76,7 +76,7 @@ pub struct Application<'app> {
     pub active_view: *mut View,
     /// Pointer to the element that's currently receiving user input. This handle, handles the behavior of the application
     /// and dispatches accordingly to the right type, to determine what should be done when user inputs, key strokes or mouse movements, etc
-    pub active_input: &'app mut dyn InputBehavior,
+    pub active_keyboard_input: &'app mut dyn InputBehavior,
     /// We keep running the application until close_requested is true. If true, Application will see if all data and views are in an acceptably quittable state, such as,
     /// all files are saved to disk (aka pristine) or all files are cached to disk (unsaved, but stored in permanent medium in newest state) etc. If App is not in acceptably quittable state,
     /// close_requested will be set to false again, so that user can respond to Application asking the user about actions needed to quit.
@@ -96,7 +96,9 @@ pub struct Application<'app> {
 
     pub clipboard: ClipBoard,
 
-    key_bindings: HashMap<(glfw::Key, glfw::Action, glfw::Modifiers), InputTranslation>,
+    key_bindings: KeyBindings,
+
+    translate_key_input: bool,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -210,6 +212,24 @@ impl<'app> Application<'app> {
         let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
+        let default_config = std::path::Path::new("./default.cfg");
+
+        let key_bindings = std::fs::read_to_string(default_config)
+            .map(|data| serde_json::from_str(&data).unwrap_or(KeyBindings::default()))
+            .unwrap_or(KeyBindings::default());
+
+        let serialize = serde_json::to_string_pretty(&key_bindings).unwrap_or("".into());
+        let f = std::fs::File::create("./default.cfg");
+        match f {
+            Ok(mut file) => match file.write_all(&serialize.as_bytes()) {
+                Ok(_) => {}
+                Err(e) => println!("Could not write default config to file: {}", e),
+            },
+            Err(err) => {
+                println!("Error: {}", err);
+            }
+        }
+
         let mut res = Application {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
@@ -225,7 +245,7 @@ impl<'app> Application<'app> {
             active_ui_element: UID::View(active_view_id),
             debug: false,
             active_view: std::ptr::null_mut(),
-            active_input: unsafe { &mut INVALID_INPUT as &mut dyn InputBehavior },
+            active_keyboard_input: unsafe { &mut INVALID_INPUT as &mut dyn InputBehavior },
             close_requested: false,
             input_box,
             debug_view,
@@ -233,10 +253,11 @@ impl<'app> Application<'app> {
             rect_animation_renderer,
             tex_map,
             clipboard: ClipBoard::new(),
-            key_bindings: HashMap::new(),
+            key_bindings,
+            translate_key_input: true,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
-        res.active_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
+        res.active_keyboard_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
         res.active_view = res.panels.last_mut().unwrap().get_view(active_view_id.into()).unwrap();
         res
     }
@@ -285,7 +306,7 @@ impl<'app> Application<'app> {
                 (*self.active_view).update(None);
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
-            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
         } else {
             panic!("panel with id {} was not found", *parent_panel);
         }
@@ -328,13 +349,14 @@ impl<'app> Application<'app> {
             self.active_ui_element = UID::View(*id);
         }
         self.decorate_active_view();
-        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+        self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
         let v = unsafe { self.active_view.as_mut().unwrap() };
         if !v.visible {
             v.visible = true;
         }
     }
 
+    #[inline(always)]
     pub fn get_active_view(&mut self) -> &mut View {
         if self.popup.visible {
             return unsafe { &mut *(&self.popup.view as *const _ as *mut _) };
@@ -379,8 +401,8 @@ impl<'app> Application<'app> {
 
         let new_panel_space_size = Size::new(width, height);
         let size_change_factor = new_panel_space_size / self.panel_space_size;
-        assert_eq!(ax, size_change_factor.x as _);
-        assert_eq!(ay, size_change_factor.y as _);
+        assert_eq!(ax, size_change_factor.x);
+        assert_eq!(ay, size_change_factor.y);
 
         for p in self.panels.iter_mut() {
             let panel_anchor = Vec2d::new(p.anchor.x as _, p.anchor.y as _);
@@ -413,7 +435,7 @@ impl<'app> Application<'app> {
                     self.handle_resize_event(width, height);
                 }
                 glfw::WindowEvent::Char(ch) => {
-                    self.active_input.handle_char(ch);
+                    self.active_keyboard_input.handle_char(ch);
                     // let v = self.get_active_view();
                     // v.insert_ch(ch);
                 }
@@ -483,7 +505,7 @@ impl<'app> Application<'app> {
                         let de_activate_old = id != active_id;
                         clicked_view.mouse_clicked(pos);
                         self.active_view = &mut (*clicked_view) as *mut _;
-                        self.active_input = cast_ptr_to_input(self.active_view); // unsafe { self.active_view.as_mut().unwrap() as &'app mut dyn Input };
+                        self.active_keyboard_input = cast_ptr_to_input(self.active_view); // unsafe { self.active_view.as_mut().unwrap() as &'app mut dyn Input };
                         self.decorate_active_view();
                         // check if the clicked view, was the already active view
 
@@ -549,7 +571,7 @@ impl<'app> Application<'app> {
                                             v.window_renderer.set_color(ACTIVE_VIEW_BACKGROUND);
                                             v.update(None);
                                             self.active_view = v as *mut _;
-                                            self.active_input = cast_ptr_to_input(self.active_view);
+                                            self.active_keyboard_input = cast_ptr_to_input(self.active_view);
                                         } else {
                                             v.bg_color = INACTIVE_VIEW_BACKGROUND;
                                             v.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
@@ -588,221 +610,363 @@ impl<'app> Application<'app> {
 
     pub fn toggle_input_box(&mut self, mode: Mode) {
         if self.input_box.visible {
-            self.active_input = cast_ptr_to_input(self.active_view);
+            self.active_keyboard_input = cast_ptr_to_input(self.active_view);
             self.input_box.clear();
             self.input_box.visible = false;
             self.input_box.mode = mode;
         } else {
             self.input_box.mode = mode;
             // self.active_input = &mut self.input_box as &'app mut dyn Input;
-            self.active_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
+            self.active_keyboard_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
             self.input_box.visible = true;
         }
     }
 
-    #[rustfmt::skip]
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
+        let time = std::time::Instant::now();
         // todo: this is where we will hook the config library into. It will read from a config -> parse that into a map, which we map the
         //  input against, and it will have to return an InputTranslation, which instead match on in this function, instead of matching
         //  directly on key input.
-        let _op = translate_key_input(key, action, modifier);
 
-         {
-            match _op {
-                InputTranslation::Cancel                                    => {}
-                InputTranslation::Movement(movement)                        => {}
-                InputTranslation::TextSelect(movement)                      => {}
-                InputTranslation::Delete(movement)                          => {}
-                InputTranslation::ChangeValueOfAssignment                   => {}
-                InputTranslation::StaticInsertStr(_)                        => {}
-                InputTranslation::Cut                                       => {}
-                InputTranslation::Copy                                      => {}
-                InputTranslation::Paste                                     => {}
-                InputTranslation::Undo                                      => {}
-                InputTranslation::Redo                                      => {}
-                InputTranslation::OpenFile                                  => {}
-                InputTranslation::SaveFile                                  => {}
-                InputTranslation::Search                                    => {}
-                InputTranslation::Goto                                      => {}
-                InputTranslation::CycleFocus                                => {}
-                InputTranslation::HideFocused                               => {}
-                InputTranslation::ShowAll                                   => {}
-                InputTranslation::ShowDebugInterface                        => {},
-                InputTranslation::CloseActiveView                           => {},
-                InputTranslation::Quit                                      => {},
-                InputTranslation::OpenNewView                               => {}
-                InputTranslation::LineOperation(line_op)                    => {},
-                InputTranslation::Debug                                     => {}
-            }
+        if key == glfw::Key::F2 && action == Action::Press && modifier == glfw::Modifiers::Control {
+            self.translate_key_input = !self.translate_key_input;
+            println!("Translating key input: {}", self.translate_key_input);
         }
 
-        match key {
-            Key::Escape | Key::CapsLock if key_press(action) => {
-                if self.input_box.visible {
-                    self.toggle_input_box(Mode::Command(CommandTag::Goto));
-                } else {
-                    self.active_input.handle_key(key, action, modifier);
-                }
-            }
-            Key::F if key_press(action) && modifier == Modifiers::Control => {
-                if key_press(action) {
-                    self.toggle_input_box(Mode::Command(CommandTag::Find));
-                }
-            }
-            Key::KpAdd => {}
-            Key::W if modifier.contains(Modifiers::Control) && action == Action::Press => {
-                self.close_active_view(modifier.contains(Modifiers::Shift));
-            }
-            Key::H if modifier == Modifiers::Control && action == Action::Press => {
-                let visible = all_views(&self.panels).filter(|v| v.visible).count();
-                if visible > 1 {
-                    let v_ptr = unsafe { &mut (*self.active_view) };
-                    self.cycle_focus();
-                    v_ptr.visible = false;
-                    for p in self.panels.iter_mut() {
-                        p.layout();
-                    }
-                }
-            }
-            // Paste
-            Key::V if key_press(action) && modifier == Modifiers::Control => {
-                if let Some(v) = _window.get_clipboard_string() {
-                    // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
-                    //  which obviously introduces function call overhead, etc, etc
-                    for ch in v.chars() {
-                        self.active_input.handle_char(ch);
-                    }
-                } else {
-                    // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
-                    //  which obviously introduces function call overhead, etc, etc
-                    for cb_data in self.clipboard.give() {
-                        for ch in cb_data.chars() {
-                            self.active_input.handle_char(ch);
+        if self.translate_key_input {
+            if let Some(op) = self.key_bindings.translate(key, action, modifier) {
+                match op {
+                    InputTranslation::Cancel => {
+                        if self.input_box.visible {
+                            self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                        } else if self.get_active_view().buffer.meta_cursor.is_some() {
+                            self.get_active_view().buffer.meta_cursor = None;
+                            self.get_active_view().set_need_redraw();
                         }
                     }
-                }
-            }
-            Key::G if modifier == Modifiers::Control && key_press(action) => {
-                self.toggle_input_box(Mode::Command(CommandTag::Goto));
-            }
-            Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
-                let p = &mut self.panels;
-                all_views_mut(p).for_each(|v| v.visible = true);
-                for p in self.panels.iter_mut() {
-                    p.layout();
-                }
-            }
-            Key::P if modifier == Modifiers::Control => {
-                if action == Action::Press {
-                    self.popup.visible = !self.popup.visible;
-                }
-            }
-            Key::I if action == Action::Press => {
-                if modifier == (Modifiers::Control | Modifiers::Shift) {
-                    self.toggle_input_box(Mode::FileList);
-                }
-            }
-            Key::Tab if action == Action::Press => {
-                if modifier == Modifiers::Control {
-                    self.cycle_focus();
-                } else {
-                    self.active_input.handle_key(key, action, modifier);
-                }
-            }
-            Key::Q if modifier == Modifiers::Control => {
-                self.close_requested = true;
-            }
-            Key::F1  => {
-                if action == Action::Press {
-                    if modifier == Modifiers::Shift {
-                        self.active_input.handle_key(key, action, modifier);
-                    } else {
+                    InputTranslation::Movement(movement) => {
+                        self.active_keyboard_input.move_cursor(movement);
+                    }
+                    InputTranslation::TextSelect(movement) => {
+                        self.active_keyboard_input.select_move_cursor(movement);
+                    }
+                    InputTranslation::Delete(movement) => {
+                        self.active_keyboard_input.delete(movement);
+                    }
+                    InputTranslation::ChangeValueOfAssignment => {}
+                    InputTranslation::InsertStr(_) => {}
+                    InputTranslation::Cut => {
+                        if let Some(cut) = self.active_keyboard_input.cut() {
+                            self.clipboard.take(cut);
+                        }
+                    }
+                    InputTranslation::Copy => {
+                        if let Some(cut) = self.active_keyboard_input.copy() {
+                            self.clipboard.take(cut);
+                        }
+                    }
+                    InputTranslation::Paste => {
+                        if let Some(v) = _window.get_clipboard_string() {
+                            for ch in v.chars() {
+                                self.active_keyboard_input.handle_char(ch);
+                            }
+                        } else {
+                            for cb_data in self.clipboard.give() {
+                                for ch in cb_data.chars() {
+                                    self.active_keyboard_input.handle_char(ch);
+                                }
+                            }
+                        }
+                    }
+                    InputTranslation::Undo => {}
+                    InputTranslation::Redo => {}
+                    InputTranslation::OpenFile => {
+                        self.toggle_input_box(Mode::FileList);
+                    }
+                    InputTranslation::SaveFile => {
+                        if let Some(p) = self.get_active_view().buffer.file_name().map(Path::to_path_buf) {
+                            self.get_active_view().buffer.save_file(&p);
+                        } else {
+                            match nfd::open_save_dialog(Some("*"), Some(".")) {
+                                Ok(res) => match res {
+                                    nfd::Response::Okay(file_name_selected) => self.get_active_view().buffer.save_file(Path::new(&file_name_selected)),
+                                    nfd::Response::OkayMultiple(multi_string) => println!("Response: {:?}", multi_string),
+                                    nfd::Response::Cancel => {}
+                                },
+                                Err(err) => println!("Error: {}", err),
+                            }
+                        }
+                    }
+                    InputTranslation::Search => {
+                        self.toggle_input_box(Mode::Command(CommandTag::Find));
+                    }
+                    InputTranslation::Goto => {
+                        self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                    }
+                    InputTranslation::CycleFocus => {
+                        self.cycle_focus();
+                    }
+                    InputTranslation::HideFocused => {}
+                    InputTranslation::ShowAll => {}
+                    InputTranslation::ShowDebugInterface => self.debug_view.visibile = !self.debug_view.visibile,
+                    InputTranslation::CloseActiveView(force_close) => {
+                        self.close_active_view(force_close);
+                    }
+                    InputTranslation::Quit => {
+                        self.close_requested = true;
+                    }
+                    InputTranslation::OpenNewView => {
+                        let size = self.window_size;
+                        self.open_text_view(self.active_panel(), Some("new view".into()), size);
+                    }
+                    InputTranslation::LineOperation(lineop) => match self.active_keyboard_input.context() {
+                        InputContext::View => {
+                            let v = self.get_active_view();
+                            if let Some((begin, end)) = v.buffer.get_selection() {
+                                let md = v.buffer.meta_data();
+                                let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
+                                let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
+                                v.buffer.line_operation(a..b_inclusive + 1, lineop);
+                            } else {
+                                v.buffer.insert_slice(&[' ', ' ', ' ', ' ']);
+                            }
+                        }
+                        InputContext::Command => {}
+                    },
+                    InputTranslation::Debug => {
                         let v = self.get_active_view();
                         println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
                         println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
                     }
+                    InputTranslation::Enter => match self.active_keyboard_input.handle_enter() {
+                        InputResponse::OpenFile(path) => {
+                            let v = self.get_active_view();
+                            if v.buffer.empty() {
+                                v.buffer.load_file(&path);
+                                v.set_need_redraw();
+                                v.update(None);
+                                self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+                                self.input_box.visible = false;
+                            } else {
+                                let p_id = self.get_active_view().panel_id;
+                                let f_name = path.file_name();
+                                self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                                let v = self.get_active_view();
+                                debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                v.buffer.load_file(&path);
+                                v.set_need_redraw();
+                                v.update(None);
+                                self.input_box.visible = false;
+                            }
+                            self.input_box.clear();
+                        }
+                        InputResponse::Goto(line) => {
+                            let v = self.get_active_view();
+                            v.buffer.goto_line(line as usize);
+                            v.set_view_on_buffer_cursor();
+                            v.set_need_redraw();
+                            v.update(None);
+                            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+                            self.input_box.visible = false;
+                            self.input_box.clear();
+                        }
+                        InputResponse::Find(find) => {
+                            // todo: use the regex crate for searching
+                            let v = self.get_active_view();
+                            v.buffer.search_next(&find);
+                            v.set_view_on_buffer_cursor();
+                            v.set_need_redraw();
+                            // self.input_box.visible = false;
+                        }
+                        InputResponse::SaveFile(file_path) => {
+                            if let Some(p) = file_path {
+                                self.get_active_view().buffer.save_file(&p);
+                            } else {
+                                match nfd::open_save_dialog(Some("*"), Some(".")) {
+                                    Ok(res) => match res {
+                                        nfd::Response::Okay(file_name_selected) => self.get_active_view().buffer.save_file(Path::new(&file_name_selected)),
+                                        nfd::Response::OkayMultiple(multi_string) => println!("Response: {:?}", multi_string),
+                                        nfd::Response::Cancel => {}
+                                    },
+                                    Err(err) => println!("Error: {}", err),
+                                }
+                            }
+                        }
+                        InputResponse::ClipboardCopy(Some(data)) => {
+                            self.clipboard.take(data);
+                        }
+                        _ => {}
+                    },
                 }
             }
-            Key::D if modifier == Modifiers::Control && action == Action::Press => {
-                self.debug_view.visibile = !self.debug_view.visibile;
-            }
-            Key::N if modifier == Modifiers::Control && action == Action::Press => {
-                let size = self.window_size;
-                self.open_text_view(self.active_panel(), Some("new view".into()), size);
-            }
-            // dispatches handler to current active input, which we handle a possible response from
-            _ => match self.active_input.handle_key(key, action, modifier) {
-                InputResponse::OpenFile(path) => {
-                    let v = self.get_active_view();
-                    if v.buffer.empty() {
-                        v.buffer.load_file(&path);
-                        v.set_need_redraw();
-                        v.update(None);
-                        self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-                        self.input_box.visible = false;
+        } else {
+            match key {
+                Key::Escape | Key::CapsLock if key_press(action) => {
+                    if self.input_box.visible {
+                        self.toggle_input_box(Mode::Command(CommandTag::Goto));
                     } else {
-                        let p_id = self.get_active_view().panel_id;
-                        let f_name = path.file_name();
-                        self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
-                        let v = self.get_active_view();
-                        debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
-                        v.buffer.load_file(&path);
-                        v.set_need_redraw();
-                        v.update(None);
-                        self.input_box.visible = false;
+                        self.active_keyboard_input.handle_key(key, action, modifier);
                     }
-                    self.input_box.clear();
                 }
-                InputResponse::Goto(line) => {
-                    let v = self.get_active_view();
-                    v.buffer.goto_line(line as usize);
-                    v.set_view_on_buffer_cursor();
-                    v.set_need_redraw();
-                    v.update(None);
-                    self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-                    self.input_box.visible = false;
-                    self.input_box.clear();
+                Key::F if key_press(action) && modifier == Modifiers::Control => {
+                    self.toggle_input_box(Mode::Command(CommandTag::Find));
                 }
-                InputResponse::Find(find) => {
-                    // todo: use the regex crate for searching
-                    let v = self.get_active_view();
-                    v.buffer.search_next(&find);
-                    v.set_view_on_buffer_cursor();
-                    v.set_need_redraw();
+                Key::KpAdd => {}
+                Key::W if modifier.contains(Modifiers::Control) && action == Action::Press => {
+                    self.close_active_view(modifier.contains(Modifiers::Shift));
                 }
-                InputResponse::SaveFile(file_path) => {
-                    if let Some(p) = file_path {
-                        let v = self.get_active_view();
-                        v.buffer.save_file(&p);
+                Key::H if modifier == Modifiers::Control && action == Action::Press => {
+                    let visible = all_views(&self.panels).filter(|v| v.visible).count();
+                    if visible > 1 {
+                        let v_ptr = unsafe { &mut (*self.active_view) };
+                        self.cycle_focus();
+                        v_ptr.visible = false;
+                        for p in self.panels.iter_mut() {
+                            p.layout();
+                        }
+                    }
+                }
+                // Paste
+                Key::V if key_press(action) && modifier == Modifiers::Control => {
+                    if let Some(v) = _window.get_clipboard_string() {
+                        // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
+                        //  which obviously introduces function call overhead, etc, etc
+                        for ch in v.chars() {
+                            self.active_keyboard_input.handle_char(ch);
+                        }
                     } else {
-                        // todo: we need to turn off _all_ GLFW input handling at this point. Because if we hit Ctrl+Q while the nfd-dialog is open
-                        //  we have told our application to quit running, and it will try to exit - only to be blocked by the nfd. This doesn't seem safe at all.
-                        //  best thing to do, would be to turn off all polling for input and restore state once we return from nfd
-                        match nfd::open_save_dialog(Some("*"), Some(".")) {
-                            Ok(res) => match res {
-                                nfd::Response::Okay(file_name_selected) => {
-                                    let v = self.get_active_view();
-                                    v.buffer.save_file(Path::new(&file_name_selected));
-                                }
-                                nfd::Response::OkayMultiple(multi_string) => {
-                                    println!("Response: {:?}", multi_string);
-                                }
-                                nfd::Response::Cancel => {}
-                            },
-                            Err(err) => {
-                                println!("Error: {}", err);
+                        // todo: room for *plenty* of optimization here. Now we do brute force insert ch by ch,
+                        //  which obviously introduces function call overhead, etc, etc
+                        for cb_data in self.clipboard.give() {
+                            for ch in cb_data.chars() {
+                                self.active_keyboard_input.handle_char(ch);
                             }
                         }
                     }
                 }
-                // we discard the ClipboardCopy response, if it did not hold any data, which is why we match exactly on Some(data) here
-                InputResponse::ClipboardCopy(Some(data)) => {
-                    println!("Application clip board copy: '{}'", data);
-                    self.clipboard.take(data);
+                Key::G if modifier == Modifiers::Control && key_press(action) => {
+                    self.toggle_input_box(Mode::Command(CommandTag::Goto));
                 }
-                _ => {}
-            },
+                Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
+                    let p = &mut self.panels;
+                    all_views_mut(p).for_each(|v| v.visible = true);
+                    for p in self.panels.iter_mut() {
+                        p.layout();
+                    }
+                }
+                Key::P if modifier == Modifiers::Control => {
+                    if action == Action::Press {
+                        self.popup.visible = !self.popup.visible;
+                    }
+                }
+                Key::I if action == Action::Press => {
+                    if modifier == (Modifiers::Control | Modifiers::Shift) {
+                        self.toggle_input_box(Mode::FileList);
+                    }
+                }
+                Key::Tab if action == Action::Press => {
+                    if modifier == Modifiers::Control {
+                        self.cycle_focus();
+                    } else {
+                        self.active_keyboard_input.handle_key(key, action, modifier);
+                    }
+                }
+                Key::Q if modifier == Modifiers::Control => {
+                    self.close_requested = true;
+                }
+                Key::F1 => {
+                    if action == Action::Press {
+                        if modifier == Modifiers::Shift {
+                            self.active_keyboard_input.handle_key(key, action, modifier);
+                        } else {
+                            let v = self.get_active_view();
+                            println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
+                            println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
+                        }
+                    }
+                }
+                Key::D if modifier == Modifiers::Control && action == Action::Press => {
+                    self.debug_view.visibile = !self.debug_view.visibile;
+                }
+                Key::N if modifier == Modifiers::Control && action == Action::Press => {
+                    let size = self.window_size;
+                    self.open_text_view(self.active_panel(), Some("new view".into()), size);
+                }
+                // dispatches handler to current active input, which we handle a possible response from
+                _ => match self.active_keyboard_input.handle_key(key, action, modifier) {
+                    InputResponse::OpenFile(path) => {
+                        let v = self.get_active_view();
+                        if v.buffer.empty() {
+                            v.buffer.load_file(&path);
+                            v.set_need_redraw();
+                            v.update(None);
+                            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+                            self.input_box.visible = false;
+                        } else {
+                            let p_id = self.get_active_view().panel_id;
+                            let f_name = path.file_name();
+                            self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                            let v = self.get_active_view();
+                            debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                            v.buffer.load_file(&path);
+                            v.set_need_redraw();
+                            v.update(None);
+                            self.input_box.visible = false;
+                        }
+                        self.input_box.clear();
+                    }
+                    InputResponse::Goto(line) => {
+                        let v = self.get_active_view();
+                        v.buffer.goto_line(line as usize);
+                        v.set_view_on_buffer_cursor();
+                        v.set_need_redraw();
+                        v.update(None);
+                        self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+                        self.input_box.visible = false;
+                        self.input_box.clear();
+                    }
+                    InputResponse::Find(find) => {
+                        // todo: use the regex crate for searching
+                        let v = self.get_active_view();
+                        v.buffer.search_next(&find);
+                        v.set_view_on_buffer_cursor();
+                        v.set_need_redraw();
+                    }
+                    InputResponse::SaveFile(file_path) => {
+                        if let Some(p) = file_path {
+                            let v = self.get_active_view();
+                            v.buffer.save_file(&p);
+                        } else {
+                            // todo: we need to turn off _all_ GLFW input handling at this point. Because if we hit Ctrl+Q while the nfd-dialog is open
+                            //  we have told our application to quit running, and it will try to exit - only to be blocked by the nfd. This doesn't seem safe at all.
+                            //  best thing to do, would be to turn off all polling for input and restore state once we return from nfd
+                            match nfd::open_save_dialog(Some("*"), Some(".")) {
+                                Ok(res) => match res {
+                                    nfd::Response::Okay(file_name_selected) => {
+                                        let v = self.get_active_view();
+                                        v.buffer.save_file(Path::new(&file_name_selected));
+                                    }
+                                    nfd::Response::OkayMultiple(multi_string) => {
+                                        println!("Response: {:?}", multi_string);
+                                    }
+                                    nfd::Response::Cancel => {}
+                                },
+                                Err(err) => {
+                                    println!("Error: {}", err);
+                                }
+                            }
+                        }
+                    }
+                    // we discard the ClipboardCopy response, if it did not hold any data, which is why we match exactly on Some(data) here
+                    InputResponse::ClipboardCopy(Some(data)) => {
+                        println!("Application clip board copy: '{}'", data);
+                        self.clipboard.take(data);
+                    }
+                    _ => {}
+                },
+            }
         }
+        self.debug_view.handle_key_time = time.elapsed().as_nanos();
     }
 
     fn translate_screen_to_application_space(&self, glfw_coordinate: Vec2d) -> Vec2d {
@@ -893,7 +1057,7 @@ impl<'app> Application<'app> {
             let v = panel.remove_view(view_id);
             drop(v);
             self.active_view = panel.children.last_mut().unwrap() as _;
-            self.active_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
+            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
             panel.layout();
             self.decorate_active_view();
             self.active_ui_element = UID::View(*self.get_active_view().id);

@@ -235,6 +235,36 @@ impl InputBehavior for View {
     fn get_uid(&self) -> Option<super::UID> {
         Some(super::UID::View(*self.id))
     }
+
+    fn handle_enter(&mut self) -> InputResponse {
+        self.insert_ch('\n');
+        InputResponse::None
+    }
+
+    fn move_cursor(&mut self, movement: Movement) {
+        self.move_cursor(movement);
+    }
+
+    fn context(&self) -> super::eventhandling::event::InputContext {
+        super::eventhandling::event::InputContext::View
+    }
+
+    fn select_move_cursor(&mut self, movement: Movement) {
+        self.buffer.select_move_cursor_absolute(movement);
+        self.set_view_on_buffer_cursor();
+    }
+
+    fn delete(&mut self, movement: Movement) {
+        self.delete(movement);
+    }
+
+    fn copy(&self) -> Option<String> {
+        self.buffer.copy_range_or_line()
+    }
+
+    fn cut(&self) -> Option<String> {
+        self.buffer.copy_range_or_line()
+    }
 }
 
 impl View {
@@ -712,7 +742,8 @@ impl View {
         self.set_view_on_buffer_cursor();
     }
     pub fn move_cursor(&mut self, dir: Movement) {
-        self.buffer.move_cursor(dir);
+        let translated = dir.transform_page_param(self.rows_displayable() as _);
+        self.buffer.move_cursor(translated);
         self.set_view_on_buffer_cursor();
     }
 
@@ -729,7 +760,9 @@ impl View {
             TextKind::Word => self.buffer.delete(Movement::Backward(TextKind::Word, 1)),
             TextKind::Line => self.buffer.delete(Movement::Backward(TextKind::Line, 1)),
             TextKind::Block => self.buffer.delete(Movement::Backward(TextKind::Block, 1)),
-            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
+            _ => {
+                todo!("TextKind::{:?} not yet implemented", kind)
+            }
         }
         self.view_changed = true;
         self.validate_range();
