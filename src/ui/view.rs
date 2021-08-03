@@ -729,6 +729,7 @@ impl View {
             TextKind::Word => self.buffer.delete(Movement::Backward(TextKind::Word, 1)),
             TextKind::Line => self.buffer.delete(Movement::Backward(TextKind::Line, 1)),
             TextKind::Block => self.buffer.delete(Movement::Backward(TextKind::Block, 1)),
+            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
         }
         self.view_changed = true;
         self.validate_range();

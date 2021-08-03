@@ -212,8 +212,7 @@ impl ContiguousBuffer {
                     self.move_cursor(Movement::End(TextKind::Block));
                 }
             }
-            TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-            TextKind::File => { todo!("TextKind::File not yet implemented") }
+            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
         }
     }
     /// Moves cursor backward, in the fashion specified by TextKind
@@ -268,8 +267,7 @@ impl ContiguousBuffer {
                     self.move_cursor(Movement::Begin(TextKind::Block));
                 }
             }
-            TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-            TextKind::File => { todo!("TextKind::File not yet implemented") }
+            _ => { todo!("TextKind::{:?} not yet implemented", kind) },
         }
     }
 
@@ -668,10 +666,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         }
                     }
                 }
-                TextKind::Line => todo!(),
-                TextKind::Block => todo!(),
-                TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-                TextKind::File => { todo!("TextKind::File not yet implemented") }
+                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
             },
 
             Movement::Backward(kind, count) if self.edit_cursor.absolute() != Index(0) => match kind {
@@ -694,10 +689,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.remove();
                     }
                 }
-                TextKind::Line => todo!(),
-                TextKind::Block => todo!(),
-                TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-                TextKind::File => { todo!("TextKind::File not yet implemented") }
+                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
             },
             _ => {}
         }
@@ -792,8 +784,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.cursor_goto(block_begin);
                     }
                 },
-                TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-                TextKind::File => { todo!("TextKind::File not yet implemented") }
+                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
             },
             Movement::End(kind) => match kind {
                 TextKind::Char => self.cursor_step_forward(1),
@@ -818,8 +809,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.cursor_goto(block_begin);
                     }
                 }
-                TextKind::Page => { todo!("TextKind::Page not yet implemented") },
-                TextKind::File => { todo!("TextKind::File not yet implemented") }
+                _ => { todo!("TextKind::{:?} not yet implemented", kind) },
             },
         }
     }
