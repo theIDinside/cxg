@@ -7,6 +7,9 @@ extern crate libc;
 extern crate nfd;
 extern crate png;
 extern crate walkdir;
+// These will be used for serializing and deserializing configurations, like keymapping etc
+extern crate serde;
+extern crate serde_json;
 
 #[macro_use]
 pub mod opengl;

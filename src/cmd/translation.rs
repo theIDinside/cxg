@@ -8,6 +8,7 @@ pub enum InputTranslation {
     Cancel,
     Movement(Movement),
     TextSelect(Movement),
+    Delete(Movement),
     /// let |v| = vec![1, 2] <br>
     /// moves cursor to => "let v = vec![|1, 2|]" => next user input will replace what's between |1, 2|
     ChangeValueOfAssignment,
@@ -15,7 +16,6 @@ pub enum InputTranslation {
     Cut,
     Copy,
     Paste,
-    Delete,
     Undo,
     Redo,
     OpenFile,
@@ -30,6 +30,7 @@ pub enum InputTranslation {
     Quit,
     OpenNewView,
     LineOperation(LineOperation),
+    Debug   
 }
 
 pub enum InputContext {

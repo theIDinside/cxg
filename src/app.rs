@@ -610,13 +610,14 @@ impl<'app> Application<'app> {
          {
             match _op {
                 InputTranslation::Cancel                                    => {}
-                InputTranslation::Movement(_)                               => {}
+                InputTranslation::Movement(movement)                        => {}
+                InputTranslation::TextSelect(movement)                      => {}
+                InputTranslation::Delete(movement)                          => {}
                 InputTranslation::ChangeValueOfAssignment                   => {}
                 InputTranslation::StaticInsertStr(_)                        => {}
                 InputTranslation::Cut                                       => {}
                 InputTranslation::Copy                                      => {}
                 InputTranslation::Paste                                     => {}
-                InputTranslation::Delete                                    => {}
                 InputTranslation::Undo                                      => {}
                 InputTranslation::Redo                                      => {}
                 InputTranslation::OpenFile                                  => {}
@@ -630,8 +631,8 @@ impl<'app> Application<'app> {
                 InputTranslation::CloseActiveView                           => {},
                 InputTranslation::Quit                                      => {},
                 InputTranslation::OpenNewView                               => {}
-                InputTranslation::TextSelect(movement)              => {},
-                InputTranslation::LineOperation(line_op)        => {},
+                InputTranslation::LineOperation(line_op)                    => {},
+                InputTranslation::Debug                                     => {}
             }
         }
 
@@ -711,7 +712,7 @@ impl<'app> Application<'app> {
             Key::Q if modifier == Modifiers::Control => {
                 self.close_requested = true;
             }
-            Key::F1 => {
+            Key::    => {
                 if action == Action::Press {
                     if modifier == Modifiers::Shift {
                         self.active_input.handle_key(key, action, modifier);

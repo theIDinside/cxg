@@ -26,6 +26,8 @@ pub enum TextKind {
     Word,
     Line,
     Block,
+    Page,
+    File
 }
 
 #[derive(Debug)]

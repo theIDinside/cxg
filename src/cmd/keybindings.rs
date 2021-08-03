@@ -33,13 +33,113 @@ impl KeyBindings {
         map.map
             .insert(K::V, vec![(InputTranslation::Paste, BindingRequirement::ActionModifier(A::Press, M::Control))]);
         map.map
+            .insert(K::C, vec![(InputTranslation::Copy, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+        map.map
+            .insert(K::X, vec![(InputTranslation::Cut, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+        map.map
             .insert(K::G, vec![(InputTranslation::Goto, BindingRequirement::ActionModifier(A::Press, M::Control))]);
         map.map
             .insert(K::I, vec![(InputTranslation::OpenFile, BindingRequirement::ActionModifier(A::Press, M::Control | M::Shift))]);
         map.map
             .insert(K::O, vec![(InputTranslation::OpenFile, BindingRequirement::ActionModifier(A::Press, M::Control))]);
-            map.map
-            .insert(K::Tab, vec![(InputTranslation::OpenFile, BindingRequirement::ActionModifier(A::Press, M::Control | M::Shift))]);
+        map.map
+            .insert(K::Tab, vec![(InputTranslation::CycleFocus, BindingRequirement::ActionModifier(A::Press, M::Control)),
+                                (InputTranslation::LineOperation(LineOperation::ShiftLeft { shift_by: 4 }), BindingRequirement::ActionModifier(A::Press, M::Shift))
+                                (InputTranslation::LineOperation(LineOperation::ShiftRight { shift_by: 4 }), BindingRequirement::Action(A::Press))]);
+
+        map.map.insert(K::Q, vec![(InputTranslation::Quit, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+        map.map.insert(K::F1, vec![(InputTranslation::Debug, BindingRequirement::Action(A::Press))]);
+        map.map.insert(K::D, vec![(InputTranslation::ShowDebugInterface, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+        map.map.insert(K::N, vec![(InputTranslation::OpenNewView, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+        map.map.insert(K::S, vec![(InputTranslation::SaveFile, BindingRequirement::ActionModifier(A::Press, M::Control))]);
+
+        const left_key: Vec<_> = vec![
+            (InputTranslation::Movement(Movement::Backward(TextKind::Char, 1)), BindingRequirement::Action(A::Press | A::Repeat)),
+            (InputTranslation::Movement(Movement::Begin(TextKind::Word)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Control)),
+            (InputTranslation::Movement(Movement::Begin(TextKind::Block)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Alt | M::Shift)),
+            (InputTranslation::TextSelect(Movement::Begin(TextKind::Word)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Control | M::Shift)),
+            (InputTranslation::TextSelect(Movement::Backward(TextKind::Char, 1)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Shift))];
+
+        const right_key: Vec<_> = vec![
+            (InputTranslation::Movement(Movement::Forward(TextKind::Char, 1)), BindingRequirement::Action(A::Press | A::Repeat)),
+            (InputTranslation::Movement(Movement::End(TextKind::Word)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Control)),
+            (InputTranslation::Movement(Movement::End(TextKind::Block)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Alt | M::Shift)),
+            (InputTranslation::TextSelect(Movement::End(TextKind::Word)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Control | M::Shift)),
+            (InputTranslation::TextSelect(Movement::Forward(TextKind::Char, 1)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Shift))];
+
+        const up_key: Vec<_> = vec![(InputTranslation::Movement(Movement::Backward(TextKind::Line, 1)), BindingRequirement::Action(A::Press | A::Repeat)),
+        (InputTranslation::TextSelect(Movement::Backward(TextKind::Line, 1)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Shift))];
+
+        const down_key: Vec<_> = vec![(InputTranslation::Movement(Movement::Forward(TextKind::Line, 1)), BindingRequirement::Action(A::Press | A::Repeat)),
+        (InputTranslation::TextSelect(Movement::Forward(TextKind::Line, 1)), BindingRequirement::ActionModifier(A::Press | A::Repeat, M::Shift))];
+
+        
+        map.map.insert(K::Left,     left_key);
+        map.map.insert(K::Right,    right_key);
+        map.map.insert(K::Up,       up_key);
+        map.map.insert(K::Down,     down_key);
+
+
+        map.map.insert(K::End, vec![
+            (InputTranslation::Movement(Movement::End(TextKind::Line)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Movement(Movement::End(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+            (InputTranslation::TextSelect(Movement::End(TextKind::Line)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+            (InputTranslation::TextSelect(Movement::End(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Shift | M::Control)),
+        ]);
+
+        map.map.insert(K::Home, vec![
+            (InputTranslation::Movement(Movement::Begin(TextKind::Line)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Movement(Movement::Begin(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+            (InputTranslation::TextSelect(Movement::Begin(TextKind::Line)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+            (InputTranslation::TextSelect(Movement::Begin(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Shift | M::Control)),
+        ]);
+
+        map.map.insert(K::Kp1, vec![
+            (InputTranslation::Movement(Movement::End(TextKind::Line)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Movement(Movement::End(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+            (InputTranslation::TextSelect(Movement::End(TextKind::Line)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+            (InputTranslation::TextSelect(Movement::End(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Shift | M::Control)),
+        ]);
+
+        map.map.insert(K::Kp7, vec![
+            (InputTranslation::Movement(Movement::Begin(TextKind::Line)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Movement(Movement::Begin(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+            (InputTranslation::TextSelect(Movement::Begin(TextKind::Line)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+            (InputTranslation::TextSelect(Movement::Begin(TextKind::File)), BindingRequirement::ActionModifier(A::Press, M::Shift | M::Control)),
+        ]);
+
+        map.map.insert(K::PageDown, vec![
+            (InputTranslation::Movement(Movement::Forward(TextKind::Page, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::TextSelect(Movement::Forward(TextKind::Page, 1)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+        ]);
+        map.map.insert(K::Kp3, vec![
+            (InputTranslation::Movement(Movement::Forward(TextKind::Page, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::TextSelect(Movement::Forward(TextKind::Page, 1)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+        ]);
+
+        map.map.insert(K::PageUp, vec![
+            (InputTranslation::Movement(Movement::Backward(TextKind::Page, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::TextSelect(Movement::Backward(TextKind::Page, 1)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+        ]);
+        map.map.insert(K::Kp9, vec![
+            (InputTranslation::Movement(Movement::Backward(TextKind::Page, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::TextSelect(Movement::Backward(TextKind::Page, 1)), BindingRequirement::ActionModifier(A::Press, M::Shift)),
+        ]);
+
+        map.map.insert(K::Delete, vec![
+            (InputTranslation::Delete(Movement::Forward(TextKind::Char, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Delete(Movement::Forward(TextKind::Char, 1)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+        ]);
+
+        map.map.insert(K::Backspace, vec![
+            (InputTranslation::Delete(Movement::Backward(TextKind::Char, 1)), BindingRequirement::Action(A::Press)),
+            (InputTranslation::Delete(Movement::Backward(TextKind::Char, 1)), BindingRequirement::ActionModifier(A::Press, M::Control)),
+        ]);
+
+
+
+
+
         map
     }
 }
