@@ -20,6 +20,18 @@ impl KeyBindings {
         KeyBindings { map: HashMap::new() }
     }
 
+    pub fn translate(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<InputTranslation> {
+        self.map.get(&key).map(|bindings| {
+            for (translation, binding) in bindings.iter() {
+                match binding {
+                    Action(a) if a == action => {
+                        
+                    }
+                }
+            }
+        })
+    }
+
     pub fn default() -> KeyBindings {
         use glfw::Action as A;
         use glfw::Key as K;
