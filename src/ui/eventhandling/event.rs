@@ -20,14 +20,61 @@ pub enum InputElement {
     TextView,
 }
 
-pub enum ModifierCombo {
-    Alt,
-    Control,
-    Shift,
-    AltControl,
-    AltShift,
-    AltControlShift,
-    ControlShift,
+pub enum InputContext {
+    App,
+    View,
+    InputboxAction  
+}
+
+// Actions that take place inside an InputBox
+pub enum InputboxAction {
+    Cancel,
+    MovecursorLeft,
+    MovecursorRight,
+    ScrollSelectionUp,
+    ScrollSelectionDown,
+    Cut,
+    Copy,
+    Paste,
+    Ok
+}
+
+pub enum ViewAction {
+    Cancel,
+    Movement(movement),
+    TextSelect(movement),
+    Delete(movement),
+    ChangeValueOfAssignment,
+    StaticInsertStr(_),
+    Cut,
+    Copy,
+    Paste,
+    Undo,
+    Redo,
+    LineOperation(line_op),
+    Debug
+}
+
+pub enum AppAction {
+    Cancel,
+    OpenFile,
+    SaveFile,
+    SearchInFiles,
+    GotoLineInFile,
+    CycleFocus,
+    HideFocused,
+    ShowAll,
+    ShowDebugInterface,
+    CloseActiveView,
+    Quit,
+    OpenNewView,
+    Debug,
+}
+
+pub enum UIInputEvent {
+    App(AppAction),
+    View(ViewAction)
+    InputBox(InputboxAction)
 }
 
 pub(crate) fn key_press(action: glfw::Action) -> bool {

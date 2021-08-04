@@ -99,6 +99,8 @@ pub struct Application<'app> {
     key_bindings: KeyBindings,
 
     translate_key_input: bool,
+
+    input_context: crate::ui::input::KeyboardInputContext
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -255,6 +257,7 @@ impl<'app> Application<'app> {
             clipboard: ClipBoard::new(),
             key_bindings,
             translate_key_input: true,
+            input_context: crate::ui::input::KeyboardInputContext::TextView
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_keyboard_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -631,6 +634,103 @@ impl<'app> Application<'app> {
         if key == glfw::Key::F2 && action == Action::Press && modifier == glfw::Modifiers::Control {
             self.translate_key_input = !self.translate_key_input;
             println!("Translating key input: {}", self.translate_key_input);
+        }
+
+        match self.input_context {
+            KeyboardInputContext::InputBox => {
+
+                if let Some(translation) = self.key_bindings.translate_command_input(key, action, modifier) {
+                    match translation {
+
+                    }
+                } else {
+                    // Try matching input on fallback layer
+                    match self.key_bindings.translate_app_input(key, action, modifier) {
+
+                    }
+                }
+            }
+            KeyboardInputContext::TextView => {
+                if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
+                    match translation {
+
+                    }
+                } else {
+                    // Try matching input on fallback layer
+                    match self.key_bindings.translate_app_input(key, action, modifier) {
+                        
+                    }
+                }
+            }
+        }
+
+        if self.translate_key_input {
+            match self.key_bindings.translate(key, action, modifier, self.input_context) {
+                UIInputEvent::App(app_action) => match app_action {
+                    AppAction::Cancel => {}
+                    AppAction::OpenFile => {}
+                    AppAction::SaveFile => {}
+                    AppAction::SearchInFiles => {}
+                    AppAction::GotoLineInFile => {}
+                    AppAction::CycleFocus => {}
+                    AppAction::HideFocused => {}
+                    AppAction::ShowAll => {}
+                    AppAction::ShowDebugInterface => {}
+                    AppAction::CloseActiveView => {}
+                    AppAction::Quit => {}
+                    AppAction::OpenNewView => {}
+                    AppAction::Debug => {}
+                }
+                UIInputEvent::View(view_action) => match view_action {
+                    ViewAction::Movement(movement) => self.get_active_view().move_cursor(movement),
+                    ViewAction::TextSelect(movement) => self.get_active_view().select_move_cursor(movement),
+                    ViewAction::Delete(movement) => self.get_active_view().delete(movement),
+                    ViewAction::ChangeValueOfAssignment => {}
+                    ViewAction::StaticInsertStr(_) => {}
+                    ViewAction::Cut => {}
+                    ViewAction::Copy => {
+                        let c = self.get_active_view().buffer.copy_range_or_line();
+                        self.clipboard.take(c);
+                    }
+                    ViewAction::Paste => {}
+                    ViewAction::Undo => {}
+                    ViewAction::Redo => {}
+                    ViewAction::LineOperation(line_op) => {}
+                    ViewAction::Debug => {}
+                }
+                UIInputEvent::InputBox(ib_action)  => match ib_action {
+                    InputboxAction::Cancel => self.toggle_input_box(Mode::Command(CommandTag::Goto)),
+                    InputboxAction::MovecursorLeft => self.input_box.cursor_move_left(),
+                    InputboxAction::MovecursorRight => self.input_box.cursor_move_right(),
+                    InputboxAction::ScrollSelectionUp => self.input_box.selection_list.scroll_selection_up(),
+                    InputboxAction::ScrollSelectionDown => self.input_box.selection_list.scroll_selection_down(),
+                    InputboxAction::Cut => {
+                        if let Some(cut) = self.active_keyboard_input.cut() {
+                            self.clipboard.take(cut);
+                        }
+                    }
+                    InputboxAction::Copy => {
+                        if let Some(cut) = self.active_keyboard_input.cut() {
+                            self.clipboard.take(cut);
+                        }
+                    }
+                    InputboxAction::Paste => {
+                        if let Some(data) = self.clipboard.give() {
+                            for c in data.chars() {
+                                self.active_keyboard_input.handle_char(c);
+                            }
+                        }
+                    }
+                    InputboxAction::Ok => match self.input_box.process_input() {
+                        InputResponse::ClipboardCopy(s) => {}
+                        InputResponse::OpenFile(p) => {}
+                        InputResponse::SaveFile(f) => {}
+                        InputResponse::Goto(l) => {}
+                        InputResponse::Find(s) => {}
+                        InputResponse::None => {}
+                    }
+                }
+            }
         }
 
         if self.translate_key_input {

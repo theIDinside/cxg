@@ -10,6 +10,22 @@ use super::keyimpl::{KeyImpl, ModifiersImpl};
 use super::translation::InputTranslation;
 use std::collections::HashMap;
 
+use crate::ui::eventhandling::events::{ViewAction, InputboxAction};
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct TextViewKeyBinding {
+    pressed: Option<ViewAction>,
+    repeated: Option<ViewAction>,
+    released: Option<ViewAction>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct InputboxBinding {
+    pressed: Option<InputboxAction>,
+    repeated: Option<InputboxAction>,
+    released: Option<InputboxAction>,
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub enum BindingRequirement {
     Any {
@@ -87,11 +103,32 @@ impl KeyBinding {
 #[derive(Serialize, Deserialize)]
 pub struct KeyBindings {
     key_map: HashMap<KeyImpl, BindingRequirement>,
+    /// Text View key mappings
+    tv_key_map: HashMap<(KeyImpl, ModifiersImpl), TextViewKeyBinding>,
+    /// Input box key mappings
+    ib_key_map: HashMap<(KeyImpl, ModifiersImpl), InputboxBinding>,
 }
 
+fn magic(glfw_key: &glfw::Key, glfw_modifiers: &glfw::Modifiers) -> (&KeyImpl, &ModifiersImpl) {
+    unsafe { (std::mem::transmute(key), std::mem::transmute(modifiers)) }    
+}
+
+/// For serialization purposes we have re-implemented the glfw::Key and glfw::Modifiers
+/// Which is why we use our own KeyImpl and ModifiersImpl here. But since they are implemented in an *exact*
+/// one-to-one ratio, we can safely transmute between the types and have the compiler verify that we are correct still for doing so.
 impl KeyBindings {
     pub fn new() -> KeyBindings {
-        KeyBindings { key_map: HashMap::new() }
+        KeyBindings { key_map: HashMap::new(), tv_key_map: HashMap::new(), ib_key_map: HashMap::new() }
+    }
+
+    pub fn translate_textview_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<ViewAction> {
+        let key = unsafe { std::mem::transmute(key) };
+        let modifiers = unsafe { std::mem::transmute(modifiers) };
+    }
+
+    pub fn translate_command_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<InputboxAction> {
+        let key = unsafe { std::mem::transmute(key) };
+        let modifiers = unsafe { std::mem::transmute(modifiers) };
     }
 
     pub fn translate(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<InputTranslation> {
@@ -115,176 +152,5 @@ impl KeyBindings {
                 glfw::Action::Repeat => bindings.iter().find(|(m, ..)| *m == modifiers).and_then(|(_, b)| b.repeated.clone()),
             },
         })
-    }
-    
-    pub fn default() -> KeyBindings {
-        use KeyImpl as K;
-        use ModifiersImpl as M;
-        let mut map = KeyBindings::new();
-        let kb = &mut map.key_map;
-        use BindingRequirement as BR;
-        use InputTranslation as IT;
-        use KeyBinding as KB;
-
-        let mut no_mod = ModifiersImpl::CONTROL;
-        no_mod.toggle(ModifiersImpl::CONTROL);
-
-        kb.insert(K::Enter, BR::any(KB::holding(IT::Enter)));
-
-        kb.insert(K::Escape, BR::any(KB::press(IT::Cancel)));
-        kb.insert(K::CapsLock, BR::any(KB::press(IT::Cancel)));
-        kb.insert(
-            K::W,
-            BR::mods(vec![
-                (M::CONTROL, KB::press(IT::CloseActiveView(false))),
-                (M::CONTROL | M::SHIFT, KB::press(IT::CloseActiveView(true))),
-            ]),
-        );
-        kb.insert(K::F, BR::ctrl(KB::press(IT::Search)));
-        kb.insert(K::V, BR::ctrl(KB::press(IT::Paste)));
-        kb.insert(K::C, BR::ctrl(KB::press(IT::Copy)));
-        kb.insert(K::X, BR::ctrl(KB::press(IT::Cut)));
-        kb.insert(K::G, BR::ctrl(KB::press(IT::Goto)));
-        kb.insert(K::I, BR::ctrl_shift(KB::press(IT::OpenFile)));
-        kb.insert(K::O, BR::ctrl(KB::press(IT::OpenFile)));
-        let tab_translations = vec![
-            (no_mod, KB::press(IT::LineOperation(LineOperation::ShiftRight { shift_by: 4 }))),
-            (M::SHIFT, KB::press(IT::LineOperation(LineOperation::ShiftLeft { shift_by: 4 }))),
-            (M::CONTROL, KB::press(IT::CycleFocus)),
-        ];
-        kb.insert(K::Tab, BR::mods(tab_translations));
-        kb.insert(K::Q, BR::ctrl(KB::press(IT::Quit)));
-        kb.insert(K::F1, BR::ctrl(KB::press(IT::Debug)));
-        kb.insert(K::D, BR::ctrl(KB::press(IT::ShowDebugInterface)));
-        kb.insert(K::N, BR::ctrl(KB::press(IT::OpenNewView)));
-        kb.insert(K::S, BR::ctrl(KB::press(IT::SaveFile)));
-
-        kb.insert(
-            K::Left,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Backward(TextKind::Char, 1)))),
-                (M::CONTROL, KB::holding(IT::Movement(Movement::Begin(TextKind::Word)))),
-                (M::SHIFT | M::ALT, KB::holding(IT::Movement(Movement::Begin(TextKind::Block)))),
-                (M::CONTROL | M::SHIFT, KB::holding(IT::TextSelect(Movement::Begin(TextKind::Word)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Backward(TextKind::Char, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Right,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Forward(TextKind::Char, 1)))),
-                (M::CONTROL, KB::holding(IT::Movement(Movement::End(TextKind::Word)))),
-                (M::SHIFT | M::ALT, KB::holding(IT::Movement(Movement::End(TextKind::Block)))),
-                (M::CONTROL | M::SHIFT, KB::holding(IT::TextSelect(Movement::End(TextKind::Word)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Forward(TextKind::Char, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Up,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Backward(TextKind::Line, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Backward(TextKind::Line, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Down,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Forward(TextKind::Line, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Forward(TextKind::Line, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::End,
-            BR::mods(vec![
-                (no_mod, KB::press(IT::Movement(Movement::End(TextKind::Line)))),
-                (M::CONTROL, KB::press(IT::Movement(Movement::End(TextKind::File)))),
-                (M::SHIFT, KB::press(IT::TextSelect(Movement::End(TextKind::Line)))),
-                (M::SHIFT | M::CONTROL, KB::press(IT::TextSelect(Movement::End(TextKind::File)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Home,
-            BR::mods(vec![
-                (no_mod, KB::press(IT::Movement(Movement::Begin(TextKind::Line)))),
-                (M::CONTROL, KB::press(IT::Movement(Movement::Begin(TextKind::File)))),
-                (M::SHIFT, KB::press(IT::TextSelect(Movement::Begin(TextKind::Line)))),
-                (M::SHIFT | M::CONTROL, KB::press(IT::TextSelect(Movement::Begin(TextKind::File)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Kp1,
-            BR::mods(vec![
-                (no_mod, KB::press(IT::Movement(Movement::End(TextKind::Line)))),
-                (M::CONTROL, KB::press(IT::Movement(Movement::End(TextKind::File)))),
-                (M::SHIFT, KB::press(IT::TextSelect(Movement::End(TextKind::Line)))),
-                (M::SHIFT | M::CONTROL, KB::press(IT::TextSelect(Movement::End(TextKind::File)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Kp7,
-            BR::mods(vec![
-                (no_mod, KB::press(IT::Movement(Movement::Begin(TextKind::Line)))),
-                (M::CONTROL, KB::press(IT::Movement(Movement::Begin(TextKind::File)))),
-                (M::SHIFT, KB::press(IT::TextSelect(Movement::Begin(TextKind::Line)))),
-                (M::SHIFT | M::CONTROL, KB::press(IT::TextSelect(Movement::Begin(TextKind::File)))),
-            ]),
-        );
-
-        kb.insert(
-            K::PageDown,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Forward(TextKind::Page, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Forward(TextKind::Page, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::PageUp,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Backward(TextKind::Page, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Backward(TextKind::Page, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Kp3,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Forward(TextKind::Page, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Forward(TextKind::Page, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Kp9,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Movement(Movement::Backward(TextKind::Page, 1)))),
-                (M::SHIFT, KB::holding(IT::TextSelect(Movement::Backward(TextKind::Page, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Delete,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Delete(Movement::Forward(TextKind::Char, 1)))),
-                (M::CONTROL, KB::holding(IT::Delete(Movement::Forward(TextKind::Word, 1)))),
-            ]),
-        );
-
-        kb.insert(
-            K::Backspace,
-            BR::mods(vec![
-                (no_mod, KB::holding(IT::Delete(Movement::Backward(TextKind::Char, 1)))),
-                (M::CONTROL, KB::holding(IT::Delete(Movement::Backward(TextKind::Word, 1)))),
-            ]),
-        );
-
-        map
     }
 }
