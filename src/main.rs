@@ -1,3 +1,4 @@
+#![feature(macro_attributes_in_derive_output)]
 #![feature(core_intrinsics, step_trait, test, option_result_unwrap_unchecked)]
 #[rustfmt::skip::macros(debugger_catch)]
 extern crate freetype as ft;
@@ -10,6 +11,11 @@ extern crate walkdir;
 // These will be used for serializing and deserializing configurations, like keymapping etc
 extern crate serde;
 extern crate serde_json;
+
+// to simplify serialization and deserialization *incredibly*, although it's most likely less efficient
+// but seeing as how we only do this ONCE per application startup (unless user re binds keys etc)
+extern crate serde_with;
+
 // we use this to re-implement the glfw::Key and glfw::Modifiers structures
 // because it is _way_ easier since they are POD, so that we can serialize them easily with serde
 extern crate bitflags;

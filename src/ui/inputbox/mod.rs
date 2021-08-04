@@ -11,12 +11,13 @@ use walkdir::WalkDir;
 use super::{
     boundingbox::BoundingBox,
     coordinate::*,
-    eventhandling::event::InputBehavior,
+    eventhandling::event::{InputBehavior, InputboxAction},
     font::Font,
     frame::{make_inner_frame, Frame},
     Viewable, ACTIVE_VIEW_BACKGROUND,
 };
 use crate::{
+    app::Application,
     cmd::CommandTag,
     datastructure::generic::Vec2i,
     opengl::{
@@ -25,7 +26,8 @@ use crate::{
         text_renderer::TextRenderer,
         types::{RGBAColor, RGBColor},
     },
-    ui::eventhandling::event::InputResponse,
+    textbuffer::CharBuffer,
+    ui::eventhandling::{event::CommandOutput, input::KeyboardInputContext},
 };
 
 pub struct TextRenderSetting {
@@ -56,17 +58,108 @@ const INPUT_BOX_MSG: &str = "Search by file name in project folder...";
 pub struct InputBox {
     /// Contains the user input. Might as well use String, input won't be long and this is just easier
     pub visible: bool,
-    input_box: LineTextBox,
-    selection_list: ListBox,
+    pub input_box: LineTextBox,
+    pub selection_list: ListBox,
     pub frame: Frame,
     text_renderer: TextRenderer,
     rect_renderer: RectRenderer,
     pub mode: Mode,
-    needs_update: bool,
+    pub needs_update: bool,
     font: Rc<Font>,
 }
 
 impl InputBox {
+    pub fn handle_input(&mut self, app: &mut Application, action: InputboxAction) {
+        match action {
+            InputboxAction::Cancel => {
+                self.clear();
+                self.visible = false;
+                app.input_context = KeyboardInputContext::TextView;
+            }
+            InputboxAction::MovecursorLeft => todo!(),
+            InputboxAction::MovecursorRight => todo!(),
+            InputboxAction::ScrollSelectionUp => {
+                self.selection_list.scroll_selection_up();
+                self.needs_update = true;
+            }
+            InputboxAction::ScrollSelectionDown => {
+                self.selection_list.scroll_selection_down();
+                self.needs_update = true;
+            }
+            InputboxAction::Cut => todo!(),
+            InputboxAction::Copy => todo!(),
+            InputboxAction::Paste => {
+                if let Some(s) = app.clipboard.give() {
+                    for c in s.chars() {
+                        self.handle_char(c);
+                    }
+                }
+            }
+            InputboxAction::Ok => match self.mode {
+                Mode::Command(cmd) => match cmd {
+                    CommandTag::Goto => {
+                        if let Ok(line) = self.input_box.data.iter().collect::<String>().parse::<usize>() {
+                            let v = app.get_active_view();
+                            v.buffer.goto_line(line);
+                            v.set_view_on_buffer_cursor();
+                            v.set_need_redraw();
+                            v.update(None);
+                            app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
+                            self.visible = false;
+                            self.clear();
+                            app.input_context = KeyboardInputContext::TextView;
+                        }
+                    }
+                    CommandTag::Find => {
+                        let v = app.get_active_view();
+                        v.buffer.search_next(&self.input_box.data.iter().collect::<String>());
+                        v.set_view_on_buffer_cursor();
+                        v.set_need_redraw();
+                    }
+                    CommandTag::GotoInFile => todo!(),
+                },
+                Mode::FileList => {
+                    if let Some(item) = self.selection_list.pop_selected() {
+                        let name = String::from_iter(&item);
+                        let p = Path::new(&name).to_path_buf();
+                        if p.is_dir() {
+                            self.input_box.data = item;
+                            self.input_box.data.push('/');
+                            self.input_box.cursor = self.input_box.data.len();
+                            self.selection_list.selection = None;
+                            self.update_list();
+                            self.needs_update = true;
+                        } else {
+                            if p.exists() {
+                                let v = app.get_active_view();
+                                if v.buffer.empty() {
+                                    v.buffer.load_file(&p);
+                                    v.set_need_redraw();
+                                    v.update(None);
+                                    app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
+                                    self.visible = false;
+                                } else {
+                                    let p_id = app.get_active_view().panel_id;
+                                    let f_name = p.file_name();
+                                    app.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), app.window_size);
+                                    let v = app.get_active_view();
+                                    crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                    v.buffer.load_file(&p);
+                                    v.set_need_redraw();
+                                    v.update(None);
+                                    self.visible = false;
+                                }
+                                self.input_box.clear();
+                                app.input_context = KeyboardInputContext::TextView;
+                            }
+                        }
+                    }
+                }
+            },
+            InputboxAction::Delete => todo!(),
+        }
+    }
+
     pub fn new(frame: Frame, font: Rc<Font>, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox {
         let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
@@ -280,7 +373,7 @@ impl InputBox {
         self.needs_update = true;
     }
 
-    fn handle_file_selection(&mut self) -> InputResponse {
+    fn handle_file_selection(&mut self) -> CommandOutput {
         if let Some(item) = self.selection_list.pop_selected() {
             let name = String::from_iter(&item);
             let p = Path::new(&name).to_path_buf();
@@ -291,20 +384,20 @@ impl InputBox {
                 self.selection_list.selection = None;
                 self.update_list();
                 self.needs_update = true;
-                InputResponse::None
+                CommandOutput::None
             } else {
                 if p.exists() {
-                    InputResponse::OpenFile(p)
+                    CommandOutput::OpenFile(p)
                 } else {
-                    InputResponse::None
+                    CommandOutput::None
                 }
             }
         } else {
-            InputResponse::None
+            CommandOutput::None
         }
     }
 
-    fn process_input(&mut self) -> InputResponse {
+    fn process_input(&mut self) -> CommandOutput {
         match self.mode {
             Mode::Command(cmd) => match cmd {
                 CommandTag::Goto => self
@@ -313,9 +406,10 @@ impl InputBox {
                     .iter()
                     .collect::<String>()
                     .parse()
-                    .map(|v| InputResponse::Goto(v))
-                    .unwrap_or(InputResponse::None),
-                CommandTag::Find => InputResponse::Find(self.input_box.data.iter().collect::<String>()),
+                    .map(|v| CommandOutput::Goto(v))
+                    .unwrap_or(CommandOutput::None),
+                CommandTag::Find => CommandOutput::Find(self.input_box.data.iter().collect::<String>()),
+                CommandTag::GotoInFile => todo!(),
             },
             Mode::FileList => self.handle_file_selection(),
         }
@@ -323,7 +417,7 @@ impl InputBox {
 }
 
 impl InputBehavior for InputBox {
-    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> InputResponse {
+    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, _modifier: glfw::Modifiers) -> CommandOutput {
         self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
         let key_pressed = || action == glfw::Action::Press || action == glfw::Action::Repeat;
         let response = match key {
@@ -336,18 +430,18 @@ impl InputBehavior for InputBox {
                 } else {
                     self.update_list();
                 }
-                InputResponse::None
+                CommandOutput::None
             }
             glfw::Key::Up if key_pressed() => {
                 self.selection_list.scroll_selection_up();
-                InputResponse::None
+                CommandOutput::None
             }
             glfw::Key::Down if key_pressed() => {
                 self.selection_list.scroll_selection_down();
-                InputResponse::None
+                CommandOutput::None
             }
             glfw::Key::Enter if key_pressed() => self.process_input(),
-            _ => InputResponse::None,
+            _ => CommandOutput::None,
         };
         self.needs_update = true;
         response
@@ -370,11 +464,6 @@ impl InputBehavior for InputBox {
         todo!()
     }
 
-    fn handle_enter(&mut self) -> InputResponse {
-        self.selection_list.selection = self.selection_list.selection.or_else(|| Some(0));
-        self.process_input()
-    }
-
     fn move_cursor(&mut self, movement: crate::textbuffer::Movement) {
         match movement {
             crate::textbuffer::Movement::Forward(kind, _) => match kind {
@@ -389,18 +478,18 @@ impl InputBehavior for InputBox {
                 }
                 _ => {}
             },
-            crate::textbuffer::Movement::Begin(kind) => {
+            crate::textbuffer::Movement::Begin(..) => {
                 self.input_box.cursor = 0;
             }
-            crate::textbuffer::Movement::End(kind) => {
+            crate::textbuffer::Movement::End(..) => {
                 self.input_box.cursor = self.input_box.data.len();
             }
         }
         self.needs_update = true;
     }
 
-    fn context(&self) -> super::eventhandling::event::InputContext {
-        super::eventhandling::event::InputContext::Command
+    fn context(&self) -> super::eventhandling::input::KeyboardInputContext {
+        super::eventhandling::input::KeyboardInputContext::InputBox
     }
 
     fn select_move_cursor(&mut self, _movement: crate::textbuffer::Movement) {
@@ -409,8 +498,8 @@ impl InputBehavior for InputBox {
 
     fn delete(&mut self, _movement: crate::textbuffer::Movement) {
         match _movement {
-            crate::textbuffer::Movement::Forward(kind, _) => {}
-            crate::textbuffer::Movement::Backward(kind, _) => {
+            crate::textbuffer::Movement::Forward(.., _) => {}
+            crate::textbuffer::Movement::Backward(.., _) => {
                 if let Some(_) = self.input_box.data.pop() {
                     self.input_box.cursor -= 1;
                 }

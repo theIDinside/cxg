@@ -1,7 +1,8 @@
 use glfw::{Action, Key, Modifiers};
 
 use super::boundingbox::BoundingBox;
-use super::eventhandling::event::{key_press, key_press_repeat, InputBehavior, InputResponse};
+use super::eventhandling::event::{key_press, key_press_repeat, CommandOutput, InputBehavior};
+use super::eventhandling::input::KeyboardInputContext;
 use super::panel::PanelId;
 use super::scrollbar::{ScrollBar, ScrollBarLayout};
 use super::Viewable;
@@ -104,7 +105,7 @@ impl std::fmt::Debug for View {
 }
 
 impl InputBehavior for View {
-    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> InputResponse {
+    fn handle_key(&mut self, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) -> CommandOutput {
         match key {
             Key::Tab if key_press(action) => {
                 if let Some((begin, end)) = self.buffer.get_selection() {
@@ -113,10 +114,10 @@ impl InputBehavior for View {
                     let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
                     if modifier == Modifiers::Shift {
                         self.buffer
-                            .line_operation(a..b_inclusive + 1, LineOperation::ShiftLeft { shift_by: 4 });
+                            .line_operation(a..b_inclusive + 1, &LineOperation::ShiftLeft { shift_by: 4 });
                     } else {
                         self.buffer
-                            .line_operation(a..b_inclusive + 1, LineOperation::ShiftRight { shift_by: 4 });
+                            .line_operation(a..b_inclusive + 1, &LineOperation::ShiftRight { shift_by: 4 });
                     }
                 } else {
                     self.insert_slice(&[' ', ' ', ' ', ' ']);
@@ -208,14 +209,14 @@ impl InputBehavior for View {
                     self.insert_str(TEST_DATA);
                 }
             }
-            Key::S if key_press(action) && modifier == Modifiers::Control => return InputResponse::SaveFile(self.buffer.file_name().map(Path::to_path_buf)),
+            Key::S if key_press(action) && modifier == Modifiers::Control => return CommandOutput::SaveFile(self.buffer.file_name().map(Path::to_path_buf)),
             Key::Enter if key_press_repeat(action) => {
                 self.insert_ch('\n');
             }
             // Copy
-            Key::C if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
+            Key::C if key_press(action) && modifier == Modifiers::Control => return CommandOutput::ClipboardCopy(self.buffer.copy_range_or_line()),
             // Cut. todo: for now it just copies it. change it so it actually cuts
-            Key::X if key_press(action) && modifier == Modifiers::Control => return InputResponse::ClipboardCopy(self.buffer.copy_range_or_line()),
+            Key::X if key_press(action) && modifier == Modifiers::Control => return CommandOutput::ClipboardCopy(self.buffer.copy_range_or_line()),
             Key::Escape if key_press(action) => {
                 if self.buffer.meta_cursor.is_some() {
                     self.buffer.meta_cursor = None;
@@ -225,7 +226,7 @@ impl InputBehavior for View {
             _ => {}
         }
         self.set_view_on_buffer_cursor();
-        InputResponse::None
+        CommandOutput::None
     }
 
     fn handle_char(&mut self, ch: char) {
@@ -236,17 +237,12 @@ impl InputBehavior for View {
         Some(super::UID::View(*self.id))
     }
 
-    fn handle_enter(&mut self) -> InputResponse {
-        self.insert_ch('\n');
-        InputResponse::None
-    }
-
     fn move_cursor(&mut self, movement: Movement) {
         self.move_cursor(movement);
     }
 
-    fn context(&self) -> super::eventhandling::event::InputContext {
-        super::eventhandling::event::InputContext::View
+    fn context(&self) -> KeyboardInputContext {
+        KeyboardInputContext::TextView
     }
 
     fn select_move_cursor(&mut self, movement: Movement) {

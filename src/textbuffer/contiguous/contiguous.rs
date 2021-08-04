@@ -900,7 +900,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     #[allow(unused)]
-    fn line_operation<T>(&mut self, lines: T, op: LineOperation)
+    fn line_operation<T>(&mut self, lines: T, op: &LineOperation)
     where
         T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
     {
@@ -918,10 +918,10 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         if let Some(next_line_begin) = self.meta_data.get(metadata::Line(a + cnt + 1)) {
                             let line_len = *next_line_begin - *lb;
                             let lb = *lb.offset(shift_tracking as isize);
-                            let shiftable = self.data[lb..lb + std::cmp::min(shift_by, line_len)]
+                            let shiftable = self.data[lb..lb + std::cmp::min(*shift_by, line_len)]
                                 .iter()
                                 .take_while(|c| c.is_ascii_whitespace() && **c != '\n')
-                                .take(shift_by)
+                                .take(*shift_by)
                                 .count();
                             if shiftable > 0 {
                                 let drain = lb..lb + shiftable;
@@ -935,7 +935,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                             let shiftable = self.data[lb..]
                                 .iter()
                                 .take_while(|c| c.is_ascii_whitespace() && **c != '\n')
-                                .take(shift_by)
+                                .take(*shift_by)
                                 .count();
                             if shiftable > 0 {
                                 let drain = lb..lb + shiftable;
@@ -950,16 +950,15 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
             }
             LineOperation::ShiftRight { shift_by } => {
                 if let Some(lines) = self.meta_data.get_lines(lines) {
-                    let data: Vec<_> = (0..shift_by).map(|_| ' ').collect();
+                    let data: Vec<_> = (0..*shift_by).map(|_| ' ').collect();
                     for &lb in lines.iter() {
                         let lb = lb.offset(shift_tracking as _);
                         self.data.splice(*lb..*lb, data.iter().copied());
-                        shift_tracking += shift_by as i32;
+                        shift_tracking += *shift_by as i32;
                     }
                 }
             }
-            LineOperation::InsertElement { at_column, insertion } => todo!(),
-            LineOperation::InsertString { at_column, insertion } => todo!(),
+            LineOperation::PasteAt { insertion } => todo!(),
         }
 
         self.rebuild_metadata();
@@ -1108,7 +1107,7 @@ if let Some(foo) = test {{
         assert_eq!(d, validate_first);
 
         sb.cursor_goto(md::Index(0));
-        sb.line_operation(0..11, LineOperation::ShiftLeft { shift_by: 4 });
+        sb.line_operation(0..11, &LineOperation::ShiftLeft { shift_by: 4 });
         let res: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(assert_str, res);
     }
@@ -1142,7 +1141,7 @@ fn main() {{
         assert_eq!(d, validate_first);
 
         sb.cursor_goto(md::Index(0));
-        sb.line_operation(0..7, LineOperation::ShiftRight { shift_by: 4 });
+        sb.line_operation(0..7, &LineOperation::ShiftRight { shift_by: 4 });
         let res: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(assert_str, res);
     }
@@ -1170,7 +1169,7 @@ fn main() {{
 
         sb.cursor_goto(md::Index(0));
         // lines range (the end) are out of bounds. No operation should be done
-        sb.line_operation(0..10, LineOperation::ShiftRight { shift_by: 4 });
+        sb.line_operation(0..10, &LineOperation::ShiftRight { shift_by: 4 });
         let res: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(assert_str, res);
     }

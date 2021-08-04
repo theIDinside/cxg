@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use glfw::ffi as glfwffi;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 bitflags::bitflags! {
     #[doc = "Key modifiers (e.g., Shift, Control, Alt, Super)"]
-    #[derive(Deserialize, Serialize)]
+    #[derive(Deserialize)]
     pub struct ModifiersImpl: ::std::os::raw::c_int {
         const SHIFT       = glfwffi::MOD_SHIFT;
         const CONTROL     = glfwffi::MOD_CONTROL;
@@ -14,9 +16,72 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for ModifiersImpl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if *self == ModifiersImpl::CONTROL {
+            write!(f, "ctrl")
+        } else if *self == ModifiersImpl::SHIFT {
+            write!(f, "shift")
+        } else if *self == ModifiersImpl::ALT {
+            write!(f, "alt")
+        } else if *self == ModifiersImpl::SUPER {
+            write!(f, "meta")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SHIFT | ModifiersImpl::SUPER {
+            write!(f, "ctrl+alt+shift+meta")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SHIFT {
+            write!(f, "ctrl+alt+shift")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::SHIFT | ModifiersImpl::SUPER {
+            write!(f, "ctrl+shift+meta")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SUPER {
+            write!(f, "ctrl+alt+meta")
+        } else if *self == ModifiersImpl::ALT | ModifiersImpl::SHIFT | ModifiersImpl::SUPER {
+            write!(f, "alt+shift+meta")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::ALT {
+            write!(f, "ctrl+alt")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::SHIFT {
+            write!(f, "ctrl+shift")
+        } else if *self == ModifiersImpl::CONTROL | ModifiersImpl::SUPER {
+            write!(f, "ctrl+meta")
+        } else if *self == ModifiersImpl::ALT | ModifiersImpl::SHIFT {
+            write!(f, "alt+shift")
+        } else if *self == ModifiersImpl::ALT | ModifiersImpl::SUPER {
+            write!(f, "alt+meta")
+        } else if *self == ModifiersImpl::SHIFT | ModifiersImpl::SUPER {
+            write!(f, "shift+meta")
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl std::str::FromStr for ModifiersImpl {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ctrl" => Ok(ModifiersImpl::CONTROL),
+            "shift" => Ok(ModifiersImpl::SHIFT),
+            "alt" => Ok(ModifiersImpl::ALT),
+            "meta" => Ok(ModifiersImpl::SUPER),
+            "ctrl+alt+shift+meta" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SHIFT | ModifiersImpl::SUPER),
+            "ctrl+alt+shift" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SHIFT),
+            "ctrl+shift+meta" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::SHIFT | ModifiersImpl::SUPER),
+            "ctrl+alt+meta" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::ALT | ModifiersImpl::SUPER),
+            "alt+shift+meta" => Ok(ModifiersImpl::ALT | ModifiersImpl::SHIFT | ModifiersImpl::SUPER),
+            "ctrl+alt" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::ALT),
+            "ctrl+shift" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::SHIFT),
+            "ctrl+meta" => Ok(ModifiersImpl::CONTROL | ModifiersImpl::SUPER),
+            "alt+shift" => Ok(ModifiersImpl::ALT | ModifiersImpl::SHIFT),
+            "alt+meta" => Ok(ModifiersImpl::ALT | ModifiersImpl::SUPER),
+            "shift+meta" => Ok(ModifiersImpl::SHIFT | ModifiersImpl::SUPER),
+            _ => Err("could not modifiers impl"),
+        }
+    }
+}
+
 /// Input keys.
 #[repr(i32)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deserialize, Serialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum KeyImpl {
     Space = glfwffi::KEY_SPACE,
     Apostrophe = glfwffi::KEY_APOSTROPHE,
@@ -140,4 +205,141 @@ pub enum KeyImpl {
     RightSuper = glfwffi::KEY_RIGHT_SUPER,
     Menu = glfwffi::KEY_MENU,
     Unknown = glfwffi::KEY_UNKNOWN,
+}
+
+impl Display for KeyImpl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::str::FromStr for KeyImpl {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Space" => Ok(KeyImpl::Space),
+            "Apostroph" => Ok(KeyImpl::Apostrophe),
+            "Comm" => Ok(KeyImpl::Comma),
+            "Minu" => Ok(KeyImpl::Minus),
+            "Perio" => Ok(KeyImpl::Period),
+            "Slas" => Ok(KeyImpl::Slash),
+            "Num0" => Ok(KeyImpl::Num0),
+            "Num1" => Ok(KeyImpl::Num1),
+            "Num2" => Ok(KeyImpl::Num2),
+            "Num3" => Ok(KeyImpl::Num3),
+            "Num4" => Ok(KeyImpl::Num4),
+            "Num5" => Ok(KeyImpl::Num5),
+            "Num6" => Ok(KeyImpl::Num6),
+            "Num7" => Ok(KeyImpl::Num7),
+            "Num8" => Ok(KeyImpl::Num8),
+            "Num9" => Ok(KeyImpl::Num9),
+            "Semicolon" => Ok(KeyImpl::Semicolon),
+            "Equal" => Ok(KeyImpl::Equal),
+            "A" => Ok(KeyImpl::A),
+            "B" => Ok(KeyImpl::B),
+            "C" => Ok(KeyImpl::C),
+            "D" => Ok(KeyImpl::D),
+            "E" => Ok(KeyImpl::E),
+            "F" => Ok(KeyImpl::F),
+            "G" => Ok(KeyImpl::G),
+            "H" => Ok(KeyImpl::H),
+            "I" => Ok(KeyImpl::I),
+            "J" => Ok(KeyImpl::J),
+            "K" => Ok(KeyImpl::K),
+            "L" => Ok(KeyImpl::L),
+            "M" => Ok(KeyImpl::M),
+            "N" => Ok(KeyImpl::N),
+            "O" => Ok(KeyImpl::O),
+            "P" => Ok(KeyImpl::P),
+            "Q" => Ok(KeyImpl::Q),
+            "R" => Ok(KeyImpl::R),
+            "S" => Ok(KeyImpl::S),
+            "T" => Ok(KeyImpl::T),
+            "U" => Ok(KeyImpl::U),
+            "V" => Ok(KeyImpl::V),
+            "W" => Ok(KeyImpl::W),
+            "X" => Ok(KeyImpl::X),
+            "Y" => Ok(KeyImpl::Y),
+            "Z" => Ok(KeyImpl::Z),
+            "LeftBracket" => Ok(KeyImpl::LeftBracket),
+            "Backslash" => Ok(KeyImpl::Backslash),
+            "RightBracket" => Ok(KeyImpl::RightBracket),
+            "GraveAccent" => Ok(KeyImpl::GraveAccent),
+            "World1" => Ok(KeyImpl::World1),
+            "World2" => Ok(KeyImpl::World2),
+            "Escape" => Ok(KeyImpl::Escape),
+            "Enter" => Ok(KeyImpl::Enter),
+            "Tab" => Ok(KeyImpl::Tab),
+            "Backspace" => Ok(KeyImpl::Backspace),
+            "Insert" => Ok(KeyImpl::Insert),
+            "Delete" => Ok(KeyImpl::Delete),
+            "Right" => Ok(KeyImpl::Right),
+            "Left" => Ok(KeyImpl::Left),
+            "Down" => Ok(KeyImpl::Down),
+            "Up" => Ok(KeyImpl::Up),
+            "PageUp" => Ok(KeyImpl::PageUp),
+            "PageDown" => Ok(KeyImpl::PageDown),
+            "Home" => Ok(KeyImpl::Home),
+            "End" => Ok(KeyImpl::End),
+            "CapsLock" => Ok(KeyImpl::CapsLock),
+            "ScrollLock" => Ok(KeyImpl::ScrollLock),
+            "NumLock" => Ok(KeyImpl::NumLock),
+            "PrintScreen" => Ok(KeyImpl::PrintScreen),
+            "Pause" => Ok(KeyImpl::Pause),
+            "F1" => Ok(KeyImpl::F1),
+            "F2" => Ok(KeyImpl::F2),
+            "F3" => Ok(KeyImpl::F3),
+            "F4" => Ok(KeyImpl::F4),
+            "F5" => Ok(KeyImpl::F5),
+            "F6" => Ok(KeyImpl::F6),
+            "F7" => Ok(KeyImpl::F7),
+            "F8" => Ok(KeyImpl::F8),
+            "F9" => Ok(KeyImpl::F9),
+            "F10" => Ok(KeyImpl::F10),
+            "F11" => Ok(KeyImpl::F11),
+            "F12" => Ok(KeyImpl::F12),
+            "F13" => Ok(KeyImpl::F13),
+            "F14" => Ok(KeyImpl::F14),
+            "F15" => Ok(KeyImpl::F15),
+            "F16" => Ok(KeyImpl::F16),
+            "F17" => Ok(KeyImpl::F17),
+            "F18" => Ok(KeyImpl::F18),
+            "F19" => Ok(KeyImpl::F19),
+            "F20" => Ok(KeyImpl::F20),
+            "F21" => Ok(KeyImpl::F21),
+            "F22" => Ok(KeyImpl::F22),
+            "F23" => Ok(KeyImpl::F23),
+            "F24" => Ok(KeyImpl::F24),
+            "F25" => Ok(KeyImpl::F25),
+            "Kp0" => Ok(KeyImpl::Kp0),
+            "Kp1" => Ok(KeyImpl::Kp1),
+            "Kp2" => Ok(KeyImpl::Kp2),
+            "Kp3" => Ok(KeyImpl::Kp3),
+            "Kp4" => Ok(KeyImpl::Kp4),
+            "Kp5" => Ok(KeyImpl::Kp5),
+            "Kp6" => Ok(KeyImpl::Kp6),
+            "Kp7" => Ok(KeyImpl::Kp7),
+            "Kp8" => Ok(KeyImpl::Kp8),
+            "Kp9" => Ok(KeyImpl::Kp9),
+            "KpDecimal" => Ok(KeyImpl::KpDecimal),
+            "KpDivide" => Ok(KeyImpl::KpDivide),
+            "KpMultiply" => Ok(KeyImpl::KpMultiply),
+            "KpSubtract" => Ok(KeyImpl::KpSubtract),
+            "KpAdd" => Ok(KeyImpl::KpAdd),
+            "KpEnter" => Ok(KeyImpl::KpEnter),
+            "KpEqual" => Ok(KeyImpl::KpEqual),
+            "LeftShift" => Ok(KeyImpl::LeftShift),
+            "LeftControl" => Ok(KeyImpl::LeftControl),
+            "LeftAlt" => Ok(KeyImpl::LeftAlt),
+            "LeftSuper" => Ok(KeyImpl::LeftSuper),
+            "RightShift" => Ok(KeyImpl::RightShift),
+            "RightControl" => Ok(KeyImpl::RightControl),
+            "RightAlt" => Ok(KeyImpl::RightAlt),
+            "RightSuper" => Ok(KeyImpl::RightSuper),
+            "Menu" => Ok(KeyImpl::Menu),
+            "Unknown" => Ok(KeyImpl::Unknown),
+            _ => Err("could not do fromstr for keyimpl"),
+        }
+    }
 }

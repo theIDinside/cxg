@@ -31,12 +31,74 @@ pub enum TextKind {
     File,
 }
 
+impl std::str::FromStr for TextKind {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Char" => Ok(TextKind::Char),
+            "Word" => Ok(TextKind::Word),
+            "Line" => Ok(TextKind::Line),
+            "Block" => Ok(TextKind::Block),
+            "Page" => Ok(TextKind::Page),
+            "File" => Ok(TextKind::File),
+            _ => Err("Unknown Text Kind type"),
+        }
+    }
+}
 #[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Deserialize, Serialize)]
 pub enum Movement {
     Forward(TextKind, usize),
     Backward(TextKind, usize),
     Begin(TextKind),
     End(TextKind),
+}
+
+impl std::str::FromStr for Movement {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if &s[0.."Forward(".len()] == "Forward(" {
+            let items: Vec<&str> = s["Forward(".len()..s.len() - 1].split_ascii_whitespace().collect();
+            if let (Some(kind), Some(count)) = (items.get(0), items.get(1)) {
+                let t_kind = TextKind::from_str(&kind[..kind.len() - 1]);
+                let count = count.parse::<usize>();
+                t_kind
+                    .ok()
+                    .zip(count.ok())
+                    .map_or(Err("Could not parse movement"), |(t, c)| Ok(Movement::Forward(t, c)))
+            } else {
+                Err("could not create Movement from str")
+            }
+        } else if &s[0.."Backward(".len()] == "Backward(" {
+            let items: Vec<&str> = s["Backward(".len()..s.len() - 1].split_ascii_whitespace().collect();
+            if let (Some(kind), Some(count)) = (items.get(0), items.get(1)) {
+                let t_kind = TextKind::from_str(&kind[..kind.len() - 1]);
+                let count = count.parse::<usize>();
+                t_kind
+                    .ok()
+                    .zip(count.ok())
+                    .map_or(Err("Could not parse movement"), |(t, c)| Ok(Movement::Forward(t, c)))
+            } else {
+                Err("could not create Movement from str")
+            }
+        } else if &s[0.."Begin(".len()] == "Begin(" {
+            let kind = TextKind::from_str(&s["Begin(".len()..s.len() - 1]);
+            if let Ok(kind) = kind {
+                Ok(Movement::Begin(kind))
+            } else {
+                Err("could not create Movement from str")
+            }
+        } else if &s[0.."End(".len()] == "End(" {
+            let kind = TextKind::from_str(&s["End(".len()..s.len() - 1]);
+            if let Ok(kind) = kind {
+                Ok(Movement::Begin(kind))
+            } else {
+                Err("could not create Movement from str")
+            }
+        } else {
+            Err("could not create Movement from str")
+        }
+    }
 }
 
 impl Movement {
@@ -190,7 +252,7 @@ pub trait CharBuffer<'a>: std::hash::Hash {
     /// It is therefore up to the call site to make sure that the line range is contained inside the buffer.
     /// This makes it possible to wrap a "safe" or "always succeed" API around it.
     /// * `lines` -
-    fn line_operation<RangeType>(&mut self, lines: RangeType, op: LineOperation)
+    fn line_operation<RangeType>(&mut self, lines: RangeType, op: &LineOperation)
     where
         RangeType: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>;
 }

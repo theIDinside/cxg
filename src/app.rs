@@ -1,5 +1,4 @@
 use crate::cmd::keybindings::KeyBindings;
-use crate::cmd::translation::InputTranslation;
 use crate::cmd::CommandTag;
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
@@ -11,16 +10,18 @@ use crate::opengl::{
     text_renderer::TextRenderer,
     types::RGBAColor,
 };
+use crate::textbuffer::operations::LineOperation;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
-use crate::ui::eventhandling::event::{key_press, InputContext};
+use crate::ui::eventhandling::event::{key_press, AppAction, InputboxAction, ViewAction};
+use crate::ui::eventhandling::input::KeyboardInputContext;
 use crate::ui::{
     clipboard::ClipBoard,
     debug_view::DebugView,
-    eventhandling::event::{InputBehavior, InputResponse, InvalidInputElement},
+    eventhandling::event::{CommandOutput, InputBehavior, InvalidInputElement},
     font::Font,
     inputbox::{InputBox, Mode},
     panel::{Panel, PanelId},
@@ -30,7 +31,7 @@ use crate::ui::{
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
 
-use std::io::Write;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -51,7 +52,7 @@ pub struct Application<'app> {
     /// Window Title
     _title_bar: String,
     /// Window Size
-    window_size: Size,
+    pub window_size: Size,
     /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
     panel_space_size: Size,
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
@@ -67,7 +68,7 @@ pub struct Application<'app> {
     /// buffers we're editing and is live, yet not open in any view currently, lives in this field
     buffers: Buffers,
     /// The command popup, an input box similar to that of Clion, or VSCode, or Vim's command input line
-    popup: Popup,
+    pub popup: Popup,
     /// The active element's id
     pub active_ui_element: UID,
     /// Whether or not we're in debug interface mode (showing different kinds of debug information)
@@ -96,11 +97,11 @@ pub struct Application<'app> {
 
     pub clipboard: ClipBoard,
 
-    key_bindings: KeyBindings,
+    pub key_bindings: KeyBindings,
 
-    translate_key_input: bool,
+    pub translate_key_input: bool,
 
-    input_context: crate::ui::input::KeyboardInputContext
+    pub input_context: KeyboardInputContext,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
@@ -220,15 +221,19 @@ impl<'app> Application<'app> {
             .map(|data| serde_json::from_str(&data).unwrap_or(KeyBindings::default()))
             .unwrap_or(KeyBindings::default());
 
-        let serialize = serde_json::to_string_pretty(&key_bindings).unwrap_or("".into());
-        let f = std::fs::File::create("./default.cfg");
-        match f {
-            Ok(mut file) => match file.write_all(&serialize.as_bytes()) {
-                Ok(_) => {}
-                Err(e) => println!("Could not write default config to file: {}", e),
+        println!("{} keybindings read from file/default", key_bindings.total_keybindings());
+
+        match serde_json::to_string_pretty(&key_bindings) {
+            Ok(data) => match std::fs::write("./default.cfg", data) {
+                Ok(_) => {
+                    println!("Wrote default keybinding configuration to file default.cfg");
+                }
+                Err(e) => {
+                    println!("Failed to write default keybinding setup to file! {}", e);
+                }
             },
-            Err(err) => {
-                println!("Error: {}", err);
+            Err(e) => {
+                println!("Failed to serialize keybinding data: {}", e);
             }
         }
 
@@ -257,7 +262,7 @@ impl<'app> Application<'app> {
             clipboard: ClipBoard::new(),
             key_bindings,
             translate_key_input: true,
-            input_context: crate::ui::input::KeyboardInputContext::TextView
+            input_context: KeyboardInputContext::TextView,
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_keyboard_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -617,11 +622,13 @@ impl<'app> Application<'app> {
             self.input_box.clear();
             self.input_box.visible = false;
             self.input_box.mode = mode;
+            self.input_context = KeyboardInputContext::TextView;
         } else {
             self.input_box.mode = mode;
             // self.active_input = &mut self.input_box as &'app mut dyn Input;
             self.active_keyboard_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
             self.input_box.visible = true;
+            self.input_context = KeyboardInputContext::InputBox;
         }
     }
 
@@ -630,273 +637,76 @@ impl<'app> Application<'app> {
         // todo: this is where we will hook the config library into. It will read from a config -> parse that into a map, which we map the
         //  input against, and it will have to return an InputTranslation, which instead match on in this function, instead of matching
         //  directly on key input.
-
         if key == glfw::Key::F2 && action == Action::Press && modifier == glfw::Modifiers::Control {
             self.translate_key_input = !self.translate_key_input;
-            println!("Translating key input: {}", self.translate_key_input);
         }
 
-        match self.input_context {
-            KeyboardInputContext::InputBox => {
-
-                if let Some(translation) = self.key_bindings.translate_command_input(key, action, modifier) {
-                    match translation {
-
-                    }
-                } else {
-                    // Try matching input on fallback layer
-                    match self.key_bindings.translate_app_input(key, action, modifier) {
-
-                    }
-                }
-            }
-            KeyboardInputContext::TextView => {
-                if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
-                    match translation {
-
-                    }
-                } else {
-                    // Try matching input on fallback layer
-                    match self.key_bindings.translate_app_input(key, action, modifier) {
-                        
-                    }
-                }
+        if key == glfw::Key::F3 && action == Action::Press && modifier == glfw::Modifiers::Control {
+            println!("Printing keybindings for text view");
+            for (binding, action) in self.key_bindings.textViewActions.textViewActions.iter() {
+                println!("{:?} binds to {:?}", binding, action);
             }
         }
 
         if self.translate_key_input {
-            match self.key_bindings.translate(key, action, modifier, self.input_context) {
-                UIInputEvent::App(app_action) => match app_action {
-                    AppAction::Cancel => {}
-                    AppAction::OpenFile => {}
-                    AppAction::SaveFile => {}
-                    AppAction::SearchInFiles => {}
-                    AppAction::GotoLineInFile => {}
-                    AppAction::CycleFocus => {}
-                    AppAction::HideFocused => {}
-                    AppAction::ShowAll => {}
-                    AppAction::ShowDebugInterface => {}
-                    AppAction::CloseActiveView => {}
-                    AppAction::Quit => {}
-                    AppAction::OpenNewView => {}
-                    AppAction::Debug => {}
-                }
-                UIInputEvent::View(view_action) => match view_action {
-                    ViewAction::Movement(movement) => self.get_active_view().move_cursor(movement),
-                    ViewAction::TextSelect(movement) => self.get_active_view().select_move_cursor(movement),
-                    ViewAction::Delete(movement) => self.get_active_view().delete(movement),
-                    ViewAction::ChangeValueOfAssignment => {}
-                    ViewAction::StaticInsertStr(_) => {}
-                    ViewAction::Cut => {}
-                    ViewAction::Copy => {
-                        let c = self.get_active_view().buffer.copy_range_or_line();
-                        self.clipboard.take(c);
-                    }
-                    ViewAction::Paste => {}
-                    ViewAction::Undo => {}
-                    ViewAction::Redo => {}
-                    ViewAction::LineOperation(line_op) => {}
-                    ViewAction::Debug => {}
-                }
-                UIInputEvent::InputBox(ib_action)  => match ib_action {
-                    InputboxAction::Cancel => self.toggle_input_box(Mode::Command(CommandTag::Goto)),
-                    InputboxAction::MovecursorLeft => self.input_box.cursor_move_left(),
-                    InputboxAction::MovecursorRight => self.input_box.cursor_move_right(),
-                    InputboxAction::ScrollSelectionUp => self.input_box.selection_list.scroll_selection_up(),
-                    InputboxAction::ScrollSelectionDown => self.input_box.selection_list.scroll_selection_down(),
-                    InputboxAction::Cut => {
-                        if let Some(cut) = self.active_keyboard_input.cut() {
-                            self.clipboard.take(cut);
-                        }
-                    }
-                    InputboxAction::Copy => {
-                        if let Some(cut) = self.active_keyboard_input.cut() {
-                            self.clipboard.take(cut);
-                        }
-                    }
-                    InputboxAction::Paste => {
-                        if let Some(data) = self.clipboard.give() {
-                            for c in data.chars() {
-                                self.active_keyboard_input.handle_char(c);
-                            }
-                        }
-                    }
-                    InputboxAction::Ok => match self.input_box.process_input() {
-                        InputResponse::ClipboardCopy(s) => {}
-                        InputResponse::OpenFile(p) => {}
-                        InputResponse::SaveFile(f) => {}
-                        InputResponse::Goto(l) => {}
-                        InputResponse::Find(s) => {}
-                        InputResponse::None => {}
-                    }
-                }
-            }
-        }
+            let unhandled_input = match self.input_context {
+                KeyboardInputContext::InputBox => {
+                    let act = self.key_bindings.translate_command_input(key, action, modifier);
 
-        if self.translate_key_input {
-            if let Some(op) = self.key_bindings.translate(key, action, modifier) {
-                match op {
-                    InputTranslation::Cancel => {
-                        if self.input_box.visible {
-                            self.toggle_input_box(Mode::Command(CommandTag::Goto));
-                        } else if self.get_active_view().buffer.meta_cursor.is_some() {
-                            self.get_active_view().buffer.meta_cursor = None;
-                            self.get_active_view().set_need_redraw();
+                    if let Some(translation) = act {
+                        // handle_input_box(&self, &input_box);
+                        self.handle_input_for_inputbox(translation);
+                        None
+                    } else {
+                        self.key_bindings.translate_app_input(key, action, modifier)
+                    }
+                }
+                KeyboardInputContext::TextView => {
+                    if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
+                        self.handle_input_for_textview(translation);
+                        None
+                    } else {
+                        self.key_bindings.translate_app_input(key, action, modifier)
+                    }
+                }
+                KeyboardInputContext::Application => self.key_bindings.translate_app_input(key, action, modifier),
+            };
+
+            if let Some(app_action) = unhandled_input {
+                match app_action {
+                    AppAction::Cancel => match self.input_context {
+                        KeyboardInputContext::InputBox => {
+                            self.input_box.clear();
+                            self.input_box.visible = false;
+                            self.input_context = KeyboardInputContext::TextView;
                         }
-                    }
-                    InputTranslation::Movement(movement) => {
-                        self.active_keyboard_input.move_cursor(movement);
-                    }
-                    InputTranslation::TextSelect(movement) => {
-                        self.active_keyboard_input.select_move_cursor(movement);
-                    }
-                    InputTranslation::Delete(movement) => {
-                        self.active_keyboard_input.delete(movement);
-                    }
-                    InputTranslation::ChangeValueOfAssignment => {}
-                    InputTranslation::InsertStr(_) => {}
-                    InputTranslation::Cut => {
-                        if let Some(cut) = self.active_keyboard_input.cut() {
-                            self.clipboard.take(cut);
+                        _ => {
+                            println!("")
                         }
-                    }
-                    InputTranslation::Copy => {
-                        if let Some(cut) = self.active_keyboard_input.copy() {
-                            self.clipboard.take(cut);
-                        }
-                    }
-                    InputTranslation::Paste => {
-                        if let Some(v) = _window.get_clipboard_string() {
-                            for ch in v.chars() {
-                                self.active_keyboard_input.handle_char(ch);
-                            }
-                        } else {
-                            for cb_data in self.clipboard.give() {
-                                for ch in cb_data.chars() {
-                                    self.active_keyboard_input.handle_char(ch);
-                                }
-                            }
-                        }
-                    }
-                    InputTranslation::Undo => {}
-                    InputTranslation::Redo => {}
-                    InputTranslation::OpenFile => {
-                        self.toggle_input_box(Mode::FileList);
-                    }
-                    InputTranslation::SaveFile => {
-                        if let Some(p) = self.get_active_view().buffer.file_name().map(Path::to_path_buf) {
-                            self.get_active_view().buffer.save_file(&p);
-                        } else {
-                            match nfd::open_save_dialog(Some("*"), Some(".")) {
-                                Ok(res) => match res {
-                                    nfd::Response::Okay(file_name_selected) => self.get_active_view().buffer.save_file(Path::new(&file_name_selected)),
-                                    nfd::Response::OkayMultiple(multi_string) => println!("Response: {:?}", multi_string),
-                                    nfd::Response::Cancel => {}
-                                },
-                                Err(err) => println!("Error: {}", err),
-                            }
-                        }
-                    }
-                    InputTranslation::Search => {
-                        self.toggle_input_box(Mode::Command(CommandTag::Find));
-                    }
-                    InputTranslation::Goto => {
-                        self.toggle_input_box(Mode::Command(CommandTag::Goto));
-                    }
-                    InputTranslation::CycleFocus => {
+                    },
+                    AppAction::OpenFile => self.toggle_input_box(Mode::FileList),
+                    AppAction::SaveFile => todo!(),
+                    AppAction::SearchInFiles => todo!("Create input box action for searching in all files"),
+                    AppAction::GotoLineInFile => self.toggle_input_box(Mode::Command(CommandTag::Goto)),
+                    AppAction::CycleFocus => {
                         self.cycle_focus();
                     }
-                    InputTranslation::HideFocused => {}
-                    InputTranslation::ShowAll => {}
-                    InputTranslation::ShowDebugInterface => self.debug_view.visibile = !self.debug_view.visibile,
-                    InputTranslation::CloseActiveView(force_close) => {
+                    AppAction::HideFocused => todo!(),
+                    AppAction::ShowAll => todo!(),
+                    AppAction::ShowDebugInterface => {
+                        println!("Showing debug interface");
+                        self.debug_view.visibile = !self.debug_view.visibile;
+                    }
+                    AppAction::CloseActiveView(force_close) => {
                         self.close_active_view(force_close);
                     }
-                    InputTranslation::Quit => {
+                    AppAction::Quit => {
                         self.close_requested = true;
                     }
-                    InputTranslation::OpenNewView => {
+                    AppAction::OpenNewView => {
                         let size = self.window_size;
                         self.open_text_view(self.active_panel(), Some("new view".into()), size);
                     }
-                    InputTranslation::LineOperation(lineop) => match self.active_keyboard_input.context() {
-                        InputContext::View => {
-                            let v = self.get_active_view();
-                            if let Some((begin, end)) = v.buffer.get_selection() {
-                                let md = v.buffer.meta_data();
-                                let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
-                                let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
-                                v.buffer.line_operation(a..b_inclusive + 1, lineop);
-                            } else {
-                                v.buffer.insert_slice(&[' ', ' ', ' ', ' ']);
-                            }
-                        }
-                        InputContext::Command => {}
-                    },
-                    InputTranslation::Debug => {
-                        let v = self.get_active_view();
-                        println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
-                        println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
-                    }
-                    InputTranslation::Enter => match self.active_keyboard_input.handle_enter() {
-                        InputResponse::OpenFile(path) => {
-                            let v = self.get_active_view();
-                            if v.buffer.empty() {
-                                v.buffer.load_file(&path);
-                                v.set_need_redraw();
-                                v.update(None);
-                                self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-                                self.input_box.visible = false;
-                            } else {
-                                let p_id = self.get_active_view().panel_id;
-                                let f_name = path.file_name();
-                                self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
-                                let v = self.get_active_view();
-                                debugger_catch!(&path.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
-                                v.buffer.load_file(&path);
-                                v.set_need_redraw();
-                                v.update(None);
-                                self.input_box.visible = false;
-                            }
-                            self.input_box.clear();
-                        }
-                        InputResponse::Goto(line) => {
-                            let v = self.get_active_view();
-                            v.buffer.goto_line(line as usize);
-                            v.set_view_on_buffer_cursor();
-                            v.set_need_redraw();
-                            v.update(None);
-                            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
-                            self.input_box.visible = false;
-                            self.input_box.clear();
-                        }
-                        InputResponse::Find(find) => {
-                            // todo: use the regex crate for searching
-                            let v = self.get_active_view();
-                            v.buffer.search_next(&find);
-                            v.set_view_on_buffer_cursor();
-                            v.set_need_redraw();
-                            // self.input_box.visible = false;
-                        }
-                        InputResponse::SaveFile(file_path) => {
-                            if let Some(p) = file_path {
-                                self.get_active_view().buffer.save_file(&p);
-                            } else {
-                                match nfd::open_save_dialog(Some("*"), Some(".")) {
-                                    Ok(res) => match res {
-                                        nfd::Response::Okay(file_name_selected) => self.get_active_view().buffer.save_file(Path::new(&file_name_selected)),
-                                        nfd::Response::OkayMultiple(multi_string) => println!("Response: {:?}", multi_string),
-                                        nfd::Response::Cancel => {}
-                                    },
-                                    Err(err) => println!("Error: {}", err),
-                                }
-                            }
-                        }
-                        InputResponse::ClipboardCopy(Some(data)) => {
-                            self.clipboard.take(data);
-                        }
-                        _ => {}
-                    },
                 }
             }
         } else {
@@ -994,7 +804,7 @@ impl<'app> Application<'app> {
                 }
                 // dispatches handler to current active input, which we handle a possible response from
                 _ => match self.active_keyboard_input.handle_key(key, action, modifier) {
-                    InputResponse::OpenFile(path) => {
+                    CommandOutput::OpenFile(path) => {
                         let v = self.get_active_view();
                         if v.buffer.empty() {
                             v.buffer.load_file(&path);
@@ -1015,7 +825,7 @@ impl<'app> Application<'app> {
                         }
                         self.input_box.clear();
                     }
-                    InputResponse::Goto(line) => {
+                    CommandOutput::Goto(line) => {
                         let v = self.get_active_view();
                         v.buffer.goto_line(line as usize);
                         v.set_view_on_buffer_cursor();
@@ -1025,14 +835,14 @@ impl<'app> Application<'app> {
                         self.input_box.visible = false;
                         self.input_box.clear();
                     }
-                    InputResponse::Find(find) => {
+                    CommandOutput::Find(find) => {
                         // todo: use the regex crate for searching
                         let v = self.get_active_view();
                         v.buffer.search_next(&find);
                         v.set_view_on_buffer_cursor();
                         v.set_need_redraw();
                     }
-                    InputResponse::SaveFile(file_path) => {
+                    CommandOutput::SaveFile(file_path) => {
                         if let Some(p) = file_path {
                             let v = self.get_active_view();
                             v.buffer.save_file(&p);
@@ -1058,7 +868,7 @@ impl<'app> Application<'app> {
                         }
                     }
                     // we discard the ClipboardCopy response, if it did not hold any data, which is why we match exactly on Some(data) here
-                    InputResponse::ClipboardCopy(Some(data)) => {
+                    CommandOutput::ClipboardCopy(Some(data)) => {
                         println!("Application clip board copy: '{}'", data);
                         self.clipboard.take(data);
                     }
@@ -1168,6 +978,197 @@ impl<'app> Application<'app> {
 
     pub fn set_debug(&mut self, set: bool) {
         self.debug = set;
+    }
+
+    pub fn handle_input_for_textview(&mut self, input: ViewAction) {
+        match input {
+            ViewAction::Cancel => todo!(),
+            ViewAction::Movement(movement) => {
+                let v = self.get_active_view();
+                v.move_cursor(movement);
+            }
+            ViewAction::TextSelect(movement) => {
+                let v = self.get_active_view();
+                v.select_move_cursor(movement);
+            }
+            ViewAction::Delete(movement) => {
+                let v = self.get_active_view();
+                v.delete(movement);
+            }
+            ViewAction::ChangeValueOfAssignment => todo!(),
+            ViewAction::InsertStr(data) => {
+                let v = self.get_active_view();
+                for c in data.chars() {
+                    v.insert_ch(c)
+                }
+            }
+            ViewAction::Cut => todo!(),
+            ViewAction::Copy => {
+                let v = self.get_active_view();
+                if let Some(data) = v.buffer.copy_range_or_line() {
+                    self.clipboard.take(data);
+                }
+            }
+            ViewAction::Paste => {
+                if let Some(data) = self.clipboard.give().cloned() {
+                    let v = self.get_active_view();
+                    for c in data.chars() {
+                        v.insert_ch(c);
+                    }
+                }
+            }
+            ViewAction::Undo => todo!(),
+            ViewAction::Redo => todo!(),
+            ViewAction::LineOperation(ref lineop) => {
+                let v = self.get_active_view();
+                match lineop {
+                    LineOperation::ShiftLeft { .. } | LineOperation::ShiftRight { .. } if v.buffer.get_selection().is_some() => {
+                        v.buffer.get_selection().map(|(begin, end)| {
+                            let md = v.buffer.meta_data();
+                            let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
+                            let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
+                            v.buffer.line_operation(a..b_inclusive + 1, lineop);
+                        });
+                    }
+                    LineOperation::ShiftLeft { .. } => {}
+                    LineOperation::ShiftRight { .. } => {}
+                    LineOperation::PasteAt { .. } => todo!(),
+                }
+                if let Some((begin, end)) = v.buffer.get_selection() {
+                    let md = v.buffer.meta_data();
+                    let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
+                    let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
+                    v.buffer.line_operation(a..b_inclusive + 1, lineop);
+                } else {
+                }
+            }
+            ViewAction::Debug => {
+                let v = self.get_active_view();
+                println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
+                println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
+            }
+            ViewAction::SaveFile => {
+                let v = self.get_active_view();
+                if let Some(p) = v.buffer.file_name().map(Path::to_path_buf) {
+                    v.buffer.save_file(&p);
+                } else {
+                    // todo: we need to turn off _all_ GLFW input handling at this point. Because if we hit Ctrl+Q while the nfd-dialog is open
+                    //  we have told our application to quit running, and it will try to exit - only to be blocked by the nfd. This doesn't seem safe at all.
+                    //  best thing to do, would be to turn off all polling for input and restore state once we return from nfd
+                    match nfd::open_save_dialog(Some("*"), Some(".")) {
+                        Ok(res) => match res {
+                            nfd::Response::Okay(file_name_selected) => {
+                                v.buffer.save_file(Path::new(&file_name_selected));
+                            }
+                            nfd::Response::OkayMultiple(multi_string) => {
+                                println!("Response: {:?}", multi_string);
+                            }
+                            nfd::Response::Cancel => {}
+                        },
+                        Err(err) => {
+                            println!("Error: {}", err);
+                        }
+                    }
+                }
+            }
+            ViewAction::OpenFile => self.toggle_input_box(Mode::FileList),
+            ViewAction::Find => self.toggle_input_box(Mode::Command(CommandTag::Find)),
+            ViewAction::Goto => {
+                self.toggle_input_box(Mode::Command(CommandTag::Goto));
+            }
+        }
+    }
+
+    pub fn handle_input_for_inputbox(&mut self, translation: InputboxAction) {
+        match translation {
+            InputboxAction::Cancel => {
+                self.input_box.clear();
+                self.input_box.visible = false;
+                self.input_context = KeyboardInputContext::TextView;
+            }
+            InputboxAction::MovecursorLeft => todo!(),
+            InputboxAction::MovecursorRight => todo!(),
+            InputboxAction::ScrollSelectionUp => {
+                self.input_box.selection_list.scroll_selection_up();
+                self.input_box.needs_update = true;
+            }
+            InputboxAction::ScrollSelectionDown => {
+                self.input_box.selection_list.scroll_selection_down();
+                self.input_box.needs_update = true;
+            }
+            InputboxAction::Cut => todo!(),
+            InputboxAction::Copy => todo!(),
+            InputboxAction::Paste => {
+                if let Some(s) = self.clipboard.give() {
+                    for c in s.chars() {
+                        self.input_box.handle_char(c);
+                    }
+                }
+            }
+            InputboxAction::Ok => match self.input_box.mode {
+                Mode::Command(cmd) => match cmd {
+                    CommandTag::Goto => {
+                        if let Ok(line) = self.input_box.input_box.data.iter().collect::<String>().parse::<usize>() {
+                            let v = self.get_active_view();
+                            v.buffer.goto_line(line);
+                            v.set_view_on_buffer_cursor();
+                            v.set_need_redraw();
+                            v.update(None);
+                            self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
+                            self.input_box.visible = false;
+                            self.input_box.clear();
+                            self.input_context = KeyboardInputContext::TextView;
+                        }
+                    }
+                    CommandTag::Find => {
+                        let input_data = &self.input_box.input_box.data.iter().collect::<String>();
+                        let v = self.get_active_view();
+                        v.buffer.search_next(&input_data);
+                        v.set_view_on_buffer_cursor();
+                        v.set_need_redraw();
+                    }
+                    CommandTag::GotoInFile => todo!(),
+                },
+                Mode::FileList => {
+                    if let Some(item) = self.input_box.selection_list.pop_selected() {
+                        let name = String::from_iter(&item);
+                        let p = Path::new(&name).to_path_buf();
+                        if p.is_dir() {
+                            self.input_box.input_box.data = item;
+                            self.input_box.input_box.data.push('/');
+                            self.input_box.input_box.cursor = self.input_box.input_box.data.len();
+                            self.input_box.selection_list.selection = None;
+                            self.input_box.update_list();
+                            self.input_box.needs_update = true;
+                        } else {
+                            if p.exists() {
+                                let v = self.get_active_view();
+                                if v.buffer.empty() {
+                                    v.buffer.load_file(&p);
+                                    v.set_need_redraw();
+                                    v.update(None);
+                                    self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
+                                    self.input_box.visible = false;
+                                } else {
+                                    let p_id = self.get_active_view().panel_id;
+                                    let f_name = p.file_name();
+                                    self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                                    let v = self.get_active_view();
+                                    crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                    v.buffer.load_file(&p);
+                                    v.set_need_redraw();
+                                    v.update(None);
+                                    self.input_box.visible = false;
+                                }
+                                self.input_box.clear();
+                                self.input_context = KeyboardInputContext::TextView;
+                            }
+                        }
+                    }
+                }
+            },
+            InputboxAction::Delete => todo!(),
+        }
     }
 }
 
