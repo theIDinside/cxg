@@ -19,7 +19,6 @@ nfd = "0.0.4"
 regex = "*"
 serde = { version = "*", features = ["derive"] } 
 serde_json = "*"
-serde_with = "*"
 bitflags = "1.2.1"
 
 [profile.release]

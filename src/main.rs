@@ -12,10 +12,6 @@ extern crate walkdir;
 extern crate serde;
 extern crate serde_json;
 
-// to simplify serialization and deserialization *incredibly*, although it's most likely less efficient
-// but seeing as how we only do this ONCE per application startup (unless user re binds keys etc)
-extern crate serde_with;
-
 // we use this to re-implement the glfw::Key and glfw::Modifiers structures
 // because it is _way_ easier since they are POD, so that we can serialize them easily with serde
 extern crate bitflags;
