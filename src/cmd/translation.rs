@@ -55,17 +55,21 @@ pub enum ViewUserInput {
 
 pub enum CommandUserInput {
     Cancel,
-    Enter,
-    Movement(Movement),
-    TextSelect(Movement),
+    MovecursorLeft,
+    MovecursorRight,
+    SelectTextLeft,
+    SelectTextRight,
+    ScrollSelectionUp,
+    ScrollSelectionDown,
     Cut,
     Copy,
     Paste,
+    Ok
 }
 
 pub enum InputContext {
-    ActiveView(InputTranslation),
-    InputBox(InputTranslation),
+    ActiveView(ViewUserInput),
+    InputBox(CommandUserInput),
     Application(InputTranslation),
 }
 

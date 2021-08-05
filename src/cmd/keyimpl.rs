@@ -219,11 +219,11 @@ impl std::str::FromStr for KeyImpl {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Space" => Ok(KeyImpl::Space),
-            "Apostroph" => Ok(KeyImpl::Apostrophe),
-            "Comm" => Ok(KeyImpl::Comma),
-            "Minu" => Ok(KeyImpl::Minus),
-            "Perio" => Ok(KeyImpl::Period),
-            "Slas" => Ok(KeyImpl::Slash),
+            "Apostrophe" => Ok(KeyImpl::Apostrophe),
+            "Comma" => Ok(KeyImpl::Comma),
+            "Minus" => Ok(KeyImpl::Minus),
+            "Period" => Ok(KeyImpl::Period),
+            "Slash" => Ok(KeyImpl::Slash),
             "Num0" => Ok(KeyImpl::Num0),
             "Num1" => Ok(KeyImpl::Num1),
             "Num2" => Ok(KeyImpl::Num2),

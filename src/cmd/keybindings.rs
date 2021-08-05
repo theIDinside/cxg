@@ -5,27 +5,18 @@ use crate::{
     textbuffer::{operations::LineOperation, Movement, TextKind},
     ui::eventhandling::event::{AppAction, InputboxAction, ViewAction},
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
 
 use std::{collections::HashMap, fmt::Display};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TextViewKeyBinding {
+    #[serde(default = "Option::<_>::default")]
     pressed: Option<ViewAction>,
+    #[serde(default = "Option::<_>::default")]
     repeated: Option<ViewAction>,
+    #[serde(default = "Option::<_>::default")]
     released: Option<ViewAction>,
-}
-
-impl Display for TextViewKeyBinding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            r#"{{ "pressed": "{}", "repeated": "{}", "released": "{}" }}"#,
-            self.pressed.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.repeated.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.released.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-        )
-    }
 }
 
 impl TextViewKeyBinding {
@@ -42,23 +33,14 @@ impl TextViewKeyBinding {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct InputboxBinding {
+    #[serde(default = "Option::<_>::default")]
     pressed: Option<InputboxAction>,
+    #[serde(default = "Option::<_>::default")]
     repeated: Option<InputboxAction>,
+    #[serde(default = "Option::<_>::default")]
     released: Option<InputboxAction>,
-}
-
-impl Display for InputboxBinding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            r#"{{ "pressed": "{}", "repeated": "{}", "released": "{}" }}"#,
-            self.pressed.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.repeated.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.released.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-        )
-    }
 }
 
 impl InputboxBinding {
@@ -75,23 +57,14 @@ impl InputboxBinding {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AppBinding {
+    #[serde(default = "Option::<_>::default")]
     pressed: Option<AppAction>,
+    #[serde(default = "Option::<_>::default")]
     repeated: Option<AppAction>,
+    #[serde(default = "Option::<_>::default")]
     released: Option<AppAction>,
-}
-
-impl Display for AppBinding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            r#"{{ "pressed": "{}", "repeated": "{}", "released": "{}" }}"#,
-            self.pressed.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.repeated.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-            self.released.as_ref().map(|d| d.to_string()).unwrap_or("None".into()),
-        )
-    }
 }
 
 impl AppBinding {
@@ -110,13 +83,59 @@ impl AppBinding {
 
 // type BindingRequirement = (KeyImpl, ModifiersImpl);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct BindingRequirement(#[serde(with = "serde_with::rust::display_fromstr")] KeyImpl, #[serde(with = "serde_with::rust::display_fromstr")] ModifiersImpl);
+// 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BindingRequirement(KeyImpl, ModifiersImpl);
 
-impl Display for BindingRequirement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let BindingRequirement(k, m) = self;
-        write!(f, "{}+{:?}", *m, *k)
+impl Serialize for BindingRequirement {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let BindingRequirement(key, mods) = self;
+        let s = mods.to_string();
+        let output = if s.is_empty() {
+            format!("{:?}", key)
+        } else {
+            format!("{}+{:?}", s, key)
+        };
+        
+        serializer.serialize_str(&output)
+    }
+}
+
+struct BindingRequirementVisitor;
+
+impl<'de> Visitor<'de> for BindingRequirementVisitor {
+    type Value = BindingRequirement;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("Expecting key combinations to be written in the form [modA +.. modN]+Key, for example: 
+        'ctrl+shift+O' or 'ctrl+O' or just 'O' for no modifiers")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        if let Some(pos) = value.rfind("+") {
+            let mods = ModifiersImpl::from_str(&value[0..pos]).unwrap();
+            let key = KeyImpl::from_str(&value[pos+1 .. ]).unwrap();
+            Ok(BindingRequirement(key, mods))
+        } else {
+            let k = KeyImpl::from_str(value).unwrap();
+            Ok(BindingRequirement(k, ModifiersImpl::empty()))            
+        }
+    }
+
+}
+
+impl<'de> Deserialize<'de> for BindingRequirement {
+    fn deserialize<D>(deserializer: D) -> Result<BindingRequirement, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(BindingRequirementVisitor)
     }
 }
 
@@ -135,17 +154,17 @@ pub struct TextViewActions {
 pub struct InputBoxActions {
     pub inputBoxActions: HashMap<BindingRequirement, InputboxBinding>,
 }
-#[allow(non_snake_case)]
+
 #[derive(Serialize, Deserialize)]
 pub struct KeyBindings {
-    //    #[serde(with = "serde_with::rust::display_fromstr")]
-    pub appActions: AppActions,
+    #[serde(app_default)]
+    pub app_actions: HashMap<BindingRequirement, AppBinding>,
     /// Text View key mappings
-    //#[serde(with = "serde_with::rust::display_fromstr")]
-    pub textViewActions: TextViewActions,
+    #[serde(tv_default)]
+    pub textview_actions: HashMap<BindingRequirement, TextViewKeyBinding>,
     /// Input box key mappings
-    // #[serde(with = "serde_with::rust::display_fromstr")]
-    pub inputBoxActions: InputBoxActions,
+    #[serde(ib_default)]
+    pub inputbox_actions: HashMap<BindingRequirement, InputboxBinding>,
 }
 
 /*

@@ -26,7 +26,7 @@ pub enum InputElement {
 }
 
 // Actions that take place inside an InputBox
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InputboxAction {
     Cancel,
     Delete,
@@ -59,7 +59,7 @@ impl FromStr for InputboxAction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ViewAction {
     Cancel,
     SaveFile,
@@ -110,19 +110,23 @@ impl FromStr for ViewAction {
                             Err("Could not find string contents in relation to InsertStr view command")
                         }
                     } else if &s[TAG.len()..TAG.len() + "Delete(".len()] == "Delete(" {
-                        let start = TAG.len() + "Delete(".len();
+                        const D_TAG: &str = "Delete(";
+                        let start = TAG.len() + D_TAG.len();
                         let m = Movement::from_str(&s[start..s.len() - 1]);
                         m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::Delete(m)))
                     } else if &s[TAG.len()..TAG.len() + "LineOperation(".len()] == "LineOperation(" {
-                        let start = TAG.len() + "LineOperation(".len();
+                        let LO_TAG: &str = "LineOperation(";
+                        let start = TAG.len() + LO_TAG.len();
                         let lo = LineOperation::from_str(&s[start..s.len() - 1]);
                         lo.map_or_else(|m| Err("Could not create ViewAction from string value"), |lo| Ok(ViewAction::LineOperation(lo)))
                     } else if &s[TAG.len()..TAG.len() + "Movement(".len()] == "Movement(" {
-                        let start = TAG.len() + "Movement(".len();
+                        const M_TAG: &str = "Movement(";
+                        let start = TAG.len() + M_TAG.len();
                         let m = Movement::from_str(&s[start..s.len() - 1]);
                         m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::Movement(m)))
                     } else if &s[TAG.len()..TAG.len() + "TextSelect(".len()] == "TextSelect(" {
-                        let start = TAG.len() + "TextSelect(".len();
+                        const TS_TAG: &str = "TextSelect(";
+                        let start = TAG.len() + TS_TAG.len();
                         let m = Movement::from_str(&s[start..s.len() - 1]);
                         m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::TextSelect(m)))
                     } else {
@@ -135,7 +139,7 @@ impl FromStr for ViewAction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone)]
+#[derive(Debug,Serialize, Deserialize, Clone)]
 pub enum AppAction {
     Cancel,
     OpenFile,
