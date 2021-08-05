@@ -643,7 +643,7 @@ impl<'app> Application<'app> {
 
         if key == glfw::Key::F3 && action == Action::Press && modifier == glfw::Modifiers::Control {
             println!("Printing keybindings for text view");
-            for (binding, action) in self.key_bindings.textViewActions.textViewActions.iter() {
+            for (binding, action) in self.key_bindings.textview_actions.iter() {
                 println!("{:?} binds to {:?}", binding, action);
             }
         }
@@ -652,9 +652,9 @@ impl<'app> Application<'app> {
             let unhandled_input = match self.input_context {
                 KeyboardInputContext::InputBox => {
                     let act = self.key_bindings.translate_command_input(key, action, modifier);
-
                     if let Some(translation) = act {
                         // handle_input_box(&self, &input_box);
+                        println!("Key {:?} Modifier: {:?}, Action: {:?}", key, modifier, translation);
                         self.handle_input_for_inputbox(translation);
                         None
                     } else {
@@ -663,6 +663,7 @@ impl<'app> Application<'app> {
                 }
                 KeyboardInputContext::TextView => {
                     if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
+                        println!("Key {:?} Modifier: {:?}, Action: {:?}", key, modifier, translation);
                         self.handle_input_for_textview(translation);
                         None
                     } else {
@@ -982,7 +983,9 @@ impl<'app> Application<'app> {
 
     pub fn handle_input_for_textview(&mut self, input: ViewAction) {
         match input {
-            ViewAction::Cancel => todo!(),
+            ViewAction::Cancel => {
+                println!("no action for cancel")
+            }
             ViewAction::Movement(movement) => {
                 let v = self.get_active_view();
                 v.move_cursor(movement);

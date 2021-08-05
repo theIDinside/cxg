@@ -5,9 +5,9 @@ use crate::{
     textbuffer::{operations::LineOperation, Movement, TextKind},
     ui::eventhandling::event::{AppAction, InputboxAction, ViewAction},
 };
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, str::FromStr};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TextViewKeyBinding {
@@ -83,7 +83,7 @@ impl AppBinding {
 
 // type BindingRequirement = (KeyImpl, ModifiersImpl);
 
-// 
+//
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindingRequirement(KeyImpl, ModifiersImpl);
 
@@ -94,12 +94,8 @@ impl Serialize for BindingRequirement {
     {
         let BindingRequirement(key, mods) = self;
         let s = mods.to_string();
-        let output = if s.is_empty() {
-            format!("{:?}", key)
-        } else {
-            format!("{}+{:?}", s, key)
-        };
-        
+        let output = if s.is_empty() { format!("{:?}", key) } else { format!("{}+{:?}", s, key) };
+
         serializer.serialize_str(&output)
     }
 }
@@ -110,24 +106,25 @@ impl<'de> Visitor<'de> for BindingRequirementVisitor {
     type Value = BindingRequirement;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("Expecting key combinations to be written in the form [modA +.. modN]+Key, for example: 
-        'ctrl+shift+O' or 'ctrl+O' or just 'O' for no modifiers")
+        formatter.write_str(
+            "Expecting key combinations to be written in the form [modA +.. modN]+Key, for example: 
+        'ctrl+shift+O' or 'ctrl+O' or just 'O' for no modifiers",
+        )
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
-        E: de::Error,
+        E: serde::de::Error,
     {
         if let Some(pos) = value.rfind("+") {
             let mods = ModifiersImpl::from_str(&value[0..pos]).unwrap();
-            let key = KeyImpl::from_str(&value[pos+1 .. ]).unwrap();
+            let key = KeyImpl::from_str(&value[pos + 1..]).unwrap();
             Ok(BindingRequirement(key, mods))
         } else {
             let k = KeyImpl::from_str(value).unwrap();
-            Ok(BindingRequirement(k, ModifiersImpl::empty()))            
+            Ok(BindingRequirement(k, ModifiersImpl::empty()))
         }
     }
-
 }
 
 impl<'de> Deserialize<'de> for BindingRequirement {
@@ -141,13 +138,22 @@ impl<'de> Deserialize<'de> for BindingRequirement {
 
 #[derive(Serialize, Deserialize)]
 pub struct KeyBindings {
-    #[serde(default = "app_default", rename(serialize = "App Actions", deserialize = "App Actions"))]
+    #[serde(
+        default = "app_default",
+        rename(serialize = "App Actions", deserialize = "App Actions")
+    )]
     pub app_actions: HashMap<BindingRequirement, AppBinding>,
     /// Text View key mappings
-    #[serde(default = "tv_default", rename(serialize = "Text View Actions", deserialize = "Text View Actions"))]
+    #[serde(
+        default = "tv_default",
+        rename(serialize = "Text View Actions", deserialize = "Text View Actions")
+    )]
     pub textview_actions: HashMap<BindingRequirement, TextViewKeyBinding>,
     /// Input box key mappings
-    #[serde(default = "ib_default", rename(serialize = "Input Box Actions", deserialize = "Input Box Actions"))]
+    #[serde(
+        default = "ib_default",
+        rename(serialize = "Input Box Actions", deserialize = "Input Box Actions")
+    )]
     pub inputbox_actions: HashMap<BindingRequirement, InputboxBinding>,
 }
 
@@ -170,11 +176,7 @@ fn magic(glfw_key: glfw::Key, glfw_modifiers: glfw::Modifiers) -> (KeyImpl, Modi
 /// one-to-one ratio, we can safely transmute between the types and have the compiler verify that we are correct still for doing so.
 impl KeyBindings {
     pub fn new() -> KeyBindings {
-        KeyBindings {
-            app_actions: HashMap::new(),
-            textview_actions: HashMap::new(),
-            inputbox_actions: HashMap::new(),
-        }
+        KeyBindings { app_actions: HashMap::new(), textview_actions: HashMap::new(), inputbox_actions: HashMap::new() }
     }
 
     pub fn translate_textview_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<ViewAction> {
@@ -211,10 +213,10 @@ impl KeyBindings {
     }
 
     pub fn default() -> KeyBindings {
-        let app_actions      = app_default();
+        let app_actions = app_default();
         let textview_actions = tv_default();
         let inputbox_actions = ib_default();
-        KeyBindings { app_actions, textview_actions,inputbox_actions }
+        KeyBindings { app_actions, textview_actions, inputbox_actions }
     }
 
     pub fn total_keybindings(&self) -> usize {
@@ -225,8 +227,8 @@ impl KeyBindings {
 pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     use KeyImpl as K;
     use ModifiersImpl as M;
-    use TextViewKeyBinding as TVB;
-    use ViewAction as V;
+    use TextViewKeyBinding as B;
+    use ViewAction as A;
 
     let mut m = HashMap::new();
     /*
@@ -249,53 +251,56 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
         Debug,
     */
 
-    m.insert(BindingRequirement(K::Escape, M::empty()), TVB::press(V::Cancel));
-    m.insert(BindingRequirement(K::S, M::CONTROL), TVB::press(V::SaveFile));
-    m.insert(BindingRequirement(K::O, M::CONTROL), TVB::press(V::OpenFile));
-    m.insert(BindingRequirement(K::Left, M::empty()), TVB::held(V::Movement(Movement::Backward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Left, M::SHIFT), TVB::held(V::TextSelect(Movement::Backward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Left, M::CONTROL), TVB::held(V::Movement(Movement::Begin(TextKind::Word))));
-    m.insert(BindingRequirement(K::Left, M::CONTROL | M::SHIFT), TVB::held(V::TextSelect(Movement::Begin(TextKind::Word))));
-    m.insert(BindingRequirement(K::Right, M::empty()), TVB::held(V::Movement(Movement::Forward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Right, M::SHIFT), TVB::held(V::TextSelect(Movement::Forward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Right, M::CONTROL), TVB::held(V::Movement(Movement::End(TextKind::Word))));
-    m.insert(BindingRequirement(K::Right, M::CONTROL | M::SHIFT), TVB::held(V::TextSelect(Movement::End(TextKind::Word))));
-    m.insert(BindingRequirement(K::Up, M::empty()), TVB::held(V::Movement(Movement::Backward(TextKind::Line, 1))));
-    m.insert(BindingRequirement(K::Up, M::SHIFT), TVB::held(V::TextSelect(Movement::Backward(TextKind::Line, 1))));
-    m.insert(BindingRequirement(K::Down, M::empty()), TVB::held(V::Movement(Movement::Forward(TextKind::Line, 1))));
-    m.insert(BindingRequirement(K::Down, M::SHIFT), TVB::held(V::TextSelect(Movement::Forward(TextKind::Line, 1))));
-    m.insert(BindingRequirement(K::Home, M::empty()), TVB::held(V::Movement(Movement::Begin(TextKind::Line))));
-    m.insert(BindingRequirement(K::Home, M::SHIFT), TVB::held(V::TextSelect(Movement::Begin(TextKind::Line))));
-    m.insert(BindingRequirement(K::End, M::empty()), TVB::held(V::Movement(Movement::End(TextKind::Line))));
-    m.insert(BindingRequirement(K::End, M::SHIFT), TVB::held(V::TextSelect(Movement::End(TextKind::Line))));
-    m.insert(BindingRequirement(K::F, M::CONTROL), TVB::press(V::Find));
-    m.insert(BindingRequirement(K::G, M::CONTROL), TVB::press(V::Goto));
-    m.insert(BindingRequirement(K::Delete, M::empty()), TVB::held(V::Delete(Movement::Forward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Delete, M::CONTROL), TVB::held(V::Delete(Movement::Forward(TextKind::Word, 1))));
-    m.insert(BindingRequirement(K::Backspace, M::empty()), TVB::held(V::Delete(Movement::Backward(TextKind::Char, 1))));
-    m.insert(BindingRequirement(K::Backspace, M::CONTROL), TVB::held(V::Delete(Movement::Backward(TextKind::Word, 1))));
-    m.insert(BindingRequirement(K::C, M::CONTROL), TVB::press(V::Copy));
-    m.insert(BindingRequirement(K::X, M::CONTROL), TVB::press(V::Cut));
-    m.insert(BindingRequirement(K::V, M::CONTROL), TVB::press(V::Paste));
-    m.insert(BindingRequirement(K::Tab, M::empty()), TVB::press(V::LineOperation(LineOperation::ShiftRight { shift_by: 4 })));
-    m.insert(BindingRequirement(K::Tab, M::SHIFT), TVB::press(V::LineOperation(LineOperation::ShiftLeft { shift_by: 4 })));
+    m.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::S, M::CONTROL), B::press(A::SaveFile));
+    m.insert(BindingRequirement(K::O, M::CONTROL), B::press(A::OpenFile));
+    m.insert(BindingRequirement(K::Left, M::empty()), B::held(A::Movement(Movement::Backward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Left, M::SHIFT), B::held(A::TextSelect(Movement::Backward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Left, M::CONTROL), B::held(A::Movement(Movement::Begin(TextKind::Word))));
+    m.insert(BindingRequirement(K::Left, M::CONTROL | M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::Word))));
+    m.insert(BindingRequirement(K::Right, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Right, M::SHIFT), B::held(A::TextSelect(Movement::Forward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Right, M::CONTROL), B::held(A::Movement(Movement::End(TextKind::Word))));
+    m.insert(BindingRequirement(K::Right, M::CONTROL | M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Word))));
+    m.insert(BindingRequirement(K::Up, M::empty()), B::held(A::Movement(Movement::Backward(TextKind::Line, 1))));
+    m.insert(BindingRequirement(K::Up, M::SHIFT), B::held(A::TextSelect(Movement::Backward(TextKind::Line, 1))));
+    m.insert(BindingRequirement(K::Down, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Line, 1))));
+    m.insert(BindingRequirement(K::Down, M::SHIFT), B::held(A::TextSelect(Movement::Forward(TextKind::Line, 1))));
+    m.insert(BindingRequirement(K::Home, M::empty()), B::held(A::Movement(Movement::Begin(TextKind::Line))));
+    m.insert(BindingRequirement(K::Home, M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::Line))));
+    m.insert(BindingRequirement(K::End, M::empty()), B::held(A::Movement(Movement::End(TextKind::Line))));
+    m.insert(BindingRequirement(K::End, M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Line))));
+    m.insert(BindingRequirement(K::F, M::CONTROL), B::press(A::Find));
+    m.insert(BindingRequirement(K::G, M::CONTROL), B::press(A::Goto));
+    m.insert(BindingRequirement(K::Delete, M::empty()), B::held(A::Delete(Movement::Forward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Delete, M::CONTROL), B::held(A::Delete(Movement::Forward(TextKind::Word, 1))));
+    m.insert(BindingRequirement(K::Backspace, M::empty()), B::held(A::Delete(Movement::Backward(TextKind::Char, 1))));
+    m.insert(BindingRequirement(K::Backspace, M::CONTROL), B::held(A::Delete(Movement::Backward(TextKind::Word, 1))));
+    m.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
+    m.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
+    m.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
+    m.insert(BindingRequirement(K::Tab, M::empty()), B::press(A::LineOperation(LineOperation::ShiftRight { shift_by: 4 })));
+    m.insert(BindingRequirement(K::Tab, M::SHIFT), B::press(A::LineOperation(LineOperation::ShiftLeft { shift_by: 4 })));
     m
 }
 
 pub fn ib_default() -> HashMap<BindingRequirement, InputboxBinding> {
-    use InputboxAction as I;
+    use InputboxAction as A;
+    use InputboxBinding as B;
     use KeyImpl as K;
     use ModifiersImpl as M;
     let mut ib_key_map = HashMap::new();
-    ib_key_map.insert(BindingRequirement(K::Escape, M::empty()), InputboxBinding::press(I::Cancel));
-    ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), InputboxBinding::press(I::Ok));
-    ib_key_map.insert(BindingRequirement(K::Left, M::empty()), InputboxBinding::press(I::MovecursorLeft));
-    ib_key_map.insert(BindingRequirement(K::Right, M::empty()), InputboxBinding::press(I::MovecursorRight));
-    ib_key_map.insert(BindingRequirement(K::Up, M::empty()), InputboxBinding::press(I::ScrollSelectionUp));
-    ib_key_map.insert(BindingRequirement(K::Down, M::empty()), InputboxBinding::press(I::ScrollSelectionDown));
-    ib_key_map.insert(BindingRequirement(K::X, M::CONTROL), InputboxBinding::press(I::Cut));
-    ib_key_map.insert(BindingRequirement(K::C, M::CONTROL), InputboxBinding::press(I::Copy));
-    ib_key_map.insert(BindingRequirement(K::V, M::CONTROL), InputboxBinding::press(I::Paste));
+    ib_key_map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), B::press(A::Ok));
+    ib_key_map.insert(BindingRequirement(K::Left, M::empty()), B::press(A::MovecursorLeft));
+    ib_key_map.insert(BindingRequirement(K::Right, M::empty()), B::press(A::MovecursorRight));
+    ib_key_map.insert(BindingRequirement(K::Up, M::empty()), B::press(A::ScrollSelectionUp));
+    ib_key_map.insert(BindingRequirement(K::Down, M::empty()), B::press(A::ScrollSelectionDown));
+    ib_key_map.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
+    ib_key_map.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
+    ib_key_map.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
 
     ib_key_map
 }

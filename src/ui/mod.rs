@@ -2,8 +2,6 @@
 pub mod basic;
 use basic::{boundingbox, coordinate, frame};
 
-pub mod input;
-
 use crate::{
     datastructure::generic::{Vec2d, Vec2i},
     opengl::types::RGBAColor,
