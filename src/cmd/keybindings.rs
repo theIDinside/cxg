@@ -215,7 +215,6 @@ impl KeyBindings {
         let textview_actions = tv_default();
         let inputbox_actions = ib_default();
         KeyBindings { app_actions, textview_actions,inputbox_actions }
-        }
     }
 
     pub fn total_keybindings(&self) -> usize {
