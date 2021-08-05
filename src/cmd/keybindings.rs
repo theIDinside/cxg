@@ -302,19 +302,19 @@ pub fn ib_default() -> HashMap<BindingRequirement, InputboxBinding> {
     ib_key_map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
     ib_key_map.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
     ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), B::press(A::Ok));
-    ib_key_map.insert(BindingRequirement(K::Left, M::empty()), B::press(A::MovecursorLeft));
-    ib_key_map.insert(BindingRequirement(K::Right, M::empty()), B::press(A::MovecursorRight));
-    ib_key_map.insert(BindingRequirement(K::Up, M::empty()), B::press(A::ScrollSelectionUp));
-    ib_key_map.insert(BindingRequirement(K::Down, M::empty()), B::press(A::ScrollSelectionDown));
+    ib_key_map.insert(BindingRequirement(K::Left, M::empty()), B::held(A::MovecursorLeft));
+    ib_key_map.insert(BindingRequirement(K::Right, M::empty()), B::held(A::MovecursorRight));
+    ib_key_map.insert(BindingRequirement(K::Up, M::empty()), B::held(A::ScrollSelectionUp));
+    ib_key_map.insert(BindingRequirement(K::Down, M::empty()), B::held(A::ScrollSelectionDown));
     ib_key_map.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
     ib_key_map.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
     ib_key_map.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
 
-    ib_key_map.insert(BindingRequirement(K::Backspace, M::CONTROL), B::press(A::Delete(Movement::Backward(TextKind::Word, 1))));
-    ib_key_map.insert(BindingRequirement(K::Backspace, M::empty()), B::press(A::Delete(Movement::Backward(TextKind::Char, 1))));
+    ib_key_map.insert(BindingRequirement(K::Backspace, M::CONTROL), B::held(A::Delete(Movement::Backward(TextKind::Word, 1))));
+    ib_key_map.insert(BindingRequirement(K::Backspace, M::empty()), B::held(A::Delete(Movement::Backward(TextKind::Char, 1))));
 
-    ib_key_map.insert(BindingRequirement(K::Delete, M::CONTROL), B::press(A::Delete(Movement::Forward(TextKind::Word, 1))));
-    ib_key_map.insert(BindingRequirement(K::Delete, M::empty()), B::press(A::Delete(Movement::Forward(TextKind::Char, 1))));
+    ib_key_map.insert(BindingRequirement(K::Delete, M::CONTROL), B::held(A::Delete(Movement::Forward(TextKind::Word, 1))));
+    ib_key_map.insert(BindingRequirement(K::Delete, M::empty()), B::held(A::Delete(Movement::Forward(TextKind::Char, 1))));
 
     ib_key_map
 }

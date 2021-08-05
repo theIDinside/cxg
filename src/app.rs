@@ -1096,11 +1096,9 @@ impl<'app> Application<'app> {
             }
             InputboxAction::ScrollSelectionUp => {
                 self.input_box.selection_list.scroll_selection_up();
-                self.input_box.needs_update = true;
             }
             InputboxAction::ScrollSelectionDown => {
                 self.input_box.selection_list.scroll_selection_down();
-                self.input_box.needs_update = true;
             }
             InputboxAction::Cut => todo!(),
             InputboxAction::Copy => todo!(),
@@ -1275,6 +1273,7 @@ impl<'app> Application<'app> {
                 self.input_box.update();
             }
         }
+        self.input_box.needs_update = true;
     }
 }
 

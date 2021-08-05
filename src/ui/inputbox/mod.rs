@@ -23,7 +23,7 @@ use crate::{
     opengl::{
         rectangle_renderer::RectRenderer,
         shaders::{RectShader, TextShader},
-        text_renderer::TextRenderer,
+        text_renderer::{self, TextRenderer},
         types::{RGBAColor, RGBColor},
     },
     textbuffer::CharBuffer,
@@ -71,99 +71,6 @@ pub struct InputBox {
 }
 
 impl InputBox {
-    pub fn handle_input(&mut self, app: &mut Application, action: InputboxAction) {
-        match action {
-            InputboxAction::Cancel => {
-                self.clear();
-                self.visible = false;
-                app.input_context = KeyboardInputContext::TextView;
-            }
-            InputboxAction::MovecursorLeft => todo!(),
-            InputboxAction::MovecursorRight => todo!(),
-            InputboxAction::ScrollSelectionUp => {
-                self.selection_list.scroll_selection_up();
-                self.needs_update = true;
-            }
-            InputboxAction::ScrollSelectionDown => {
-                self.selection_list.scroll_selection_down();
-                self.needs_update = true;
-            }
-            InputboxAction::Cut => todo!(),
-            InputboxAction::Copy => todo!(),
-            InputboxAction::Paste => {
-                if let Some(s) = app.clipboard.give() {
-                    for c in s.chars() {
-                        self.handle_char(c);
-                    }
-                }
-            }
-            InputboxAction::Ok => match self.mode {
-                Mode::CommandInput(cmd) => match cmd {
-                    CommandTag::Goto => {
-                        if let Ok(line) = self.input_box.data.iter().collect::<String>().parse::<usize>() {
-                            let v = app.get_active_view();
-                            v.buffer.goto_line(line);
-                            v.set_view_on_buffer_cursor();
-                            v.set_need_redraw();
-                            v.update(None);
-                            app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
-                            self.visible = false;
-                            self.clear();
-                            app.input_context = KeyboardInputContext::TextView;
-                        }
-                    }
-                    CommandTag::Find => {
-                        let v = app.get_active_view();
-                        v.buffer.search_next(&self.input_box.data.iter().collect::<String>());
-                        v.set_view_on_buffer_cursor();
-                        v.set_need_redraw();
-                    }
-                    CommandTag::GotoInFile => todo!(),
-                    CommandTag::OpenFile => {
-                        if let Some(item) = self.selection_list.pop_selected() {
-                            let name = String::from_iter(&item);
-                            let p = Path::new(&name).to_path_buf();
-                            if p.is_dir() {
-                                self.input_box.data = item;
-                                self.input_box.data.push('/');
-                                self.input_box.cursor = self.input_box.data.len();
-                                self.selection_list.selection = None;
-                                self.update_list_of_files();
-                                self.needs_update = true;
-                            } else {
-                                if p.exists() {
-                                    let v = app.get_active_view();
-                                    if v.buffer.empty() {
-                                        v.buffer.load_file(&p);
-                                        v.set_need_redraw();
-                                        v.update(None);
-                                        app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
-                                        self.visible = false;
-                                    } else {
-                                        let p_id = app.get_active_view().panel_id;
-                                        let f_name = p.file_name();
-                                        app.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), app.window_size);
-                                        let v = app.get_active_view();
-                                        crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
-                                        v.buffer.load_file(&p);
-                                        v.set_need_redraw();
-                                        v.update(None);
-                                        self.visible = false;
-                                    }
-                                    self.input_box.clear();
-                                    app.input_context = KeyboardInputContext::TextView;
-                                }
-                            }
-                        }
-                    }
-                    CommandTag::SaveFile => todo!(),
-                },
-                Mode::CommandList => {}
-            },
-            InputboxAction::Delete(_movement) => todo!(),
-        }
-    }
-
     pub fn new(frame: Frame, font: Rc<Font>, font_shader: &TextShader, rect_shader: &RectShader) -> InputBox {
         let (text_renderer, rect_renderer) = (TextRenderer::create(font_shader.clone(), 1024 * 10), RectRenderer::create(rect_shader.clone(), 8 * 60));
 
@@ -266,8 +173,21 @@ impl InputBox {
             self.needs_update = false;
         }
 
+        self.render_cursor();
         self.rect_renderer.draw();
         self.text_renderer.draw_clipped_list(self.frame);
+    }
+
+    fn render_cursor(&mut self) {
+        let cursor = self.input_box.cursor;
+        let cursor_start = text_renderer::calculate_text_dimensions(&self.input_box.data[..cursor], self.font.as_ref());
+        let mut cursor_col = RGBAColor::red();
+        cursor_col.a = 0.01;
+        let t = BoundingBox::from_frame(&self.input_box.inner_frame);
+        let min = Vec2i::new(t.min.x + cursor_start.width, t.min.y + 2);
+        let max = min + Vec2i::new(2, cursor_start.height);
+        let bb = BoundingBox::new(min, max);
+        self.rect_renderer.add_rect(bb, cursor_col);
     }
 
     fn draw_without_list(&mut self, cmd: CommandTag) {
