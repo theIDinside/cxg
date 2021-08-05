@@ -139,31 +139,15 @@ impl<'de> Deserialize<'de> for BindingRequirement {
     }
 }
 
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize)]
-pub struct AppActions {
-    appActions: HashMap<BindingRequirement, AppBinding>,
-}
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize)]
-pub struct TextViewActions {
-    pub textViewActions: HashMap<BindingRequirement, TextViewKeyBinding>,
-}
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize)]
-pub struct InputBoxActions {
-    pub inputBoxActions: HashMap<BindingRequirement, InputboxBinding>,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct KeyBindings {
-    #[serde(app_default)]
+    #[serde(default = "app_default", rename(serialize = "App Actions", deserialize = "App Actions"))]
     pub app_actions: HashMap<BindingRequirement, AppBinding>,
     /// Text View key mappings
-    #[serde(tv_default)]
+    #[serde(default = "tv_default", rename(serialize = "Text View Actions", deserialize = "Text View Actions"))]
     pub textview_actions: HashMap<BindingRequirement, TextViewKeyBinding>,
     /// Input box key mappings
-    #[serde(ib_default)]
+    #[serde(default = "ib_default", rename(serialize = "Input Box Actions", deserialize = "Input Box Actions"))]
     pub inputbox_actions: HashMap<BindingRequirement, InputboxBinding>,
 }
 
@@ -177,45 +161,6 @@ pub struct KeyBindings {
     }
 */
 
-impl Display for AppActions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let map_data = self
-            .appActions
-            .iter()
-            .map(|(br, b)| format!(r#""{}": {}"#, br, b))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        write!(f, r#""App Actions": {{ {} }}"#, map_data)
-    }
-}
-
-impl Display for TextViewActions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let map_data = self
-            .textViewActions
-            .iter()
-            .map(|(br, b)| format!(r#""{}": {}"#, br, b))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        write!(f, r#""Text View Actions": {{ {} }}"#, map_data)
-    }
-}
-
-impl Display for InputBoxActions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let map_data = self
-            .inputBoxActions
-            .iter()
-            .map(|(br, b)| format!(r#""{}": {}"#, br, b))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        write!(f, r#""Input Box Actions": {{ {} }}"#, map_data)
-    }
-}
-
 fn magic(glfw_key: glfw::Key, glfw_modifiers: glfw::Modifiers) -> (KeyImpl, ModifiersImpl) {
     unsafe { (std::mem::transmute(glfw_key), std::mem::transmute(glfw_modifiers)) }
 }
@@ -226,16 +171,15 @@ fn magic(glfw_key: glfw::Key, glfw_modifiers: glfw::Modifiers) -> (KeyImpl, Modi
 impl KeyBindings {
     pub fn new() -> KeyBindings {
         KeyBindings {
-            appActions: AppActions { appActions: HashMap::new() },
-            textViewActions: TextViewActions { textViewActions: HashMap::new() },
-            inputBoxActions: InputBoxActions { inputBoxActions: HashMap::new() },
+            app_actions: HashMap::new(),
+            textview_actions: HashMap::new(),
+            inputbox_actions: HashMap::new(),
         }
     }
 
     pub fn translate_textview_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<ViewAction> {
         let (key, modifier) = magic(key, modifiers);
-        self.textViewActions
-            .textViewActions
+        self.textview_actions
             .get(&BindingRequirement(key, modifier))
             .and_then(|binding| match action {
                 glfw::Action::Release => binding.released.clone(),
@@ -246,8 +190,7 @@ impl KeyBindings {
 
     pub fn translate_command_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<InputboxAction> {
         let (key, modifier) = magic(key, modifiers);
-        self.inputBoxActions
-            .inputBoxActions
+        self.inputbox_actions
             .get(&BindingRequirement(key, modifier))
             .and_then(|binding| match action {
                 glfw::Action::Release => binding.released.clone(),
@@ -258,8 +201,7 @@ impl KeyBindings {
 
     pub fn translate_app_input(&self, key: glfw::Key, action: glfw::Action, modifiers: glfw::Modifiers) -> Option<AppAction> {
         let (key, modifier) = magic(key, modifiers);
-        self.appActions
-            .appActions
+        self.app_actions
             .get(&BindingRequirement(key, modifier))
             .and_then(|binding| match action {
                 glfw::Action::Release => binding.released.clone(),
@@ -269,18 +211,15 @@ impl KeyBindings {
     }
 
     pub fn default() -> KeyBindings {
-        let ib_key_map = ib_default();
-        let key_map = app_default();
-        let tv_key_map = tv_default();
-        KeyBindings {
-            appActions: AppActions { appActions: key_map },
-            textViewActions: TextViewActions { textViewActions: tv_key_map },
-            inputBoxActions: InputBoxActions { inputBoxActions: ib_key_map },
+        let app_actions      = app_default();
+        let textview_actions = tv_default();
+        let inputbox_actions = ib_default();
+        KeyBindings { app_actions, textview_actions,inputbox_actions }
         }
     }
 
     pub fn total_keybindings(&self) -> usize {
-        self.appActions.appActions.len() + self.textViewActions.textViewActions.len() + self.inputBoxActions.inputBoxActions.len()
+        self.app_actions.len() + self.textview_actions.len() + self.inputbox_actions.len()
     }
 }
 
