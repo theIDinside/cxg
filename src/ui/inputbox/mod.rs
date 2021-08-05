@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     app::Application,
-    cmd::CommandTag,
+    cmd::{commands_matching, get_command, CommandTag},
     datastructure::generic::Vec2i,
     opengl::{
         rectangle_renderer::RectRenderer,
@@ -46,11 +46,13 @@ impl Default for TextRenderSetting {
         TextRenderSetting { _scale: 1.0, text_color: RGBColor { r: 0.0, g: 1.0, b: 1.0 } }
     }
 }
+
 #[derive(PartialEq, Eq)]
 pub enum Mode {
-    // todo(feature): add SymbolList
-    Command(CommandTag),
-    FileList,
+    /// Mode when we are typing in a command and showing a list of commands matching that input
+    CommandList,
+    /// Mode where we are inputing parameters for actual commands
+    CommandInput(CommandTag),
 }
 
 const INPUT_BOX_MSG: &str = "Search by file name in project folder...";
@@ -96,7 +98,7 @@ impl InputBox {
                 }
             }
             InputboxAction::Ok => match self.mode {
-                Mode::Command(cmd) => match cmd {
+                Mode::CommandInput(cmd) => match cmd {
                     CommandTag::Goto => {
                         if let Ok(line) = self.input_box.data.iter().collect::<String>().parse::<usize>() {
                             let v = app.get_active_view();
@@ -117,46 +119,48 @@ impl InputBox {
                         v.set_need_redraw();
                     }
                     CommandTag::GotoInFile => todo!(),
-                },
-                Mode::FileList => {
-                    if let Some(item) = self.selection_list.pop_selected() {
-                        let name = String::from_iter(&item);
-                        let p = Path::new(&name).to_path_buf();
-                        if p.is_dir() {
-                            self.input_box.data = item;
-                            self.input_box.data.push('/');
-                            self.input_box.cursor = self.input_box.data.len();
-                            self.selection_list.selection = None;
-                            self.update_list();
-                            self.needs_update = true;
-                        } else {
-                            if p.exists() {
-                                let v = app.get_active_view();
-                                if v.buffer.empty() {
-                                    v.buffer.load_file(&p);
-                                    v.set_need_redraw();
-                                    v.update(None);
-                                    app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
-                                    self.visible = false;
-                                } else {
-                                    let p_id = app.get_active_view().panel_id;
-                                    let f_name = p.file_name();
-                                    app.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), app.window_size);
+                    CommandTag::OpenFile => {
+                        if let Some(item) = self.selection_list.pop_selected() {
+                            let name = String::from_iter(&item);
+                            let p = Path::new(&name).to_path_buf();
+                            if p.is_dir() {
+                                self.input_box.data = item;
+                                self.input_box.data.push('/');
+                                self.input_box.cursor = self.input_box.data.len();
+                                self.selection_list.selection = None;
+                                self.update_list_of_files();
+                                self.needs_update = true;
+                            } else {
+                                if p.exists() {
                                     let v = app.get_active_view();
-                                    crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
-                                    v.buffer.load_file(&p);
-                                    v.set_need_redraw();
-                                    v.update(None);
-                                    self.visible = false;
+                                    if v.buffer.empty() {
+                                        v.buffer.load_file(&p);
+                                        v.set_need_redraw();
+                                        v.update(None);
+                                        app.active_keyboard_input = unsafe { &mut (*app.active_view) as &mut dyn InputBehavior };
+                                        self.visible = false;
+                                    } else {
+                                        let p_id = app.get_active_view().panel_id;
+                                        let f_name = p.file_name();
+                                        app.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), app.window_size);
+                                        let v = app.get_active_view();
+                                        crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                        v.buffer.load_file(&p);
+                                        v.set_need_redraw();
+                                        v.update(None);
+                                        self.visible = false;
+                                    }
+                                    self.input_box.clear();
+                                    app.input_context = KeyboardInputContext::TextView;
                                 }
-                                self.input_box.clear();
-                                app.input_context = KeyboardInputContext::TextView;
                             }
                         }
                     }
-                }
+                    CommandTag::SaveFile => todo!(),
+                },
+                Mode::CommandList => {}
             },
-            InputboxAction::Delete => todo!(),
+            InputboxAction::Delete(_movement) => todo!(),
         }
     }
 
@@ -181,7 +185,7 @@ impl InputBox {
             frame,
             text_renderer,
             rect_renderer,
-            mode: Mode::Command(CommandTag::Goto),
+            mode: Mode::CommandInput(CommandTag::Goto),
             needs_update: true,
             font,
         }
@@ -195,7 +199,7 @@ impl InputBox {
 
     /// updates the list of possible selections that contains what the user has input into the
     /// input box.
-    pub fn update_list(&mut self) {
+    pub fn update_list_of_files(&mut self) {
         let name = &self.input_box.data.iter().collect::<String>();
         self.selection_list.data = WalkDir::new(".")
             .sort_by_file_name()
@@ -214,6 +218,16 @@ impl InputBox {
             .collect();
     }
 
+    pub fn update_list_of_commands(&mut self) {
+        let name = &self.input_box.data.iter().collect::<String>();
+        if let Some(matches) = commands_matching(name) {
+            self.selection_list.data = matches.iter().map(|c| CommandTag::name(**c).chars().collect()).collect();
+        } else {
+            self.selection_list.data.clear();
+            self.selection_list.selection = None;
+        }
+    }
+
     pub fn draw(&mut self) {
         if !self.visible {
             return;
@@ -229,10 +243,22 @@ impl InputBox {
             self.rect_renderer.clear_data();
 
             match self.mode {
-                Mode::Command(cmd) => {
-                    self.draw_without_list(cmd);
-                }
-                Mode::FileList => {
+                Mode::CommandInput(cmd) => match cmd {
+                    CommandTag::Goto => {
+                        self.draw_without_list(cmd);
+                    }
+                    CommandTag::GotoInFile => todo!(),
+                    CommandTag::Find => {
+                        self.draw_without_list(cmd);
+                    }
+                    CommandTag::OpenFile => {
+                        self.draw_with_list();
+                    }
+                    CommandTag::SaveFile => {
+                        self.draw_without_list(cmd);
+                    }
+                },
+                Mode::CommandList => {
                     self.draw_with_list();
                 }
             }
@@ -279,7 +305,7 @@ impl InputBox {
                 self.font.clone(),
             );
         } else {
-            let msg: &'static str = From::from(cmd);
+            let msg: &'static str = CommandTag::description(cmd);
             self.text_renderer
                 .push_draw_command(msg.chars(), color, text_top_left_anchor.x, text_top_left_anchor.y, self.font.clone());
         }
@@ -373,33 +399,9 @@ impl InputBox {
         self.needs_update = true;
     }
 
-    fn handle_file_selection(&mut self) -> CommandOutput {
-        if let Some(item) = self.selection_list.pop_selected() {
-            let name = String::from_iter(&item);
-            let p = Path::new(&name).to_path_buf();
-            if p.is_dir() {
-                self.input_box.data = item;
-                self.input_box.data.push('/');
-                self.input_box.cursor = self.input_box.data.len();
-                self.selection_list.selection = None;
-                self.update_list();
-                self.needs_update = true;
-                CommandOutput::None
-            } else {
-                if p.exists() {
-                    CommandOutput::OpenFile(p)
-                } else {
-                    CommandOutput::None
-                }
-            }
-        } else {
-            CommandOutput::None
-        }
-    }
-
     fn process_input(&mut self) -> CommandOutput {
         match self.mode {
-            Mode::Command(cmd) => match cmd {
+            Mode::CommandInput(cmd) => match cmd {
                 CommandTag::Goto => self
                     .input_box
                     .data
@@ -410,9 +412,35 @@ impl InputBox {
                     .unwrap_or(CommandOutput::None),
                 CommandTag::Find => CommandOutput::Find(self.input_box.data.iter().collect::<String>()),
                 CommandTag::GotoInFile => todo!(),
+                CommandTag::OpenFile => todo!(),
+                CommandTag::SaveFile => todo!(),
             },
-            Mode::FileList => self.handle_file_selection(),
+            Mode::CommandList => {
+                if let Some(item) = self.selection_list.pop_selected() {
+                    get_command(&item.iter().collect::<String>())
+                        .map(|c| CommandOutput::CommandSelection(*c))
+                        .unwrap_or(CommandOutput::None)
+                } else {
+                    CommandOutput::None
+                }
+            }
         }
+    }
+
+    pub fn update(&mut self) {
+        match self.mode {
+            Mode::CommandInput(_c) => match _c {
+                // these need no interactive updating
+                CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find | CommandTag::SaveFile => {}
+                // these need interactive updating
+                CommandTag::OpenFile => self.update_list_of_files(),
+            },
+            Mode::CommandList => {
+                self.update_list_of_commands();
+            }
+        }
+        self.input_box.cursor = self.input_box.cursor.clamp(0, self.input_box.data.len());
+        self.needs_update = true;
     }
 }
 
@@ -428,7 +456,7 @@ impl InputBehavior for InputBox {
                 if self.input_box.data.is_empty() {
                     self.selection_list.data.clear();
                 } else {
-                    self.update_list();
+                    self.update_list_of_files();
                 }
                 CommandOutput::None
             }
@@ -452,10 +480,18 @@ impl InputBehavior for InputBox {
         self.input_box.cursor += 1;
         self.selection_list.selection = None;
         match self.mode {
-            Mode::Command(_cmd) => {}
-            Mode::FileList => {
-                self.update_list();
+            Mode::CommandInput(_cmd) => match _cmd {
+                // these do not need interactive updating of the list
+                CommandTag::SaveFile | CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find => {}
+                // these need interactive updating the of the list
+                CommandTag::OpenFile => self.update_list_of_files(),
+            },
+            Mode::CommandList => {
+                self.update_list_of_commands();
             }
+        }
+        if !self.selection_list.data.is_empty() {
+            self.selection_list.selection = Some(0);
         }
         self.needs_update = true;
     }
@@ -506,13 +542,13 @@ impl InputBehavior for InputBox {
                 if self.input_box.data.is_empty() {
                     self.selection_list.data.clear();
                 } else {
-                    self.update_list();
+                    self.update_list_of_files();
                 }
             }
             crate::textbuffer::Movement::Begin(_) => {
                 self.input_box.data.clear();
                 self.input_box.cursor = 0;
-                self.update_list();
+                self.update_list_of_files();
             }
             crate::textbuffer::Movement::End(_) => {}
         }

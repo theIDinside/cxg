@@ -1,5 +1,5 @@
 use crate::cmd::keybindings::KeyBindings;
-use crate::cmd::CommandTag;
+use crate::cmd::{get_command, CommandTag};
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
@@ -215,11 +215,7 @@ impl<'app> Application<'app> {
         let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
-        let default_config = std::path::Path::new("./default.cfg");
-
-        let key_bindings = std::fs::read_to_string(default_config)
-            .map(|data| serde_json::from_str(&data).unwrap_or(KeyBindings::default()))
-            .unwrap_or(KeyBindings::default());
+        let key_bindings = KeyBindings::default();
 
         println!("{} keybindings read from file/default", key_bindings.total_keybindings());
 
@@ -617,13 +613,14 @@ impl<'app> Application<'app> {
     }
 
     pub fn toggle_input_box(&mut self, mode: Mode) {
-        if self.input_box.visible {
+        if self.input_box.visible && mode == self.input_box.mode {
             self.active_keyboard_input = cast_ptr_to_input(self.active_view);
             self.input_box.clear();
             self.input_box.visible = false;
             self.input_box.mode = mode;
             self.input_context = KeyboardInputContext::TextView;
         } else {
+            self.input_box.clear();
             self.input_box.mode = mode;
             // self.active_input = &mut self.input_box as &'app mut dyn Input;
             self.active_keyboard_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
@@ -654,7 +651,7 @@ impl<'app> Application<'app> {
                     let act = self.key_bindings.translate_command_input(key, action, modifier);
                     if let Some(translation) = act {
                         // handle_input_box(&self, &input_box);
-                        println!("Key {:?} Modifier: {:?}, Action: {:?}", key, modifier, translation);
+                        println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
                         self.handle_input_for_inputbox(translation);
                         None
                     } else {
@@ -663,7 +660,7 @@ impl<'app> Application<'app> {
                 }
                 KeyboardInputContext::TextView => {
                     if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
-                        println!("Key {:?} Modifier: {:?}, Action: {:?}", key, modifier, translation);
+                        println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
                         self.handle_input_for_textview(translation);
                         None
                     } else {
@@ -685,10 +682,10 @@ impl<'app> Application<'app> {
                             println!("")
                         }
                     },
-                    AppAction::OpenFile => self.toggle_input_box(Mode::FileList),
+                    AppAction::OpenFile => self.toggle_input_box(Mode::CommandInput(CommandTag::OpenFile)),
                     AppAction::SaveFile => todo!(),
                     AppAction::SearchInFiles => todo!("Create input box action for searching in all files"),
-                    AppAction::GotoLineInFile => self.toggle_input_box(Mode::Command(CommandTag::Goto)),
+                    AppAction::GotoLineInFile => self.toggle_input_box(Mode::CommandInput(CommandTag::Goto)),
                     AppAction::CycleFocus => {
                         self.cycle_focus();
                     }
@@ -708,19 +705,20 @@ impl<'app> Application<'app> {
                         let size = self.window_size;
                         self.open_text_view(self.active_panel(), Some("new view".into()), size);
                     }
+                    AppAction::ListCommands => self.toggle_input_box(Mode::CommandList),
                 }
             }
         } else {
             match key {
                 Key::Escape | Key::CapsLock if key_press(action) => {
                     if self.input_box.visible {
-                        self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                        self.toggle_input_box(Mode::CommandInput(CommandTag::Goto));
                     } else {
                         self.active_keyboard_input.handle_key(key, action, modifier);
                     }
                 }
                 Key::F if key_press(action) && modifier == Modifiers::Control => {
-                    self.toggle_input_box(Mode::Command(CommandTag::Find));
+                    self.toggle_input_box(Mode::CommandInput(CommandTag::Find));
                 }
                 Key::KpAdd => {}
                 Key::W if modifier.contains(Modifiers::Control) && action == Action::Press => {
@@ -756,7 +754,7 @@ impl<'app> Application<'app> {
                     }
                 }
                 Key::G if modifier == Modifiers::Control && key_press(action) => {
-                    self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                    self.toggle_input_box(Mode::CommandInput(CommandTag::Goto));
                 }
                 Key::S if modifier == Modifiers::Control | Modifiers::Shift && action == Action::Press => {
                     let p = &mut self.panels;
@@ -772,7 +770,7 @@ impl<'app> Application<'app> {
                 }
                 Key::I if action == Action::Press => {
                     if modifier == (Modifiers::Control | Modifiers::Shift) {
-                        self.toggle_input_box(Mode::FileList);
+                        self.toggle_input_box(Mode::CommandInput(CommandTag::OpenFile));
                     }
                 }
                 Key::Tab if action == Action::Press => {
@@ -1074,10 +1072,10 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-            ViewAction::OpenFile => self.toggle_input_box(Mode::FileList),
-            ViewAction::Find => self.toggle_input_box(Mode::Command(CommandTag::Find)),
+            ViewAction::OpenFile => self.toggle_input_box(Mode::CommandInput(CommandTag::OpenFile)),
+            ViewAction::Find => self.toggle_input_box(Mode::CommandInput(CommandTag::Find)),
             ViewAction::Goto => {
-                self.toggle_input_box(Mode::Command(CommandTag::Goto));
+                self.toggle_input_box(Mode::CommandInput(CommandTag::Goto));
             }
         }
     }
@@ -1088,9 +1086,14 @@ impl<'app> Application<'app> {
                 self.input_box.clear();
                 self.input_box.visible = false;
                 self.input_context = KeyboardInputContext::TextView;
+                self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
             }
-            InputboxAction::MovecursorLeft => todo!(),
-            InputboxAction::MovecursorRight => todo!(),
+            InputboxAction::MovecursorLeft => {
+                self.input_box.input_box.cursor = self.input_box.input_box.cursor.saturating_sub(1);
+            }
+            InputboxAction::MovecursorRight => {
+                self.input_box.input_box.cursor = (self.input_box.input_box.cursor + 1).clamp(0, self.input_box.input_box.data.len());
+            }
             InputboxAction::ScrollSelectionUp => {
                 self.input_box.selection_list.scroll_selection_up();
                 self.input_box.needs_update = true;
@@ -1109,7 +1112,7 @@ impl<'app> Application<'app> {
                 }
             }
             InputboxAction::Ok => match self.input_box.mode {
-                Mode::Command(cmd) => match cmd {
+                Mode::CommandInput(cmd) => match cmd {
                     CommandTag::Goto => {
                         if let Ok(line) = self.input_box.input_box.data.iter().collect::<String>().parse::<usize>() {
                             let v = self.get_active_view();
@@ -1131,46 +1134,146 @@ impl<'app> Application<'app> {
                         v.set_need_redraw();
                     }
                     CommandTag::GotoInFile => todo!(),
-                },
-                Mode::FileList => {
-                    if let Some(item) = self.input_box.selection_list.pop_selected() {
-                        let name = String::from_iter(&item);
-                        let p = Path::new(&name).to_path_buf();
-                        if p.is_dir() {
-                            self.input_box.input_box.data = item;
-                            self.input_box.input_box.data.push('/');
-                            self.input_box.input_box.cursor = self.input_box.input_box.data.len();
-                            self.input_box.selection_list.selection = None;
-                            self.input_box.update_list();
-                            self.input_box.needs_update = true;
-                        } else {
-                            if p.exists() {
-                                let v = self.get_active_view();
-                                if v.buffer.empty() {
-                                    v.buffer.load_file(&p);
-                                    v.set_need_redraw();
-                                    v.update(None);
-                                    self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
-                                    self.input_box.visible = false;
-                                } else {
-                                    let p_id = self.get_active_view().panel_id;
-                                    let f_name = p.file_name();
-                                    self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                    CommandTag::OpenFile => {
+                        if let Some(item) = self.input_box.selection_list.pop_selected() {
+                            let name = String::from_iter(&item);
+                            let p = Path::new(&name).to_path_buf();
+                            if p.is_dir() {
+                                self.input_box.input_box.data = item;
+                                self.input_box.input_box.data.push('/');
+                                self.input_box.input_box.cursor = self.input_box.input_box.data.len();
+                                self.input_box.selection_list.selection = None;
+                                self.input_box.update_list_of_files();
+                                self.input_box.needs_update = true;
+                            } else {
+                                if p.exists() {
                                     let v = self.get_active_view();
-                                    crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
-                                    v.buffer.load_file(&p);
-                                    v.set_need_redraw();
-                                    v.update(None);
-                                    self.input_box.visible = false;
+                                    if v.buffer.empty() {
+                                        v.buffer.load_file(&p);
+                                        v.set_need_redraw();
+                                        v.update(None);
+                                        self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
+                                        self.input_box.visible = false;
+                                    } else {
+                                        let p_id = self.get_active_view().panel_id;
+                                        let f_name = p.file_name();
+                                        self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
+                                        let v = self.get_active_view();
+                                        crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                        v.buffer.load_file(&p);
+                                        v.set_need_redraw();
+                                        v.update(None);
+                                        self.input_box.visible = false;
+                                    }
+                                    self.input_box.clear();
+                                    self.input_context = KeyboardInputContext::TextView;
                                 }
-                                self.input_box.clear();
-                                self.input_context = KeyboardInputContext::TextView;
                             }
+                        }
+                    }
+                    CommandTag::SaveFile => todo!(),
+                },
+                Mode::CommandList => {
+                    if let Some(item) = self.input_box.selection_list.pop_selected() {
+                        let name = item.iter().collect::<String>();
+                        if let Some(cmd) = get_command(&name) {
+                            self.toggle_input_box(Mode::CommandInput(*cmd));
+                        } else {
+                            println!("Found no command by name: {}", name);
                         }
                     }
                 }
             },
-            InputboxAction::Delete => todo!(),
+            InputboxAction::Delete(m) => {
+                let cursor = self.input_box.input_box.cursor;
+                let len = self.input_box.input_box.data.len();
+                match m {
+                    crate::textbuffer::Movement::Forward(k, ..) => match k {
+                        crate::textbuffer::TextKind::Char => {
+                            self.input_box.input_box.data.drain(cursor..(cursor + 1).clamp(0, len));
+                        }
+                        crate::textbuffer::TextKind::Word => {
+                            if let Some(end) = self.input_box.input_box.data.iter().skip(cursor).position(|&c| c.is_whitespace()) {
+                                self.input_box.input_box.data.drain(cursor..(cursor + end + 1).clamp(0, len));
+                            } else {
+                                self.input_box.input_box.data.drain(cursor..);
+                            }
+                        }
+                        _ => {
+                            self.input_box.input_box.data.drain(cursor..);
+                        }
+                    },
+                    crate::textbuffer::Movement::Backward(k, ..) => match k {
+                        crate::textbuffer::TextKind::Char => {
+                            self.input_box.input_box.data.drain(cursor.saturating_sub(1)..cursor);
+                        }
+                        crate::textbuffer::TextKind::Word => {
+                            let len = self.input_box.input_box.data.len();
+                            let start = self
+                                .input_box
+                                .input_box
+                                .data
+                                .iter()
+                                .rev()
+                                .skip(len - cursor)
+                                .position(|c| c.is_whitespace());
+                            if let Some(start) = start {
+                                let start = (len - start).clamp(0, len);
+                                self.input_box.input_box.data.drain(start..cursor.clamp(0, len));
+                            } else {
+                                self.input_box.input_box.data.drain(0..cursor.clamp(0, len));
+                            }
+                        }
+                        _ => {
+                            self.input_box.input_box.data.drain(0..cursor.clamp(0, len));
+                        }
+                    },
+                    crate::textbuffer::Movement::Begin(k) => match k {
+                        crate::textbuffer::TextKind::Char => {
+                            self.input_box.input_box.data.drain(cursor.saturating_sub(1)..cursor);
+                        }
+                        crate::textbuffer::TextKind::Word => {
+                            let len = self.input_box.input_box.data.len();
+                            let start = self
+                                .input_box
+                                .input_box
+                                .data
+                                .iter()
+                                .rev()
+                                .skip(len - cursor)
+                                .position(|c| c.is_whitespace());
+                            if let Some(start) = start {
+                                let start = len - start;
+                                self.input_box.input_box.data.drain(start..cursor.clamp(0, len));
+                            } else {
+                                self.input_box.input_box.data.drain(0..cursor.clamp(0, len));
+                            }
+                        }
+                        _ => {
+                            self.input_box.input_box.data.drain(0..cursor.clamp(0, len));
+                        }
+                    },
+                    crate::textbuffer::Movement::End(k) => {
+                        match k {
+                            crate::textbuffer::TextKind::Char => {
+                                self.input_box.input_box.data.drain(cursor..cursor + 1);
+                            }
+                            crate::textbuffer::TextKind::Word => {
+                                if let Some(end) = self.input_box.input_box.data.iter().skip(cursor).position(|&c| c.is_whitespace()) {
+                                    self.input_box.input_box.data.drain(cursor..cursor + end + 1);
+                                } else {
+                                    self.input_box.input_box.data.drain(cursor..);
+                                }
+                            }
+                            _ => {
+                                // delete everything from cursor to end
+                                self.input_box.input_box.data.drain(cursor..);
+                            }
+                        }
+                    }
+                }
+                self.input_box.update();
+            }
         }
     }
 }

@@ -267,10 +267,18 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::Up, M::SHIFT), B::held(A::TextSelect(Movement::Backward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Down, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Down, M::SHIFT), B::held(A::TextSelect(Movement::Forward(TextKind::Line, 1))));
+
     m.insert(BindingRequirement(K::Home, M::empty()), B::held(A::Movement(Movement::Begin(TextKind::Line))));
+    m.insert(BindingRequirement(K::Home, M::CONTROL), B::held(A::Movement(Movement::Begin(TextKind::File))));
     m.insert(BindingRequirement(K::Home, M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::Line))));
+    m.insert(BindingRequirement(K::Home, M::CONTROL | M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::File))));
+
     m.insert(BindingRequirement(K::End, M::empty()), B::held(A::Movement(Movement::End(TextKind::Line))));
     m.insert(BindingRequirement(K::End, M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Line))));
+
+    m.insert(BindingRequirement(K::End, M::CONTROL), B::held(A::Movement(Movement::End(TextKind::File))));
+    m.insert(BindingRequirement(K::End, M::SHIFT | M::CONTROL), B::held(A::TextSelect(Movement::End(TextKind::File))));
+
     m.insert(BindingRequirement(K::F, M::CONTROL), B::press(A::Find));
     m.insert(BindingRequirement(K::G, M::CONTROL), B::press(A::Goto));
     m.insert(BindingRequirement(K::Delete, M::empty()), B::held(A::Delete(Movement::Forward(TextKind::Char, 1))));
@@ -301,6 +309,12 @@ pub fn ib_default() -> HashMap<BindingRequirement, InputboxBinding> {
     ib_key_map.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
     ib_key_map.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
     ib_key_map.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
+
+    ib_key_map.insert(BindingRequirement(K::Backspace, M::CONTROL), B::press(A::Delete(Movement::Backward(TextKind::Word, 1))));
+    ib_key_map.insert(BindingRequirement(K::Backspace, M::empty()), B::press(A::Delete(Movement::Backward(TextKind::Char, 1))));
+
+    ib_key_map.insert(BindingRequirement(K::Delete, M::CONTROL), B::press(A::Delete(Movement::Forward(TextKind::Word, 1))));
+    ib_key_map.insert(BindingRequirement(K::Delete, M::empty()), B::press(A::Delete(Movement::Forward(TextKind::Char, 1))));
 
     ib_key_map
 }
@@ -337,5 +351,6 @@ pub fn app_default() -> HashMap<BindingRequirement, AppBinding> {
     map.insert(BindingRequirement(K::W, M::CONTROL | M::SHIFT), B::press(A::CloseActiveView(true)));
     map.insert(BindingRequirement(K::Q, M::CONTROL), B::press(A::Quit));
     map.insert(BindingRequirement(K::N, M::CONTROL), B::press(A::OpenNewView));
+    map.insert(BindingRequirement(K::P, M::CONTROL | M::SHIFT), B::press(A::ListCommands));
     map
 }

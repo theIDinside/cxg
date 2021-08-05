@@ -1,9 +1,10 @@
 use crate::{
+    cmd::CommandTag,
     textbuffer::{operations::LineOperation, Movement},
     ui::UID,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf, str::FromStr};
+use std::{fmt::Display, path::PathBuf};
 
 use super::input::KeyboardInputContext;
 
@@ -17,6 +18,7 @@ pub enum CommandOutput {
     Goto(u32),
     Find(String),
     None,
+    CommandSelection(CommandTag),
 }
 
 pub enum InputElement {
@@ -29,7 +31,7 @@ pub enum InputElement {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InputboxAction {
     Cancel,
-    Delete,
+    Delete(Movement),
     MovecursorLeft,
     MovecursorRight,
     ScrollSelectionUp,
@@ -38,25 +40,6 @@ pub enum InputboxAction {
     Copy,
     Paste,
     Ok,
-}
-
-impl FromStr for InputboxAction {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "InputboxAction::Cancel" => Ok(InputboxAction::Cancel),
-            "InputboxAction::MovecursorLeft" => Ok(InputboxAction::MovecursorLeft),
-            "InputboxAction::MovecursorRight" => Ok(InputboxAction::MovecursorRight),
-            "InputboxAction::ScrollSelectionUp" => Ok(InputboxAction::ScrollSelectionUp),
-            "InputboxAction::ScrollSelectionDown" => Ok(InputboxAction::ScrollSelectionDown),
-            "InputboxAction::Cut" => Ok(InputboxAction::Cut),
-            "InputboxAction::Copy" => Ok(InputboxAction::Copy),
-            "InputboxAction::Paste" => Ok(InputboxAction::Paste),
-            "InputboxAction::Ok" => Ok(InputboxAction::Ok),
-            _ => Err("Wrong string input for InputboxAction conversion"),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -80,66 +63,7 @@ pub enum ViewAction {
     Debug,
 }
 
-impl FromStr for ViewAction {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        const TAG: &'static str = "ViewAction::";
-
-        match s {
-            "ViewAction::Cancel" => Ok(ViewAction::Cancel),
-            "ViewAction::SaveFile" => Ok(ViewAction::SaveFile),
-            "ViewAction::OpenFile" => Ok(ViewAction::OpenFile),
-            "ViewAction::Find" => Ok(ViewAction::Find),
-            "ViewAction::Goto" => Ok(ViewAction::Goto),
-            "ViewAction::ChangeValueOfAssignment" => Ok(ViewAction::ChangeValueOfAssignment),
-            "ViewAction::Cut" => Ok(ViewAction::Cut),
-            "ViewAction::Copy" => Ok(ViewAction::Copy),
-            "ViewAction::Paste" => Ok(ViewAction::Paste),
-            "ViewAction::Undo" => Ok(ViewAction::Undo),
-            "ViewAction::Redo" => Ok(ViewAction::Redo),
-            "ViewAction::Debug" => Ok(ViewAction::Debug),
-            _ => match &s[0..TAG.len()] {
-                "ViewAction::" => {
-                    if &s[TAG.len()..TAG.len() + "InsertStr(".len()] == "InsertStr(" {
-                        const I_TAG: &'static str = "InsertStr(";
-                        if let Some(pos) = &s[TAG.len() + I_TAG.len()..].find(r#"")"#) {
-                            let s = &s[TAG.len() + "InsertStr(".len()..pos + r#"")"#.len() + 1];
-                            Ok(ViewAction::InsertStr(s.to_owned()))
-                        } else {
-                            Err("Could not find string contents in relation to InsertStr view command")
-                        }
-                    } else if &s[TAG.len()..TAG.len() + "Delete(".len()] == "Delete(" {
-                        const D_TAG: &str = "Delete(";
-                        let start = TAG.len() + D_TAG.len();
-                        let m = Movement::from_str(&s[start..s.len() - 1]);
-                        m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::Delete(m)))
-                    } else if &s[TAG.len()..TAG.len() + "LineOperation(".len()] == "LineOperation(" {
-                        let LO_TAG: &str = "LineOperation(";
-                        let start = TAG.len() + LO_TAG.len();
-                        let lo = LineOperation::from_str(&s[start..s.len() - 1]);
-                        lo.map_or_else(|m| Err("Could not create ViewAction from string value"), |lo| Ok(ViewAction::LineOperation(lo)))
-                    } else if &s[TAG.len()..TAG.len() + "Movement(".len()] == "Movement(" {
-                        const M_TAG: &str = "Movement(";
-                        let start = TAG.len() + M_TAG.len();
-                        let m = Movement::from_str(&s[start..s.len() - 1]);
-                        m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::Movement(m)))
-                    } else if &s[TAG.len()..TAG.len() + "TextSelect(".len()] == "TextSelect(" {
-                        const TS_TAG: &str = "TextSelect(";
-                        let start = TAG.len() + TS_TAG.len();
-                        let m = Movement::from_str(&s[start..s.len() - 1]);
-                        m.map_or_else(|m| Err("Could not create ViewAction from string value"), |m| Ok(ViewAction::TextSelect(m)))
-                    } else {
-                        Err("Could not create ViewAction from string value")
-                    }
-                }
-                _ => Err("Could not create ViewAction from string value"),
-            },
-        }
-    }
-}
-
-#[derive(Debug,Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AppAction {
     Cancel,
     OpenFile,
@@ -153,6 +77,7 @@ pub enum AppAction {
     CloseActiveView(bool),
     Quit,
     OpenNewView,
+    ListCommands,
 }
 
 impl Display for AppAction {
