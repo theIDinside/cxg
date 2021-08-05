@@ -16,6 +16,8 @@ in vec2 texture_coordinates;
 uniform float radius;
 uniform vec2 rect_pos;
 uniform sampler2D texture_sampler;
+uniform bool use_texture;
+
 const float smoothness = 0.7;
 
 // from http://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
