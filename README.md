@@ -78,8 +78,9 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
       One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)
       and do it like that. No semantical analysis, nothing. Just eat_char(ch) until done, and figure out what are types, values, etc and use this to syntax highlight.
       Or, we can pull in parsers and lexers from other crates. We'll see. 
-- [ ] File caching, to prevent loss of data
-- [ ] Linux IPC
+- [ ] File caching, to prevent loss of data. This can be implemented in a *host* of ways. Two things immediately comes to mind; first, keep a copy of the most up to date version of the file, as a swap, kind of like what Vim does. This introcuces a bunch of weirdness though and 
+it can end up with a lot of files named .swp or something dumb like that. Another way, is to (also) keep a cached file, but instead of the latest versions, we can just keep a piece table, meaning a record of all the edits in the file. This has a few advantages as far as features go; it's easy to produce a visual diff of the files for instance, it also has another advantage, and that is, we can (maybe?) install a panic/crash handler, that at exit, just dumps the undo/redo history, since this essentially is what is going to be stored (or rather, it's exactly what will be stored) and this data is always up to date.
+- [ ] Linux IPC, message queues, shared memory, all that good stuff. First I'd have to look at what rust-analyzer speaks over and really go for that first.
 
 - UI elements
   - [ ] Scrollbars

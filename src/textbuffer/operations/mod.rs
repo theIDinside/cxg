@@ -1,14 +1,127 @@
 use super::metadata;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OperationParameter {
     Char(char),
     Range(String),
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Operation {
     Insert(metadata::Index, OperationParameter),
     Delete(metadata::Index, OperationParameter),
+}
+
+impl Operation {
+    pub fn index(&self) -> metadata::Index {
+        match self {
+            Operation::Insert(i, ..) => *i,
+            Operation::Delete(i, ..) => *i,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct History {
+    history_stack: Vec<Operation>,
+    /// the undo stack are just for operation which we want to redo
+    /// so if we undo an operation, it gets put here. Every time the user types something, it
+    /// invalidates the undo stack, since the user has created a new time line (which still exists in the history stack, but the undone operations are now purged)
+    undo_stack: Vec<Operation>,
+}
+
+impl History {
+    pub fn new() -> History {
+        History { history_stack: Vec::with_capacity(1024), undo_stack: vec![] }
+    }
+
+    #[inline(always)]
+    fn invalidate_undo_stack(&mut self) {
+        self.undo_stack.clear();
+        todo!();
+    }
+
+    /// Pushes a new operation on to the history stack. This invalidates the undo stack.
+    /// * `index` - the buffer position where the insert operation was made
+    /// * `op_param` - The operation parameter, whether the user typed a range of characters or just 1 character
+    /// * `coalesce` - if this is true, it will coalesce the last few operations until it finds an operation with a operation parameter ending and/or containing a white space
+    pub fn push_insert(&mut self, index: metadata::Index, op_param: OperationParameter, coalesce: bool) {
+        self.history_stack.push(Operation::Insert(index, op_param));
+        if coalesce {
+            for item in self.history_stack.iter().rev() {
+                match item {
+                    Operation::Insert(_, _) => todo!(),
+                    Operation::Delete(_, _) => todo!(),
+                }
+            }
+        }
+        self.invalidate_undo_stack();
+        todo!();
+    }
+
+    pub fn push_insert_char(&mut self, index: metadata::Index, ch: char, coalesce: bool) {
+        self.history_stack.push(Operation::Insert(index, OperationParameter::Char(ch)));
+        if coalesce {
+            let p = self
+                .history_stack
+                .iter()
+                .rev()
+                .skip(1)
+                .position(|item| match item {
+                    Operation::Insert(_, c) => match c {
+                        OperationParameter::Char(c) => c.is_whitespace(),
+                        OperationParameter::Range(c) => c.chars().any(|c| c.is_whitespace()),
+                    },
+                    Operation::Delete(_, _) => true,
+                })
+                .map(|v| (self.history_stack.len() - 1) - (v + 1) + 1)
+                .unwrap_or(0);
+
+            let elems_to_coalesce: Vec<Operation> = self.history_stack.drain(p..).collect();
+            if let Some(buffer_index) = elems_to_coalesce.get(0).map(Operation::index) {
+                let mut chars = Vec::with_capacity(elems_to_coalesce.len() * 4);
+                for elem in elems_to_coalesce {
+                    match elem {
+                        Operation::Insert(.., op) => match op {
+                            OperationParameter::Char(c) => chars.push(c),
+                            OperationParameter::Range(range) => chars.extend(range.chars()),
+                        },
+                        Operation::Delete(_, _) => panic!("this must not happen"),
+                    }
+                }
+                self.history_stack
+                    .push(Operation::Insert(buffer_index, OperationParameter::Range(chars.iter().collect())));
+            } else {
+                // do nothing and abort coalesce
+            }
+        }
+    }
+
+    /// When a user deletes something, we push a delete operation
+    pub fn push_delete(&mut self, index: metadata::Index, op_param: OperationParameter) {
+        self.history_stack.push(Operation::Delete(index, op_param));
+        todo!();
+    }
+
+    pub fn pop(&mut self) -> Option<Operation> {
+        self.history_stack.pop();
+        todo!();
+    }
+
+    /// Pops the latest operation from the history stack and pushes it onto the undo stack.
+    /// It takes the operation and inverses it. So if when you hit "undo", it will take whatever's top of the history stack
+    /// inverse it (from a delete->insert and vice versa) and push that onto the undo stack. This is how one can achieve undo / redo
+    pub fn undo(&mut self) -> Option<Operation> {
+        let popped = self.pop();
+        if let Some(op) = popped {
+            match op {
+                Operation::Insert(_i, _o) => {}
+                Operation::Delete(_i, _o) => {}
+            }
+        }
+        todo!();
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, PartialOrd, Eq, Ord, Clone, Deserialize, Serialize)]
@@ -18,60 +131,42 @@ pub enum LineOperation {
     PasteAt { insertion: char },
 }
 
-impl std::str::FromStr for LineOperation {
-    type Err = &'static str;
+#[cfg(test)]
+pub mod tests {
+    use crate::textbuffer::{metadata, operations::OperationParameter};
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        const SL: &str = "ShiftLeft";
-        const SR: &str = "ShiftRight";
-        const PA: &str = "PasteAt";
+    use super::{History, Operation};
 
-        if &s[0..SL.len()] == SL {
-            if let (Some(_start), Some(end)) = (s.find("{"), s.find("}")) {
-                if let Some(colon) = s.find(":") {
-                    let n = s[colon + 1..end].chars().filter(|c| c.is_whitespace()).collect::<String>();
-                    if let Ok(n) = n.parse::<usize>() {
-                        Ok(LineOperation::ShiftLeft { shift_by: n })
-                    } else {
-                        Err("Couldn't parse LineOperation from str")
-                    }
-                } else {
-                    Err("Couldn't parse LineOperation from str")
-                }
-            } else {
-                Err("Couldn't parse LineOperation from str")
-            }
-        } else if &s[0..SR.len()] == SR {
-            if let (Some(_start), Some(end)) = (s.find("{"), s.find("}")) {
-                if let Some(colon) = s.find(":") {
-                    let n = s[colon + 1..end].chars().filter(|c| c.is_whitespace()).collect::<String>();
-                    if let Ok(n) = n.parse::<usize>() {
-                        Ok(LineOperation::ShiftRight { shift_by: n })
-                    } else {
-                        Err("Couldn't parse LineOperation from str")
-                    }
-                } else {
-                    Err("Couldn't parse LineOperation from str")
-                }
-            } else {
-                Err("Couldn't parse LineOperation from str")
-            }
-        } else if &s[0..PA.len()] == PA {
-            if let (Some(_start), Some(end)) = (s.find("{"), s.find("}")) {
-                if let Some(colon) = s.find(":") {
-                    let n = s[colon + 1..end]
-                        .chars()
-                        .filter(|c| c.is_whitespace() || *c == '\'')
-                        .collect::<String>();
-                    Ok(LineOperation::PasteAt { insertion: n.chars().take(1).collect::<Vec<char>>()[0] })
-                } else {
-                    Err("Couldn't parse LineOperation from str")
-                }
-            } else {
-                Err("Couldn't parse LineOperation from str")
-            }
-        } else {
-            Err("Couldn't parse LineOperation from str")
-        }
+    #[test]
+    fn test_coalescing() {
+        let mut history = History::new();
+        let mut offset = 0;
+        let start = metadata::Index(0);
+
+        history.push_insert_char(start.offset(offset), 'c', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'a', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), ' ', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '9', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', true);
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())));
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '!', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '!', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '!', true);
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into())));
     }
 }
