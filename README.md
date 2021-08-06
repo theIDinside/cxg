@@ -52,8 +52,7 @@ Key-bindings are not re-mappable right now, but obviously will be
   - Arrow Up/Down
 
 ## Misc
-- Show popup view (no other functionality than a normal view as of now)
-  - Ctrl + P
+- Ctrl + Shift + P: Show commands (currently only 4; open, save file, go to line and find in file). These can be bound and configured to whatever key bindings we want, and this is done programmatically in [keybindings.rs](src/cmd/keybindings.rs) or in a raw JSON format, that is meant to be improved upon.
 
 
 
@@ -72,7 +71,8 @@ did with DrawCommandList in [the polygon renderer](src/opengl/rectangle.rs))
 - [ ] LINE WRAPPING. This. Must. Be. Done. Soon. Without it, the editor is bad.
 - [x] Selecting text, with mouse and keyboard & rendering the selection properly.
 - [x] Other search / go to features (probably also using the regex crate)
-- [x] Configurable keys. Now the full input scheme / actions we can perform is serializable thanks to the amazing serde crate part of the rust eco system. One of the first major crates that made a big, big splash in 1.0 release of Rust. So obviously I was going to use that. Right now, the format isn't particularly human friendly, and I might go for another scheme than JSON, perhaps something like TOML will suit my needs better. But for now, it is what it is. Right now, [the default configuration will look like this](default.cfg). We can even do custom string inputs bound to keys, like for instance. The serialized configuration example can be [found here, on line 126](default.cfg#L126). If you want the example for setting it in code, it's found in the default configuration construction, [here, on line 271](src/cmd/keybindings.rs#L271)
+- [x] Configurable keys. Now the full input scheme / actions we can perform is serializable thanks to the amazing serde crate part of the rust eco system. One of the first major crates that made a big, big splash in 1.0 release of Rust. So obviously I was going to use that. Right now, the format isn't particularly human friendly, and I might go for another scheme than JSON, perhaps something like TOML will suit my needs better. But for now, it is what it is. Right now, [the default configuration will look like this](default.cfg). We can even do custom string inputs bound to keys, like for instance. The serialized configuration example can be [found here, on line 126](default.cfg#L126) for outputting a main function with a println statement, similar to what cargo initializes for us. If you want the example for setting it in code, it's found in the default configuration construction, [here, on line 271](src/cmd/keybindings.rs#L271). Later on we can build on this system to also create a form of macro system, which will be nice.
+- [ ] Macro system, for inputting commands, text, in an arbitrary fashion defined by the user
 
 - [ ] Symbol navigation. Like most things, I could start by using dependencies here, since the rust eco system is so powerful.
       One way of doing it, would be to do a really brute force approach and just scan the project, build a symbol database in an ad-hoc (and non-type safe way)
