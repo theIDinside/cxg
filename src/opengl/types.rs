@@ -114,13 +114,13 @@ pub struct RectangleVertex {
     pub r: glfloat,
     pub g: glfloat,
     pub b: glfloat,
-    pub i: glfloat,
+    pub a: glfloat,
 }
 
 impl RectangleVertex {
     #[inline(always)]
     pub fn new(x: glfloat, y: glfloat, u: glfloat, v: glfloat, r: glfloat, g: glfloat, b: glfloat, i: glfloat) -> RectangleVertex {
-        RectangleVertex { x, y, u, v, r, g, b, i }
+        RectangleVertex { x, y, u, v, r, g, b, a: i }
     }
 }
 

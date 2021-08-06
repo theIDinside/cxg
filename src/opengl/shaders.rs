@@ -48,16 +48,26 @@ impl TextShader {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RectShader {
     pub id: gl::types::GLuint,
-    projection_uniform: gl::types::GLint,
-    radius: gl::types::GLint,
-    rect_size: gl::types::GLint,
-    rect_pos: gl::types::GLint,
+    u_projection: gl::types::GLint,
+    u_radius: gl::types::GLint,
+    u_rect_size: gl::types::GLint,
+    u_rect_pos: gl::types::GLint,
+    u_use_texture: gl::types::GLint,
 }
 
 impl RectShader {
+    pub fn panic_if_not_ok(&self, err_msg: &'static str) {
+        assert!(self.u_projection >= 0, "{}: projection uniform ID invalid: {}", err_msg, self.u_projection);
+        assert!(self.u_radius >= 0, "{}: radius uniform ID invalid: {}", err_msg, self.u_radius);
+        assert!(self.u_rect_size >= 0, "{}: rectangle size uniform ID invalid: {}", err_msg, self.u_rect_size);
+        assert!(self.u_rect_pos >= 0, "{}: rectangle position uniform ID invalid: {}", err_msg, self.u_rect_pos);
+        assert!(self.u_use_texture >= 0, "{}: use_texture uniform ID invalid: {}", err_msg, self.u_use_texture);
+        println!("Validated shader uniforms & locations; {:#?}", self);
+    }
+
     pub fn new(vs_path: &Path, fs_path: &Path) -> RectShader {
         let rvs = std::fs::File::open(vs_path).and_then(|mut f| {
             let mut s = String::new();
@@ -78,21 +88,30 @@ impl RectShader {
                 std::process::exit(1);
             }
         };
-        let (projection_uniform, radius, rect_size, rect_pos) = unsafe {
+        let (projection_uniform, radius, rect_size, rect_pos, use_texture) = unsafe {
             let projection_uniform_name = std::ffi::CString::new("projection").expect("Failed to create CString");
             let radius = std::ffi::CString::new("radius").expect("Failed to create CString");
             let rect_size = std::ffi::CString::new("rect_size").expect("Failed to create CString");
             let rect_pos = std::ffi::CString::new("rect_pos").expect("Failed to create CString");
+            let use_texture_name = std::ffi::CString::new("use_texture").unwrap();
             (
                 gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
                 gl::GetUniformLocation(font_program, radius.as_ptr()),
                 gl::GetUniformLocation(font_program, rect_size.as_ptr()),
                 gl::GetUniformLocation(font_program, rect_pos.as_ptr()),
+                gl::GetUniformLocation(font_program, use_texture_name.as_ptr()),
             )
         };
 
         assert_ne!(projection_uniform, -1);
-        RectShader { id: font_program, projection_uniform, radius, rect_size, rect_pos }
+        RectShader {
+            id: font_program,
+            u_projection: projection_uniform,
+            u_radius: radius,
+            u_rect_size: rect_size,
+            u_rect_pos: rect_pos,
+            u_use_texture: use_texture,
+        }
     }
 
     pub fn bind(&self) {
@@ -104,7 +123,15 @@ impl RectShader {
     pub fn set_projection(&self, projection: &super::types::Matrix) {
         self.bind();
         unsafe {
-            gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, projection.as_ptr());
+            gl::UniformMatrix4fv(self.u_projection, 1, gl::FALSE, projection.as_ptr());
+            // gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, d.as_ptr() as *const _);
+        }
+    }
+
+    pub fn set_use_texture(&self, use_texture: bool) {
+        self.bind();
+        unsafe {
+            gl::Uniform1i(self.u_use_texture, use_texture as _);
             // gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, d.as_ptr() as *const _);
         }
     }
@@ -112,21 +139,21 @@ impl RectShader {
     pub fn set_radius(&self, radius: f32) {
         self.bind();
         unsafe {
-            gl::Uniform1f(self.radius, radius);
+            gl::Uniform1f(self.u_radius, radius);
         }
     }
 
     pub fn set_rectangle_size(&self, size: Vec2f) {
         self.bind();
         unsafe {
-            gl::Uniform2fv(self.rect_size, 1, &size as *const _ as _);
+            gl::Uniform2fv(self.u_rect_size, 1, &size as *const _ as _);
         }
     }
 
     pub fn set_rect_pos(&self, p: Vec2<gl::types::GLfloat>) {
         self.bind();
         unsafe {
-            gl::Uniform2fv(self.rect_pos, 1, &p as *const _ as _);
+            gl::Uniform2fv(self.u_rect_pos, 1, &p as *const _ as _);
         }
     }
 }

@@ -3,12 +3,12 @@ use crate::cmd::{get_command, CommandTag};
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
+use crate::opengl::types::RGBAColor;
 use crate::opengl::{
     polygon_renderer::{PolygonRenderer, TextureMap, TextureType},
     rectangle_renderer::RectRenderer,
     shaders::{RectShader, TextShader},
     text_renderer::TextRenderer,
-    types::RGBAColor,
 };
 use crate::textbuffer::operations::LineOperation;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
@@ -115,6 +115,9 @@ impl<'app> Application<'app> {
             (Path::new("./logo.png"), TextureType::Background(1)),
             (Path::new("./logo_transparent.png"), TextureType::Background(2)),
         ];
+
+        polygon_shader.panic_if_not_ok("Polygon shader incorrect");
+
         let tex_map = TextureMap::new(backgrounds);
         font_shader.bind();
         let mvp = super::opengl::glinit::screen_projection_matrix(1024, 768, 0);
