@@ -1080,6 +1080,10 @@ impl<'app> Application<'app> {
             ViewAction::Goto => {
                 self.toggle_input_box(Mode::CommandInput(CommandTag::Goto));
             }
+            ViewAction::InputNewline => {
+                let v = self.get_active_view();
+                v.insert_ch('\n');
+            }
         }
     }
 

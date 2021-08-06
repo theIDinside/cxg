@@ -285,6 +285,8 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::Delete, M::CONTROL), B::held(A::Delete(Movement::Forward(TextKind::Word, 1))));
     m.insert(BindingRequirement(K::Backspace, M::empty()), B::held(A::Delete(Movement::Backward(TextKind::Char, 1))));
     m.insert(BindingRequirement(K::Backspace, M::CONTROL), B::held(A::Delete(Movement::Backward(TextKind::Word, 1))));
+    m.insert(BindingRequirement(K::Enter, M::empty()), B::held(A::InputNewline));
+
     m.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
     m.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
     m.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));

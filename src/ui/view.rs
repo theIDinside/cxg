@@ -372,25 +372,24 @@ impl View {
         /* Make the title bar */
         self.window_renderer.make_bordered_rect(
             BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
-            RGBColor::new(0.5, 0.5, 0.5),
-            (1, RGBColor::black()),
+            RGBAColor::new(0.5, 0.5, 0.5, 1.0),
+            (1, RGBAColor::black()),
             PolygonType::RoundedUndecorated { corner_radius: 5.0 },
         );
 
-        let RGBAColor { r, g, b, .. } = self.bg_color;
-        let bg_color = RGBColor::new(r, g, b);
+        let bg_color = self.bg_color;
         if let Some(texture) = bg_texture {
             self.window_renderer.make_bordered_rect(
                 self.view_frame.to_bb(),
                 bg_color,
-                (2, RGBColor::black()),
+                (2, RGBAColor::black()),
                 PolygonType::RoundedDecorated { corner_radius: 5.0, texture },
             );
         } else {
             self.window_renderer.make_bordered_rect(
                 self.view_frame.to_bb(),
                 bg_color,
-                (2, RGBColor::black()),
+                (2, RGBAColor::black()),
                 PolygonType::RoundedUndecorated { corner_radius: 5.0 },
             );
         }
@@ -415,15 +414,14 @@ impl View {
             self.text_renderer.clear_data();
             self.cursor_renderer.clear_data();
             self.update(None);
-            let RGBAColor { r, g, b, .. } = self.bg_color;
             // create the scroll bar
             self.window_renderer
-                .push_draw_command(self.scroll_bar.frame.to_bb(), RGBColor::new(r, g, b).uniform_scale(-0.05), PolygonType::Undecorated);
+                .push_draw_command(self.scroll_bar.frame.to_bb(), self.bg_color.uniform_scale(-0.05), PolygonType::Undecorated);
             assert_eq!(self.scroll_bar.slider.width(), self.scroll_bar.frame.width());
             self.window_renderer.make_bordered_rect(
                 self.scroll_bar.slider.to_bb(),
-                self.bg_color.to_rgb().uniform_scale(0.2),
-                (1, RGBColor::white()),
+                self.bg_color.uniform_scale(0.2),
+                (1, RGBAColor::white()),
                 PolygonType::RoundedUndecorated { corner_radius: 7.5 },
             );
 

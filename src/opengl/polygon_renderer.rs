@@ -10,7 +10,7 @@ use super::{
     glinit::OpenGLHandle,
     shaders::RectShader,
     text_renderer::BufferIndex,
-    types::{RGBAColor, RGBColor, RectangleVertex},
+    types::{RGBAColor, RectangleVertex},
 };
 
 #[derive(Hash, Clone, Copy, PartialEq, Eq)]
@@ -211,7 +211,7 @@ impl PolygonRenderer {
     /// what state is supposed to be set on the GPU etc. Utilizing this approach, I most likely can unify the renderers
     /// entirely later on, when I'm a bit more knowledgeable, so instead of *each* View holding a Text, Rect and a Poly renderer
     /// we can have three *total* that we push data to from all views and elements etc.
-    pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBColor, poly_type: PolygonType) {
+    pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBAColor, poly_type: PolygonType) {
         match poly_type {
             PolygonType::Undecorated => {
                 let indices = self.make_vertex_data(rect, color, None);
@@ -243,20 +243,19 @@ impl PolygonRenderer {
     /// * `rect` - the dimensions of the rectangle to be drawn
     /// * `color` - The fill color of the rectangle
     /// * `texture` - An optional parameter which defines which texture to draw in the rectangle
-    pub fn make_vertex_data(&mut self, rect: BoundingBox, color: RGBColor, texture: Option<&Texture>) -> BufferIndex {
+    pub fn make_vertex_data(&mut self, rect: BoundingBox, color: RGBAColor, texture: Option<&Texture>) -> BufferIndex {
         let BoundingBox { min, max } = rect;
-        let RGBColor { r, g, b } = color;
+        let RGBAColor { r, g, b, a } = color;
         let ebo_idx = self.indices.len();
         let vtx_index = self.vtx_data.len() as u32;
-        let interpolation = texture.map(|_| 1.0).unwrap_or(0.0);
         self.vtx_data
-            .push(RectangleVertex::new(min.x as f32, max.y as f32, 0.0, 1.0, r, g, b, interpolation));
+            .push(RectangleVertex::new(min.x as f32, max.y as f32, 0.0, 1.0, r, g, b, a));
         self.vtx_data
-            .push(RectangleVertex::new(min.x as f32, min.y as f32, 0.0, 0.0, r, g, b, interpolation));
+            .push(RectangleVertex::new(min.x as f32, min.y as f32, 0.0, 0.0, r, g, b, a));
         self.vtx_data
-            .push(RectangleVertex::new(max.x as f32, min.y as f32, 1.0, 0.0, r, g, b, interpolation));
+            .push(RectangleVertex::new(max.x as f32, min.y as f32, 1.0, 0.0, r, g, b, a));
         self.vtx_data
-            .push(RectangleVertex::new(max.x as f32, max.y as f32, 1.0, 1.0, r, g, b, interpolation));
+            .push(RectangleVertex::new(max.x as f32, max.y as f32, 1.0, 1.0, r, g, b, a));
         self.indices.extend_from_slice(&[
             vtx_index,
             vtx_index + 1,
@@ -275,7 +274,7 @@ impl PolygonRenderer {
     /// * `fill_color` - The fill color of the rectangle to be drawn
     /// * `border_info: (i32, RGBColor)` - A tuple of (border_width, border_color), thus what the desired border with and color should be
     /// * `rect_type` - What type of rectangle to be drawn, i.e. if it is supposed to have rounded corners, have a texture etc
-    pub fn make_bordered_rect(&mut self, rect: BoundingBox, fill_color: RGBColor, border_info: (i32, RGBColor), rect_type: PolygonType) {
+    pub fn make_bordered_rect(&mut self, rect: BoundingBox, fill_color: RGBAColor, border_info: (i32, RGBAColor), rect_type: PolygonType) {
         let (border_thickness, border_color) = border_info;
         debug_assert!(border_thickness >= 1, "Border thickness must be set to at least 1 when creating a bordered rectangle");
         let inner_rect = BoundingBox::shrink(&rect, Margin::Perpendicular { h: border_thickness, v: border_thickness });
@@ -303,6 +302,7 @@ impl PolygonRenderer {
                 PolygonDrawCommand::Undecorated { indices } => {
                     Texture::unbind_textures();
                     self.shader.set_radius(0.0);
+                    self.shader.set_use_texture(false);
                     indices
                 }
                 PolygonDrawCommand::RoundedUndecorated { indices, corner_radius, rect_size, bl_rect_screen_pos } => {
@@ -310,11 +310,13 @@ impl PolygonRenderer {
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());
+                    self.shader.set_use_texture(false);
                     indices
                 }
                 PolygonDrawCommand::Decorated { indices, texture } => {
                     Texture::bind(texture);
                     self.shader.set_radius(0.0);
+                    self.shader.set_use_texture(true);
                     indices
                 }
                 PolygonDrawCommand::RoundedDecorated { indices, corner_radius, rect_size, bl_rect_screen_pos, texture } => {
@@ -322,6 +324,7 @@ impl PolygonRenderer {
                     self.shader.set_radius(*corner_radius);
                     self.shader.set_rect_pos(*bl_rect_screen_pos);
                     self.shader.set_rectangle_size(rect_size.clone());
+                    self.shader.set_use_texture(true);
                     indices
                 }
             };

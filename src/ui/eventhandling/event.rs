@@ -61,6 +61,7 @@ pub enum ViewAction {
     Redo,
     LineOperation(LineOperation),
     Debug,
+    InputNewline,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

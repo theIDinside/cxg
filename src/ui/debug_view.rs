@@ -3,7 +3,7 @@ use crate::{
     debuginfo::{process_info::ProcessInfo, DebugInfo},
     opengl::{
         polygon_renderer::{PolygonType, Texture},
-        types::{RGBAColor, RGBColor},
+        types::RGBColor,
     },
 };
 
@@ -38,9 +38,7 @@ impl DebugView {
     pub fn update(&mut self) {
         self.view.window_renderer.clear_data();
         self.view.text_renderer.clear_data();
-        let RGBAColor { r, g, b, .. } = self.view.bg_color;
-        let bg_color = RGBColor::new(r, g, b);
-
+        let bg_color = self.view.bg_color;
         // draw title bar
         self.view.window_renderer.make_bordered_rect(
             BoundingBox::expand(&self.view.title_frame.to_bb(), Margin::Vertical(2)).translate_mut(Vec2i::new(0, -4)),
@@ -57,9 +55,11 @@ impl DebugView {
             PolygonType::RoundedUndecorated { corner_radius: 15.0 },
         );
         let image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 40, v: 20 });
+        let mut see_through_bg = bg_color;
+        see_through_bg.a = 0.1;
         self.view
             .window_renderer
-            .push_draw_command(image_bb, bg_color, PolygonType::Decorated { texture: self.bg_texture });
+            .push_draw_command(image_bb, see_through_bg, PolygonType::Decorated { texture: self.bg_texture });
     }
 
     pub fn do_update_view(&mut self, fps: f64, frame_time: f64) {

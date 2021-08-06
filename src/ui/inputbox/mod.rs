@@ -4,20 +4,19 @@ pub mod listbox;
 use line_text_box::LineTextBox;
 use listbox::ListBox;
 
-use std::{iter::FromIterator, path::Path, rc::Rc};
+use std::rc::Rc;
 
 use walkdir::WalkDir;
 
 use super::{
     boundingbox::BoundingBox,
     coordinate::*,
-    eventhandling::event::{InputBehavior, InputboxAction},
+    eventhandling::event::InputBehavior,
     font::Font,
     frame::{make_inner_frame, Frame},
     Viewable, ACTIVE_VIEW_BACKGROUND,
 };
 use crate::{
-    app::Application,
     cmd::{commands_matching, get_command, CommandTag},
     datastructure::generic::Vec2i,
     opengl::{
@@ -26,8 +25,7 @@ use crate::{
         text_renderer::{self, TextRenderer},
         types::{RGBAColor, RGBColor},
     },
-    textbuffer::CharBuffer,
-    ui::eventhandling::{event::CommandOutput, input::KeyboardInputContext},
+    ui::eventhandling::event::CommandOutput,
 };
 
 pub struct TextRenderSetting {

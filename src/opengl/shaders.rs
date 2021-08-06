@@ -93,7 +93,7 @@ impl RectShader {
             let radius = std::ffi::CString::new("radius").expect("Failed to create CString");
             let rect_size = std::ffi::CString::new("rect_size").expect("Failed to create CString");
             let rect_pos = std::ffi::CString::new("rect_pos").expect("Failed to create CString");
-            let use_texture_name = std::ffi::CString::new("use_texture").unwrap();
+            let use_texture_name = std::ffi::CString::new("useTexture").unwrap();
             (
                 gl::GetUniformLocation(font_program, projection_uniform_name.as_ptr()),
                 gl::GetUniformLocation(font_program, radius.as_ptr()),
@@ -131,7 +131,7 @@ impl RectShader {
     pub fn set_use_texture(&self, use_texture: bool) {
         self.bind();
         unsafe {
-            gl::Uniform1i(self.u_use_texture, use_texture as _);
+            gl::Uniform1f(self.u_use_texture, if use_texture { 1.0 } else { 0.0 });
             // gl::UniformMatrix4fv(self.projection_uniform, 1, gl::FALSE, d.as_ptr() as *const _);
         }
     }

@@ -4,7 +4,7 @@ layout (location = 1) in vec4 color;  // <vec3 col, float interpolate>
 
 uniform mat4 projection;
 uniform vec2 rect_size;
-uniform bool use_texture;
+uniform float useTexture;
 
 // out vec4 rect_color;    // RGB color 
 // out vec2 u_size;        // size of window
@@ -12,11 +12,10 @@ uniform bool use_texture;
 // out vec2 texel_coords;  // texel (fragment) which we reference in the fragment shader, to calculate SDF, inside box
 
 out RectangleInfo {
-    vec2 texel_coordinates;
     vec2 tex_coords;
     vec2 size;
     vec4 color;
-    bool use_texture;
+    float use_texture;
 } rectangleInfo;
 
 void main()
@@ -27,10 +26,9 @@ void main()
     // texel_coords = vertex.xy;
     // u_size = rect_size;
 
-    rectangleInfo.texel_coordinates = vertex.xy;
     rectangleInfo.tex_coords = vertex.zw;
     rectangleInfo.color = color;
     rectangleInfo.size = rect_size;
-    rectangleInfo.use_texture = use_texture;
+    rectangleInfo.use_texture = useTexture;
 
 }
