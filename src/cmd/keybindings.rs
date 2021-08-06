@@ -3,6 +3,8 @@
 use super::keyimpl::{KeyImpl, ModifiersImpl};
 use crate::{
     textbuffer::{operations::LineOperation, Movement, TextKind},
+    // AppAction, InputboxAction and ViewAction are currently the three contexts which can receive keyboard input (at least configurable
+    // keyboard input)
     ui::eventhandling::event::{AppAction, InputboxAction, ViewAction},
 };
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -267,6 +269,8 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::Up, M::SHIFT), B::held(A::TextSelect(Movement::Backward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Down, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Down, M::SHIFT), B::held(A::TextSelect(Movement::Forward(TextKind::Line, 1))));
+
+    m.insert(BindingRequirement(K::M, M::SHIFT | M::CONTROL), B::press(A::InsertStr("fn main() {\n    println!(\"hello world!\");\n}".into())));
 
     m.insert(BindingRequirement(K::Home, M::empty()), B::held(A::Movement(Movement::Begin(TextKind::Line))));
     m.insert(BindingRequirement(K::Home, M::CONTROL), B::held(A::Movement(Movement::Begin(TextKind::File))));
