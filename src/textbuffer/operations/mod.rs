@@ -62,6 +62,7 @@ impl History {
 
     pub fn push_insert_char(&mut self, index: metadata::Index, ch: char, coalesce: bool) {
         self.history_stack.push(Operation::Insert(index, OperationParameter::Char(ch)));
+        self.undo_stack.clear();
         if coalesce {
             let p = self
                 .history_stack
@@ -104,23 +105,19 @@ impl History {
         todo!();
     }
 
-    pub fn pop(&mut self) -> Option<Operation> {
-        self.history_stack.pop();
-        todo!();
+    fn pop(&mut self) -> Option<Operation> {
+        self.history_stack.pop()
     }
 
     /// Pops the latest operation from the history stack and pushes it onto the undo stack.
     /// It takes the operation and inverses it. So if when you hit "undo", it will take whatever's top of the history stack
     /// inverse it (from a delete->insert and vice versa) and push that onto the undo stack. This is how one can achieve undo / redo
-    pub fn undo(&mut self) -> Option<Operation> {
+    pub fn undo(&mut self) -> Option<&Operation> {
         let popped = self.pop();
         if let Some(op) = popped {
-            match op {
-                Operation::Insert(_i, _o) => {}
-                Operation::Delete(_i, _o) => {}
-            }
+            self.undo_stack.push(op);
         }
-        todo!();
+        self.undo_stack.last()
     }
 }
 
@@ -168,5 +165,75 @@ pub mod tests {
         history.push_insert_char(start.offset(offset), '!', true);
         let last = history.history_stack.last().unwrap();
         assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into())));
+        let undo_911___ = history.undo();
+        assert_eq!(Some(&Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into()))), undo_911___);
+        // here, history will look like this:
+        // History Stack: ['c', 'a', 'l', 'l', ' '] |---| Undo Stack: ["911!!!"]
+        history.push_insert_char(start.offset(offset), 'n', true);
+        assert_eq!(0, history.undo_stack.len());
+    }
+
+    #[test]
+    fn test_invalidate_undo_stack_after_insert() {
+        let mut history = History::new();
+        let mut offset = 0;
+        let start = metadata::Index(0);
+
+        history.push_insert_char(start.offset(offset), 'c', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'a', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), ' ', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '9', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', true);
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())));
+        let _ = history.undo();
+        history.push_insert_char(start.offset(offset), 'n', false);
+        let last = history.history_stack.last();
+        assert_eq!(history.undo_stack.len(), 0);
+        assert_eq!(last, Some(&Operation::Insert(metadata::Index(offset as _), OperationParameter::Char('n'))));
+    }
+
+    #[test]
+    fn test_invalidate_undo_stack_after_insert_then_coalesce() {
+        let mut history = History::new();
+        let mut offset = 0;
+        let start = metadata::Index(0);
+
+        history.push_insert_char(start.offset(offset), 'c', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'a', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'l', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), ' ', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '9', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), '1', true);
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())));
+        let _ = history.undo();
+        let now_begin = offset;
+        history.push_insert_char(start.offset(offset), 'n', false);
+        offset += 1;
+        assert_eq!(history.undo_stack.len(), 0);
+        history.push_insert_char(start.offset(offset), 'o', false);
+        offset += 1;
+        history.push_insert_char(start.offset(offset), 'w', true);
+        assert_eq!(Some(&Operation::Insert(metadata::Index(now_begin as _), OperationParameter::Range("now".into()))), history.history_stack.last());
     }
 }
