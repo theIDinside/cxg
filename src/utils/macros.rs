@@ -216,7 +216,7 @@ macro_rules! IndexingType {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod macro_tests {
     #[test]
     pub fn test_equivalent_functionality_macro_and_fn() {
         let v = vec!['f', 'o', 'o'];

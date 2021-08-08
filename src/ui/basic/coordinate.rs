@@ -172,7 +172,7 @@ impl std::fmt::Debug for Layout {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod coordinate_tests {
     use crate::datastructure::generic::Vec2i;
 
     #[test]

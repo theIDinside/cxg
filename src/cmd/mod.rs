@@ -78,7 +78,7 @@ pub fn get_command(input: &str) -> Option<&CommandTag> {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod command_tests {
     use crate::cmd::CommandTag;
 
     use super::commands_matching;

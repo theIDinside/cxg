@@ -1015,7 +1015,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 }
             }
             Some(MetaCursor::LineRange { column, begin, end }) => todo!(),
-            None => todo!(),
+            None => {}
         }
     }
 
@@ -1036,7 +1036,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         if let Some(undo) = self.history.undo().cloned() {
             match undo {
                 crate::textbuffer::operations::Operation::Insert(i, op) => match op {
-                    crate::textbuffer::operations::OperationParameter::Char(c) => self.delete_at(i),
+                    crate::textbuffer::operations::OperationParameter::Char(..) => self.delete_at(i),
                     crate::textbuffer::operations::OperationParameter::Range(d) => self.delete_range(i, i.offset(d.len() as _)),
                 },
                 crate::textbuffer::operations::Operation::Delete(i, op) => match op {
@@ -1097,7 +1097,7 @@ pub fn predicate_generate(c: &char) -> fn(char) -> bool {
 #[rustfmt::skip]
 #[allow(unused)]
 #[cfg(test)]
-mod tests {
+mod buffer_tests {
     // For using benchmarking
     extern crate test;
 
