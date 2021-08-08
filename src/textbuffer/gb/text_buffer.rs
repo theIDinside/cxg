@@ -24,7 +24,7 @@ impl TextBuffer {}
 impl<'a> CharBuffer<'a> for TextBuffer {
     type ItemIterator = TextBufferIterator<'a>;
 
-    fn insert(&mut self, data: char) {
+    fn insert(&mut self, data: char, register_history: bool) {
         self.data.insert_item(data);
     }
 
@@ -108,6 +108,30 @@ impl<'a> CharBuffer<'a> for TextBuffer {
     where
         RangeType: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
     {
+        todo!()
+    }
+
+    fn delete_if_selection(&mut self) -> bool {
+        todo!()
+    }
+
+    fn get_buffer_movement_result(&mut self, dir: crate::textbuffer::Movement) -> Option<(metadata::Index, metadata::Index)> {
+        todo!()
+    }
+
+    fn delete_at(&mut self, index: metadata::Index) {
+        todo!()
+    }
+
+    fn delete_range(&mut self, begin: metadata::Index, end: metadata::Index) {
+        todo!()
+    }
+
+    fn undo(&mut self) {
+        todo!()
+    }
+
+    fn redo(&mut self) {
         todo!()
     }
 }

@@ -22,14 +22,17 @@ pub struct TextViewKeyBinding {
 }
 
 impl TextViewKeyBinding {
+    /// Creates a binding for keys that are pressed (but not held)
     pub fn press(act: ViewAction) -> TextViewKeyBinding {
         TextViewKeyBinding { pressed: Some(act), repeated: None, released: None }
     }
 
+    /// Creates a binding for keys that are released
     pub fn release(act: ViewAction) -> TextViewKeyBinding {
         TextViewKeyBinding { pressed: None, released: Some(act), repeated: None }
     }
 
+    /// Creates a binding for keys that are both either pressed or held
     pub fn held(act: ViewAction) -> TextViewKeyBinding {
         TextViewKeyBinding { pressed: Some(act.clone()), repeated: Some(act), released: None }
     }
@@ -46,14 +49,16 @@ pub struct InputboxBinding {
 }
 
 impl InputboxBinding {
+    /// Creates a binding for keys that are pressed (but not held)
     pub fn press(act: InputboxAction) -> InputboxBinding {
         InputboxBinding { pressed: Some(act), repeated: None, released: None }
     }
-
+    /// Creates a binding for keys that are released
     pub fn release(act: InputboxAction) -> InputboxBinding {
         InputboxBinding { pressed: None, released: Some(act), repeated: None }
     }
 
+    /// Creates a binding for keys that are both either pressed or held
     pub fn held(act: InputboxAction) -> InputboxBinding {
         InputboxBinding { pressed: Some(act.clone()), repeated: Some(act), released: None }
     }
@@ -70,14 +75,17 @@ pub struct AppBinding {
 }
 
 impl AppBinding {
+    /// Creates a binding for keys that are pressed (but not held)
     pub fn press(act: AppAction) -> AppBinding {
         AppBinding { pressed: Some(act), repeated: None, released: None }
     }
 
+    /// Creates a binding for keys that are released
     pub fn release(act: AppAction) -> AppBinding {
         AppBinding { pressed: None, released: Some(act), repeated: None }
     }
 
+    /// Creates a binding for keys that are both either pressed or held
     pub fn held(act: AppAction) -> AppBinding {
         AppBinding { pressed: Some(act.clone()), repeated: Some(act), released: None }
     }
@@ -277,6 +285,9 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::Home, M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::Line))));
     m.insert(BindingRequirement(K::Home, M::CONTROL | M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::File))));
 
+    m.insert(BindingRequirement(K::PageUp, M::empty()), B::held(A::Movement(Movement::Backward(TextKind::Page, 1))));
+    m.insert(BindingRequirement(K::PageDown, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Page, 1))));
+
     m.insert(BindingRequirement(K::End, M::empty()), B::held(A::Movement(Movement::End(TextKind::Line))));
     m.insert(BindingRequirement(K::End, M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Line))));
 
@@ -296,6 +307,9 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
     m.insert(BindingRequirement(K::Tab, M::empty()), B::press(A::LineOperation(LineOperation::ShiftRight { shift_by: 4 })));
     m.insert(BindingRequirement(K::Tab, M::SHIFT), B::press(A::LineOperation(LineOperation::ShiftLeft { shift_by: 4 })));
+
+    m.insert(BindingRequirement(K::Z, M::CONTROL), B::held(A::Undo));
+    m.insert(BindingRequirement(K::Z, M::CONTROL | M::SHIFT), B::held(A::Redo));
     m
 }
 

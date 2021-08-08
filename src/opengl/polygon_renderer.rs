@@ -214,24 +214,24 @@ impl PolygonRenderer {
     pub fn push_draw_command(&mut self, rect: BoundingBox, color: RGBAColor, poly_type: PolygonType) {
         match poly_type {
             PolygonType::Undecorated => {
-                let indices = self.make_vertex_data(rect, color, None);
+                let indices = self.make_vertex_data(rect, color);
                 self.draw_commands.push(PolygonDrawCommand::Undecorated { indices });
             }
             PolygonType::Decorated { texture } => {
-                let indices = self.make_vertex_data(rect, color, Some(&texture));
+                let indices = self.make_vertex_data(rect, color);
                 self.draw_commands.push(PolygonDrawCommand::Decorated { indices, texture });
             }
             PolygonType::RoundedUndecorated { corner_radius } => {
                 let rect_size = rect.size_f32();
                 let bl_rect_screen_pos = rect.min.to_f32();
-                let indices = self.make_vertex_data(rect, color, None);
+                let indices = self.make_vertex_data(rect, color);
                 self.draw_commands
                     .push(PolygonDrawCommand::RoundedUndecorated { indices, corner_radius, rect_size, bl_rect_screen_pos });
             }
             PolygonType::RoundedDecorated { corner_radius, texture } => {
                 let rect_size = rect.size_f32();
                 let bl_rect_screen_pos = rect.min.to_f32();
-                let indices = self.make_vertex_data(rect, color, Some(&texture));
+                let indices = self.make_vertex_data(rect, color);
                 self.draw_commands
                     .push(PolygonDrawCommand::RoundedDecorated { indices, corner_radius, rect_size, bl_rect_screen_pos, texture });
             }
@@ -243,7 +243,7 @@ impl PolygonRenderer {
     /// * `rect` - the dimensions of the rectangle to be drawn
     /// * `color` - The fill color of the rectangle
     /// * `texture` - An optional parameter which defines which texture to draw in the rectangle
-    pub fn make_vertex_data(&mut self, rect: BoundingBox, color: RGBAColor, texture: Option<&Texture>) -> BufferIndex {
+    pub fn make_vertex_data(&mut self, rect: BoundingBox, color: RGBAColor) -> BufferIndex {
         let BoundingBox { min, max } = rect;
         let RGBAColor { r, g, b, a } = color;
         let ebo_idx = self.indices.len();

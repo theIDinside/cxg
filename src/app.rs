@@ -648,13 +648,18 @@ impl<'app> Application<'app> {
             }
         }
 
+        if key == glfw::Key::F9 && action == Action::Press {
+            let v = self.get_active_view();
+            v.buffer.debug_print_history();
+        }
+
         if self.translate_key_input {
             let unhandled_input = match self.input_context {
                 KeyboardInputContext::InputBox => {
                     let act = self.key_bindings.translate_command_input(key, action, modifier);
                     if let Some(translation) = act {
                         // handle_input_box(&self, &input_box);
-                        println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
+                        // println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
                         self.handle_input_for_inputbox(translation);
                         None
                     } else {
@@ -663,7 +668,7 @@ impl<'app> Application<'app> {
                 }
                 KeyboardInputContext::TextView => {
                     if let Some(translation) = self.key_bindings.translate_textview_input(key, action, modifier) {
-                        println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
+                        // println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
                         self.handle_input_for_textview(translation);
                         None
                     } else {
@@ -809,7 +814,8 @@ impl<'app> Application<'app> {
                     CommandOutput::OpenFile(path) => {
                         let v = self.get_active_view();
                         if v.buffer.empty() {
-                            v.buffer.load_file(&path);
+                            v.load_file(&path);
+                            v.set_view_on_buffer_cursor();
                             v.set_need_redraw();
                             v.update(None);
                             self.active_keyboard_input = unsafe { &mut (*self.active_view) as &'app mut dyn InputBehavior };
@@ -1021,8 +1027,16 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-            ViewAction::Undo => todo!(),
-            ViewAction::Redo => todo!(),
+            ViewAction::Undo => {
+                let v = self.get_active_view();
+                v.buffer.undo();
+                v.set_view_on_buffer_cursor();
+            }
+            ViewAction::Redo => {
+                let v = self.get_active_view();
+                v.buffer.redo();
+                v.set_view_on_buffer_cursor();
+            }
             ViewAction::LineOperation(ref lineop) => {
                 let v = self.get_active_view();
                 match lineop {

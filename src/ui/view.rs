@@ -672,7 +672,7 @@ impl View {
             return;
         }
 
-        self.buffer.insert(ch);
+        self.buffer.insert(ch, true);
         if self.buffer.cursor_row() >= Line((self.topmost_line_in_buffer + self.rows_displayable()) as _) {
             self.set_view_on_buffer_cursor();
         } else {

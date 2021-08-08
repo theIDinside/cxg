@@ -12,6 +12,7 @@ use crate::{
     textbuffer::{
         cursor::MetaCursor,
         metadata::{self, calculate_hash},
+        operations::History,
         LineOperation, TextKind,
     },
     utils::{copy_slice_to, AsUsize},
@@ -25,6 +26,7 @@ pub struct ContiguousBuffer {
     pub data: Vec<char>,
     edit_cursor: BufferCursor,
     pub meta_cursor: Option<MetaCursor>,
+    history: History,
     size: usize,
     meta_data: metadata::MetaData,
 }
@@ -42,9 +44,14 @@ impl ContiguousBuffer {
             data: Vec::with_capacity(capacity),
             edit_cursor: BufferCursor::default(),
             meta_cursor: None,
+            history: History::new(),
             size: 0,
             meta_data: metadata::MetaData::new(None),
         }
+    }
+
+    pub fn debug_print_history(&self) {
+        println!("{:?}", self.history);
     }
 
     pub fn buffer_info(&self) -> (Option<&Path>, BufferCursor) {
@@ -141,7 +148,7 @@ impl ContiguousBuffer {
             }
         } else {
             for c in slice {
-                self.insert(*c);
+                self.insert(*c, true);
             }
         }
     }
@@ -567,8 +574,9 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         self.edit_cursor.pos
     }
 
-    fn insert(&mut self, ch: char) {
+    fn insert(&mut self, ch: char, register_history: bool) {
         use metadata::{Column as Col, Index};
+        let pos = self.edit_cursor.absolute();
         debug_assert!(self.edit_cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
         if let Some(marker) = &self.meta_cursor {
             match *marker {
@@ -603,6 +611,53 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         }
         self.size += 1;
         self.meta_data.set_buffer_size(self.size);
+        if register_history {
+            self.history.push_insert(pos, ch);
+        }
+    }
+
+    fn delete_if_selection(&mut self) -> bool {
+        use metadata::Index;
+        if self.empty() {
+            false
+        } else {
+            self.meta_cursor
+                .map(|ref mc| match mc {
+                    &MetaCursor::Absolute(marker) => {
+                        let (erase_from, erase_to) = if marker < self.cursor_abs() {
+                            (*marker, std::cmp::min(*self.edit_cursor.pos, self.len() - 1))
+                        } else {
+                            (*self.edit_cursor.pos, std::cmp::min(*marker, self.len() - 1))
+                        };
+
+                        let begin = Index(erase_from);
+                        for (offset, c) in self.data.drain(erase_from..=erase_to).enumerate() {
+                            self.history.push_delete(begin.offset(offset as isize), c);
+                        }
+                        self.meta_cursor = None;
+                        self.size = self.data.len();
+                        self.rebuild_metadata();
+                        self.cursor_goto(Index(erase_from));
+                        true
+                    }
+                    &MetaCursor::LineRange { begin, end, .. } => {
+                        let md = self.meta_data();
+                        if let Some((begin, end)) = md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1))) {
+                            for (offset, c) in self.data.drain(*begin..=*end).enumerate() {
+                                self.history.push_delete(begin.offset(offset as isize), c);
+                            }
+                            self.meta_cursor = None;
+                            self.size = self.data.len();
+                            self.rebuild_metadata();
+                            self.cursor_goto(begin);
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                })
+                .unwrap_or(false)
+        }
     }
 
     // todo(optimization): don't do the expensive rebuild of meta data after each delete. It's a pretty costly operation.
@@ -611,98 +666,79 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         if self.empty() {
             return;
         }
-        if let Some(marker) = &self.meta_cursor {
-            match *marker {
-                MetaCursor::Absolute(marker) => {
-                    let (erase_from, erase_to) = if marker < self.cursor_abs() {
-                        (*marker, std::cmp::min(*self.edit_cursor.pos, self.len() - 1))
-                    } else {
-                        (*self.edit_cursor.pos, std::cmp::min(*marker, self.len() - 1))
-                    };
-
-                    self.data.drain(erase_from..=erase_to);
-                    self.meta_cursor = None;
-                    self.size = self.data.len();
-                    self.rebuild_metadata();
-                    self.cursor_goto(Index(erase_from));
-                    return;
-                }
-                #[allow(unused)]
-                MetaCursor::LineRange { column, begin, end } => {
-                    let md = self.meta_data();
-                    if let Some((begin, end)) = md.get(begin).zip(md.get(end.offset(1))).map(|(b, e)| (b, e.offset(-1))) {
-                        self.data.drain(*begin..=*end);
-                        self.meta_cursor = None;
-                        self.size = self.data.len();
-                        self.rebuild_metadata();
-                        self.cursor_goto(begin);
-                    }
-                }
-            }
-        }
-
-        match dir {
-            Movement::Forward(kind, count) => match kind {
-                TextKind::Char => {
-                    // clamp the count of characters removed, so we don't try to remove "outside" of our buffer
-                    let count = if self.edit_cursor.absolute().offset(count as isize) <= Index(self.data.len()) {
-                        count
-                    } else {
-                        self.data.len() - *self.edit_cursor.absolute()
-                    };
-                    for _ in 0..count {
-                        self.data.remove(*self.edit_cursor.absolute());
-                    }
-                }
-                TextKind::Word => {
-                    if let Some(c) = self.get(self.cursor_abs()) {
-                        if c.is_whitespace() {
-                            if let Some(Index(p)) = self.find_next(|c| !c.is_whitespace()).map(|c| c.pos) {
-                                self.data.drain(*self.cursor_abs()..p);
-                            }
-                        } else if c.is_alphanumeric() {
-                            if let Some(Index(p)) = self.find_next(|c| !c.is_alphanumeric()).map(|c| c.pos) {
-                                self.data.drain(*self.cursor_abs()..p);
-                            }
+        if !self.delete_if_selection() {
+            match dir {
+                Movement::Forward(kind, count) => match kind {
+                    TextKind::Char => {
+                        // clamp the count of characters removed, so we don't try to remove "outside" of our buffer
+                        let count = if self.edit_cursor.absolute().offset(count as isize) <= Index(self.data.len()) {
+                            count
                         } else {
-                            // If we are standing on, say +-/_* (non-alphanumerics) just delete one character at a time
-                            self.data.remove(*self.cursor_abs());
+                            self.data.len() - *self.edit_cursor.absolute()
+                        };
+
+                        for _ in 0..count {
+                            let c = self.data.remove(*self.edit_cursor.absolute());
+                            self.history.push_delete(self.edit_cursor.absolute(), c);
                         }
                     }
-                }
-                _ => {
-                    todo!("TextKind::{:?} not yet implemented", kind)
-                }
-            },
+                    TextKind::Word => {
+                        if let Some(c) = self.get(self.cursor_abs()) {
+                            if c.is_whitespace() {
+                                if let Some(Index(p)) = self.find_next(|c| !c.is_whitespace()).map(|c| c.pos) {
+                                    for ch in self.data.drain(*self.cursor_abs()..p) {
+                                        self.history.push_delete(self.edit_cursor.absolute(), ch);
+                                    }
+                                }
+                            } else if c.is_alphanumeric() {
+                                if let Some(Index(p)) = self.find_next(|c| !c.is_alphanumeric()).map(|c| c.pos) {
+                                    for ch in self.data.drain(*self.cursor_abs()..p) {
+                                        self.history.push_delete(self.edit_cursor.absolute(), ch);
+                                    }
+                                }
+                            } else {
+                                // If we are standing on, say +-/_* (non-alphanumerics) just delete one character at a time
+                                let ch = self.data.remove(*self.cursor_abs());
+                                self.history.push_delete(self.edit_cursor.absolute(), ch);
+                            }
+                        }
+                    }
+                    _ => {
+                        todo!("TextKind::{:?} not yet implemented", kind)
+                    }
+                },
 
-            Movement::Backward(kind, count) if self.edit_cursor.absolute() != Index(0) => match kind {
-                TextKind::Char => {
-                    let count = if *self.edit_cursor.absolute() as i64 - count as i64 >= 0 {
-                        count
-                    } else {
-                        *self.edit_cursor.absolute()
-                    };
-                    self.cursor_move_backward(TextKind::Char, count);
-                    for _ in 0..count {
-                        self.remove();
+                Movement::Backward(kind, count) if self.edit_cursor.absolute() != Index(0) => match kind {
+                    TextKind::Char => {
+                        let count = if *self.edit_cursor.absolute() as i64 - count as i64 >= 0 {
+                            count
+                        } else {
+                            *self.edit_cursor.absolute()
+                        };
+                        self.cursor_move_backward(TextKind::Char, count);
+                        for _ in 0..count {
+                            let c = self.data.remove(*self.edit_cursor.absolute());
+                            self.history.push_delete(self.edit_cursor.absolute(), c);
+                        }
                     }
-                }
-                TextKind::Word => {
-                    let idx_pos = self.edit_cursor.pos;
-                    self.move_cursor(Movement::Begin(TextKind::Word));
-                    let len = *(idx_pos - self.edit_cursor.pos);
-                    for _ in 0..len {
-                        self.remove();
+                    TextKind::Word => {
+                        let idx_pos = self.edit_cursor.pos;
+                        self.move_cursor(Movement::Begin(TextKind::Word));
+                        let len = *(idx_pos - self.edit_cursor.pos);
+                        for _ in 0..len {
+                            let c = self.data.remove(*self.edit_cursor.absolute());
+                            self.history.push_delete(self.edit_cursor.absolute(), c);
+                        }
                     }
-                }
-                _ => {
-                    todo!("TextKind::{:?} not yet implemented", kind)
-                }
-            },
-            _ => {}
+                    _ => {
+                        todo!("TextKind::{:?} not yet implemented", kind)
+                    }
+                },
+                _ => {}
+            }
+            self.size = self.data.len();
+            self.rebuild_metadata();
         }
-        self.size = self.data.len();
-        self.rebuild_metadata();
     }
 
     fn insert_slice_fast(&mut self, slice: &[char]) {
@@ -754,6 +790,14 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 self.set_absolute_meta_cursor(mc_idx);
             }
         }
+    }
+
+    fn get_buffer_movement_result(&mut self, dir: Movement) -> Option<(metadata::Index, metadata::Index)> {
+        let old = self.cursor().clone();
+        self.move_cursor(dir);
+        let res = Some((old.absolute(), self.cursor().absolute()));
+        self.set_cursor(old);
+        res
     }
 
     /// Clears the meta cursor when moving, so if the desired action is to set a range of selected data
@@ -974,6 +1018,69 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
             None => todo!(),
         }
     }
+
+    fn delete_at(&mut self, index: metadata::Index) {
+        // todo: optimize so we don't have to rebuild all the metadata
+        self.data.remove(*index);
+        self.cursor_goto(index);
+        self.rebuild_metadata();
+    }
+
+    fn delete_range(&mut self, begin: metadata::Index, end: metadata::Index) {
+        self.data.drain(*begin..*end);
+        self.cursor_goto(begin);
+        self.rebuild_metadata();
+    }
+
+    fn undo(&mut self) {
+        if let Some(undo) = self.history.undo().cloned() {
+            match undo {
+                crate::textbuffer::operations::Operation::Insert(i, op) => match op {
+                    crate::textbuffer::operations::OperationParameter::Char(c) => self.delete_at(i),
+                    crate::textbuffer::operations::OperationParameter::Range(d) => self.delete_range(i, i.offset(d.len() as _)),
+                },
+                crate::textbuffer::operations::Operation::Delete(i, op) => match op {
+                    crate::textbuffer::operations::OperationParameter::Char(c) => {
+                        self.cursor_goto(i);
+                        self.insert(c, false);
+                    }
+                    crate::textbuffer::operations::OperationParameter::Range(d) => {
+                        self.cursor_goto(i);
+                        for c in d.chars() {
+                            self.insert(c, false);
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(redo) = self.history.redo().cloned() {
+            match redo {
+                crate::textbuffer::operations::Operation::Insert(i, o) => {
+                    self.cursor_goto(i);
+                    match o {
+                        crate::textbuffer::operations::OperationParameter::Char(c) => self.insert(c, false),
+                        crate::textbuffer::operations::OperationParameter::Range(d) => {
+                            for c in d.chars() {
+                                self.insert(c, false);
+                            }
+                        }
+                    }
+                }
+                crate::textbuffer::operations::Operation::Delete(i, o) => {
+                    self.cursor_goto(i);
+                    match o {
+                        crate::textbuffer::operations::OperationParameter::Char(_) => {
+                            self.delete_at(i);
+                        }
+                        crate::textbuffer::operations::OperationParameter::Range(d) => self.delete_range(i, i.offset(d.len() as _)),
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[inline(always)]
@@ -1048,7 +1155,7 @@ mod tests {
         let v: Vec<char> = "Hello test world".chars().collect();
         let mut b = Box::new(ContiguousBuffer::new(0, 1024));
         for c in v {
-            b.insert(c);
+            b.insert(c, true);
         }
         b.move_cursor(Movement::Backward(TextKind::Line, 1));
         assert_eq!(b.edit_cursor.pos, md::Index(0));
@@ -1058,12 +1165,12 @@ mod tests {
         b.move_cursor(Movement::End(TextKind::Word));
         b.move_cursor(Movement::End(TextKind::Word));
         for c in copy.unwrap().chars() {
-            b.insert(c);
+            b.insert(c, true);
         }
         let new_copy = b.copy_range_or_line();
         assert_eq!(Some("Hello Hellotest world".into()), new_copy);
         for c in new_copy.unwrap().chars() {
-            b.insert(c);
+            b.insert(c, true);
         }
         let last_copy = b.copy_range_or_line();
         assert_eq!(Some("Hello HelloHello Hellotest worldtest world".into()), last_copy);
@@ -1101,7 +1208,7 @@ if let Some(foo) = test {{
 //");
         let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in d.chars() {
-            sb.insert(c);
+            sb.insert(c, true);
         }
         let validate_first: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(d, validate_first);
@@ -1135,7 +1242,7 @@ fn main() {{
 
         let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in d.chars() {
-            sb.insert(c);
+            sb.insert(c, true);
         }
         let validate_first: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(d, validate_first);
@@ -1162,7 +1269,7 @@ fn main() {{
 
         let mut sb = Box::new(ContiguousBuffer::new(0, 1024));
         for c in assert_str.chars() {
-            sb.insert(c);
+            sb.insert(c, true);
         }
         let validate_first: String = sb.data.iter().map(|v| *v).collect();
         assert_eq!(assert_str, validate_first);

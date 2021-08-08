@@ -139,11 +139,35 @@ pub trait CharBuffer<'a>: std::hash::Hash {
     type ItemIterator: Iterator<Item = &'a char>;
     // todo(feature): Add support for multiple cursors, whether they be implemented as multi-cursors or just as macros pretending to be multiple cursors is utterly irrelevant
     /// Inserts character att current cursor position
-    fn insert(&mut self, data: char);
+    /// * `data` - the element to be inserted into the buffer
+    /// * `register_history` - if this operation should be registered in the history stack
+    fn insert(&mut self, data: char, register_history: bool);
+
     /// Deletes a TextKind at given Movement direction. Deleting a character forward, requires a parameter of Movement::Forward(TextKind::Char, 1)
     /// Deleting a line is very similar; Movement::Forward(TextKind::Line, 1);
     fn delete(&mut self, dir: Movement);
+
+    /// Deletes element at buffer position. Index must be a valid one, otherwise a panic will be triggered
+    /// * `index` - the index of the element to be removed
+    fn delete_at(&mut self, index: metadata::Index);
+
+    /// Deletes elements at buffer range. Indices must be valid, otherwise a panic will be triggered
+    /// * `begin` - the start of the range to be removed
+    /// * `end` - the end of the range to be removed, this index excluded
+    fn delete_range(&mut self, begin: metadata::Index, end: metadata::Index);
+
+    /// deletes data from the buffer, if there exists a selection
+    fn delete_if_selection(&mut self) -> bool;
+
+    /// Simulates a cursor movement and returns the positional data for the cursor, along with a reference to the data that the cursor spanned
+    fn get_buffer_movement_result(&mut self, dir: Movement) -> Option<(metadata::Index, metadata::Index)>;
+
+    fn undo(&mut self);
+
+    fn redo(&mut self);
+
     /// Copies a slice into the buffer, using memcpy. If there's not enough space, the buffer will have to re-allocate it's data first
+    /// * `slice` - the slice to copy into the buffer
     fn insert_slice_fast(&mut self, slice: &[char]);
 
     /// Moves the cursor in the buffer
@@ -151,10 +175,13 @@ pub trait CharBuffer<'a>: std::hash::Hash {
 
     /// Moves the cursor and sets the meta cursor accordingly.
     fn select_move_cursor_absolute(&mut self, movement: Movement);
+
     /// Capacity of the buffer
     fn capacity(&self) -> usize;
+
     /// Size of the used space in the buffer
     fn len(&self) -> usize;
+
     /// Check if the buffer is empty
     fn empty(&self) -> bool {
         self.len() == 0

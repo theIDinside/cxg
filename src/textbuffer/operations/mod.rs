@@ -14,6 +14,10 @@ pub enum Operation {
 }
 
 impl Operation {
+    pub fn coalesce(&mut self, ch: char) {}
+}
+
+impl Operation {
     pub fn index(&self) -> metadata::Index {
         match self {
             Operation::Insert(i, ..) => *i,
@@ -50,12 +54,12 @@ impl History {
     }
 
     fn coalesce_history_stack_top(&mut self) {
-        if !self.history_stack.len() > 1 {
+        if self.history_stack.len() > 1 {
             // to coalesce the stack, it makes sense we need more than 1 element
             let last = self.history_stack.pop().unwrap();
             let start_i = Operation::index(&last);
-            match last {
-                Operation::Insert(i, t) => {
+            match &last {
+                Operation::Insert(.., t) => {
                     let p = self
                         .history_stack
                         .iter()
@@ -76,27 +80,32 @@ impl History {
                         .unwrap_or(0);
 
                     let elems_to_coalesce: Vec<Operation> = self.history_stack.drain(p..).collect();
-                    if let Some(buffer_index) = elems_to_coalesce.get(0).map(Operation::index) {
-                        let mut chars = Vec::with_capacity(elems_to_coalesce.len() * 4);
-                        for elem in elems_to_coalesce {
-                            match elem {
-                                Operation::Insert(.., op) => match op {
-                                    OperationParameter::Char(c) => chars.push(c),
-                                    OperationParameter::Range(range) => chars.extend(range.chars()),
-                                },
-                                Operation::Delete(_, _) => panic!("this must not happen"),
+                    if elems_to_coalesce.is_empty() {
+                        // restore the popped last entry, since we found nothing to coalesce it with
+                        self.history_stack.push(last);
+                    } else {
+                        if let Some(buffer_index) = elems_to_coalesce.get(0).map(Operation::index) {
+                            let mut chars = Vec::with_capacity(elems_to_coalesce.len() * 4);
+                            for elem in elems_to_coalesce {
+                                match elem {
+                                    Operation::Insert(.., op) => match op {
+                                        OperationParameter::Char(c) => chars.push(c),
+                                        OperationParameter::Range(range) => chars.extend(range.chars()),
+                                    },
+                                    Operation::Delete(_, _) => panic!("this must not happen"),
+                                }
                             }
+                            match t {
+                                OperationParameter::Char(c) => {
+                                    chars.push(*c);
+                                }
+                                OperationParameter::Range(r) => {
+                                    chars.extend(r.chars());
+                                }
+                            }
+                            self.history_stack
+                                .push(Operation::Insert(buffer_index, OperationParameter::Range(chars.iter().collect())));
                         }
-                        match t {
-                            OperationParameter::Char(c) => {
-                                chars.push(c);
-                            }
-                            OperationParameter::Range(r) => {
-                                chars.extend(r.chars());
-                            }
-                        }
-                        self.history_stack
-                            .push(Operation::Insert(buffer_index, OperationParameter::Range(chars.iter().collect())));
                     }
                 }
                 Operation::Delete(i, t) => {
@@ -112,38 +121,47 @@ impl History {
                         .position(|(above_index, item)| match item {
                             Operation::Insert(..) => true,
                             Operation::Delete(i, o) => match o {
-                                OperationParameter::Char(c) => c.is_whitespace() || i.offset(-1) != above_index,
-                                OperationParameter::Range(c) => c.chars().any(|c| c.is_whitespace()) || i.offset(-(c.len() as isize)) != above_index,
+                                // if we find an offset of -1, then we deleted backwards, if offset == above_index we deleted forwards, all other deletions are non-contiguous and thus
+                                // can't be coalesced
+                                OperationParameter::Char(c) => c.is_whitespace() || i.offset(-1) != above_index || *i != above_index,
+                                OperationParameter::Range(c) => {
+                                    c.chars().any(|c| c.is_whitespace()) || i.offset(-(c.len() as isize)) != above_index || *i != above_index
+                                }
                             },
                         })
                         .map(|v| (self.history_stack.len() - 1) - v + 1)
                         .unwrap_or(0);
                     let elems_to_coalesce: Vec<Operation> = self.history_stack.drain(p..).collect();
-                    let mut chars = Vec::with_capacity(elems_to_coalesce.len() * 4);
-                    for elem in elems_to_coalesce {
-                        match elem {
-                            Operation::Insert(..) => {
-                                panic!("This must not happen!")
-                            }
-                            Operation::Delete(.., op) => match op {
-                                OperationParameter::Char(c) => chars.push(c),
-                                OperationParameter::Range(range) => chars.extend(range.chars()),
-                            },
-                        }
-                    }
-                    match t {
-                        OperationParameter::Char(c) => {
-                            chars.push(c);
-                        }
-                        OperationParameter::Range(r) => {
-                            chars.extend(r.chars());
-                        }
-                    }
-                    if chars.len() == 1 {
-                        self.history_stack.push(Operation::Delete(i, OperationParameter::Char(chars[0])));
+                    if elems_to_coalesce.is_empty() {
+                        // restore the popped last entry, since we found nothing to coalesce it with
+                        self.history_stack.push(last);
                     } else {
-                        self.history_stack
-                            .push(Operation::Delete(i, OperationParameter::Range(chars.iter().rev().collect())));
+                        let mut chars = Vec::with_capacity(elems_to_coalesce.len() * 4);
+                        for elem in elems_to_coalesce {
+                            match elem {
+                                Operation::Insert(..) => {
+                                    panic!("This must not happen!")
+                                }
+                                Operation::Delete(.., op) => match op {
+                                    OperationParameter::Char(c) => chars.push(c),
+                                    OperationParameter::Range(range) => chars.extend(range.chars()),
+                                },
+                            }
+                        }
+                        match t {
+                            OperationParameter::Char(c) => {
+                                chars.push(*c);
+                            }
+                            OperationParameter::Range(r) => {
+                                chars.extend(r.chars());
+                            }
+                        }
+                        if chars.len() == 1 {
+                            self.history_stack.push(Operation::Delete(*i, OperationParameter::Char(chars[0])));
+                        } else {
+                            self.history_stack
+                                .push(Operation::Delete(*i, OperationParameter::Range(chars.iter().rev().collect())));
+                        }
                     }
                 }
             }
@@ -155,20 +173,81 @@ impl History {
         todo!("coalesce_undo_stack_top() not implemented yet");
     }
 
-    pub fn push_insert_char(&mut self, index: metadata::Index, ch: char, coalesce: bool) {
-        self.history_stack.push(Operation::Insert(index, OperationParameter::Char(ch)));
+    pub fn push_insert(&mut self, index: metadata::Index, ch: char) {
         self.invalidate_undo_stack();
-        if coalesce {
-            self.coalesce_history_stack_top();
+        let mut coalesced = false;
+        if !ch.is_whitespace() {
+            if let Some(Operation::Insert(i, o)) = self.history_stack.last_mut() {
+                match o {
+                    OperationParameter::Char(c) if !c.is_whitespace() && i.offset(1) == index => {
+                        let mut s = String::with_capacity(2);
+                        s.push(*c);
+                        s.push(ch);
+                        *o = OperationParameter::Range(s);
+                        coalesced = true;
+                    }
+                    OperationParameter::Range(d) if i.offset(d.len() as _) == index => {
+                        d.push(ch);
+                        coalesced = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if !coalesced {
+            self.history_stack.push(Operation::Insert(index, OperationParameter::Char(ch)));
         }
     }
 
-    /// When a user deletes something, we push a delete operation
-    pub fn push_delete_char(&mut self, index: metadata::Index, ch: char, coalesce: bool) {
-        self.history_stack.push(Operation::Delete(index, OperationParameter::Char(ch)));
+    pub fn push_delete(&mut self, index: metadata::Index, ch: char) {
         self.invalidate_undo_stack();
-        if coalesce {
-            self.coalesce_history_stack_top();
+        let mut coalesced = false;
+        if !ch.is_whitespace() {
+            if let Some(Operation::Delete(i, o)) = self.history_stack.last_mut() {
+                coalesced = match o {
+                    OperationParameter::Char(c) if !c.is_whitespace() => {
+                        if index.offset(1) == *i {
+                            // we've deleted backwards (backspace)
+                            // thus, ch is going to be the first character in this range (from left to right)
+                            let mut s = String::with_capacity(2);
+                            s.push(ch);
+                            s.push(*c);
+                            *o = OperationParameter::Range(s);
+                            *i = index;
+                            true
+                        } else if *i == index {
+                            // we've deleted forwards (delete key). here we reverse the pushing of c and ch, since the first character
+                            // in the range delete, was c
+                            let mut s = String::with_capacity(2);
+                            s.push(*c);
+                            s.push(ch);
+                            *o = OperationParameter::Range(s);
+                            *i = index;
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    OperationParameter::Range(d) => {
+                        if *i == index {
+                            // we've deleted forwards
+                            d.push(ch);
+                            true
+                        } else if index.offset(1) == *i {
+                            //we've deleted backwards
+                            d.insert(0, ch);
+                            *i = index;
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+            }
+        }
+        if !coalesced {
+            self.history_stack.push(Operation::Delete(index, OperationParameter::Char(ch)));
         }
     }
 
@@ -183,8 +262,20 @@ impl History {
         let popped = self.pop();
         if let Some(op) = popped {
             self.undo_stack.push(op);
+            self.undo_stack.last()
+        } else {
+            None
         }
-        self.undo_stack.last()
+    }
+
+    pub fn redo(&mut self) -> Option<&Operation> {
+        let popped = self.undo_stack.pop();
+        if let Some(op) = popped {
+            self.history_stack.push(op);
+            self.history_stack.last()
+        } else {
+            None
+        }
     }
 }
 
@@ -197,48 +288,9 @@ pub enum LineOperation {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::textbuffer::{metadata, operations::OperationParameter};
+    use crate::textbuffer::{contiguous::contiguous::ContiguousBuffer, metadata, operations::OperationParameter, CharBuffer, Movement, TextKind};
 
     use super::{History, Operation};
-
-    #[test]
-    fn test_insert_coalescing() {
-        let mut history = History::new();
-        let mut offset = 0;
-        let start = metadata::Index(0);
-
-        history.push_insert_char(start.offset(offset), 'c', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), 'a', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), ' ', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '9', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '1', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '1', true);
-        let last = history.history_stack.last().unwrap();
-        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())), "coalesce failed");
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '!', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '!', false);
-        offset += 1;
-        history.push_insert_char(start.offset(offset), '!', true);
-        let last = history.history_stack.last().unwrap();
-        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into())), "2nd coalesce failed");
-        let undo_911___ = history.undo();
-        assert_eq!(Some(&Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into()))), undo_911___, "Undo operation failed");
-        // here, history will look like this:
-        // History Stack: ['c', 'a', 'l', 'l', ' '] |---| Undo Stack: ["911!!!"]
-        history.push_insert_char(start.offset(offset), 'n', true);
-        assert_eq!(0, history.undo_stack.len());
-    }
 
     #[test]
     fn test_invalidate_undo_stack_after_insert() {
@@ -246,25 +298,25 @@ pub mod tests {
         let mut offset = 0;
         let start = metadata::Index(0);
 
-        history.push_insert_char(start.offset(offset), 'c', false);
+        history.push_insert(start.offset(offset), 'c');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'a', false);
+        history.push_insert(start.offset(offset), 'a');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
+        history.push_insert(start.offset(offset), 'l');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
+        history.push_insert(start.offset(offset), 'l');
         offset += 1;
-        history.push_insert_char(start.offset(offset), ' ', false);
+        history.push_insert(start.offset(offset), ' ');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '9', false);
+        history.push_insert(start.offset(offset), '9');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '1', false);
+        history.push_insert(start.offset(offset), '1');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '1', true);
+        history.push_insert(start.offset(offset), '1');
         let last = history.history_stack.last().unwrap();
         assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())));
         let _ = history.undo();
-        history.push_insert_char(start.offset(offset), 'n', false);
+        history.push_insert(start.offset(offset), 'n');
         let last = history.history_stack.last();
         assert_eq!(history.undo_stack.len(), 0);
         assert_eq!(last, Some(&Operation::Insert(metadata::Index(offset as _), OperationParameter::Char('n'))));
@@ -276,82 +328,192 @@ pub mod tests {
         let mut offset = 0;
         let start = metadata::Index(0);
 
-        history.push_insert_char(start.offset(offset), 'c', false);
+        history.push_insert(start.offset(offset), 'c');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'a', false);
+        history.push_insert(start.offset(offset), 'a');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
+        history.push_insert(start.offset(offset), 'l');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'l', false);
+        history.push_insert(start.offset(offset), 'l');
         offset += 1;
-        history.push_insert_char(start.offset(offset), ' ', false);
+        history.push_insert(start.offset(offset), ' ');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '9', false);
+        history.push_insert(start.offset(offset), '9');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '1', false);
+        history.push_insert(start.offset(offset), '1');
         offset += 1;
-        history.push_insert_char(start.offset(offset), '1', true);
+        history.push_insert(start.offset(offset), '1');
         let last = history.history_stack.last().unwrap();
         assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())));
         let _ = history.undo();
         let now_begin = offset;
-        history.push_insert_char(start.offset(offset), 'n', false);
+        history.push_insert(start.offset(offset), 'n');
         offset += 1;
         assert_eq!(history.undo_stack.len(), 0);
-        history.push_insert_char(start.offset(offset), 'o', false);
+        history.push_insert(start.offset(offset), 'o');
         offset += 1;
-        history.push_insert_char(start.offset(offset), 'w', false);
+        history.push_insert(start.offset(offset), 'w');
         history.coalesce_history_stack_top();
         assert_eq!(Some(&Operation::Insert(metadata::Index(now_begin as _), OperationParameter::Range("now".into()))), history.history_stack.last());
     }
 
     #[test]
-    fn test_delete_coalescing() {
+    fn test_delete_bwd_coalescing() {
         let mut history = History::new();
-        let mut offset = 20;
+        let mut offset = 30;
         let start = metadata::Index(0);
         // !!!! A
-        history.push_delete_char(start.offset(offset), 'A', false);
+        history.push_delete(start.offset(offset), 'A');
         offset -= 1;
 
-        history.push_delete_char(start.offset(offset), ' ', false);
+        history.push_delete(start.offset(offset), ' ');
         offset -= 1;
 
-        history.push_delete_char(start.offset(offset), '!', false);
+        history.push_delete(start.offset(offset), '!');
         offset -= 1;
-        history.push_delete_char(start.offset(offset), '!', false);
+        history.push_delete(start.offset(offset), '!');
         offset -= 1;
-        history.push_delete_char(start.offset(offset), '!', false);
-        let last = history.history_stack.last().unwrap();
-        assert_eq!(*last, Operation::Delete(metadata::Index(offset as _), OperationParameter::Char('!')));
+        history.push_delete(start.offset(offset), '!');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), '!', true);
+        history.push_delete(start.offset(offset), '!');
         let last = history.history_stack.last().unwrap();
         assert_eq!(*last, Operation::Delete(start.offset(offset), OperationParameter::Range("!!!!".into())));
 
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), ' ', false);
+        history.push_delete(start.offset(offset), ' ');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'r', false);
+        history.push_delete(start.offset(offset), 'r');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'a', false);
+        history.push_delete(start.offset(offset), 'a');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'b', false);
+        history.push_delete(start.offset(offset), 'b');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'o', false);
+        history.push_delete(start.offset(offset), 'o');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'o', false);
+        history.push_delete(start.offset(offset), 'o');
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'f', true);
+        history.push_delete(start.offset(offset), 'f');
         let last = history.history_stack.last().unwrap().clone();
         assert_eq!(last, Operation::Delete(start.offset(offset), OperationParameter::Range("foobar".into())));
         let undo = history.undo().clone();
         assert_eq!(last, *undo.unwrap());
         offset -= 1isize;
-        history.push_delete_char(start.offset(offset), 'f', true);
+        history.push_delete(start.offset(100), 'f');
         let undo = history.undo().unwrap().clone();
         assert_ne!(last, undo);
         assert_eq!(history.undo_stack.len(), 1);
-        assert_eq!(undo, Operation::Delete(start.offset(offset), OperationParameter::Char('f')));
+        assert_eq!(undo, Operation::Delete(start.offset(100), OperationParameter::Char('f')));
+    }
+
+    #[test]
+    fn test_delete_fwd_coalescing() {
+        let mut history = History::new();
+        let start = metadata::Index(30);
+        // delete "foobar", starting at f and deleting forwards (i.e. simulating the user hitting the delete key)
+        history.push_delete(start, 'F');
+        assert_eq!(history.history_stack.last(), Some(&Operation::Delete(start, OperationParameter::Char('F'))));
+        history.push_delete(start, 'o');
+        history.push_delete(start, 'o');
+        assert_eq!(history.history_stack.last(), Some(&Operation::Delete(start, OperationParameter::Range(String::from("Foo")))));
+        history.push_delete(start, 'b');
+        history.push_delete(start, 'a');
+        history.push_delete(start, 'r');
+        assert_eq!(history.history_stack.last(), Some(&Operation::Delete(start, OperationParameter::Range("Foobar".into()))));
+    }
+
+    #[test]
+    fn test_delete_fwd_coalesce_then_move_cursor_and_delete() {
+        let mut history = History::new();
+        let start = metadata::Index(30);
+        // delete "foobar", starting at f and deleting forwards (i.e. simulating the user hitting the delete key)
+        history.push_delete(start, 'F');
+        history.push_delete(start, 'o');
+        history.push_delete(start, 'o');
+        history.push_delete(start, 'b');
+        history.push_delete(start, 'a');
+        history.push_delete(start, 'r');
+        // Moving cursor
+        let offset = 30;
+        let new_idx = start.offset(offset);
+        history.push_delete(new_idx, 'H');
+        assert_ne!(history.history_stack.last(), Some(&Operation::Delete(start, OperationParameter::Range("FoobarH".into()))));
+        assert_eq!(history.history_stack.last(), Some(&Operation::Delete(new_idx, OperationParameter::Char('H'))));
+    }
+
+    #[test]
+    fn test_always_coalesce_insert() {
+        let mut history = History::new();
+        let mut offset = 0;
+        let start = metadata::Index(0);
+        history.push_insert(start.offset(offset), 'c');
+        offset += 1;
+        history.push_insert(start.offset(offset), 'a');
+        offset += 1;
+        history.push_insert(start.offset(offset), 'l');
+        offset += 1;
+        history.push_insert(start.offset(offset), 'l');
+        offset += 1;
+        history.push_insert(start.offset(offset), ' ');
+        offset += 1;
+        history.push_insert(start.offset(offset), '9');
+        offset += 1;
+        history.push_insert(start.offset(offset), '1');
+        offset += 1;
+        history.push_insert(start.offset(offset), '1');
+
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911".into())), "coalesce failed");
+        offset += 1;
+        history.push_insert(start.offset(offset), '!');
+        offset += 1;
+        history.push_insert(start.offset(offset), '!');
+        offset += 1;
+        history.push_insert(start.offset(offset), '!');
+        let last = history.history_stack.last().unwrap();
+        assert_eq!(*last, Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into())), "2nd coalesce failed");
+        let undo_911___ = history.undo();
+        assert_eq!(Some(&Operation::Insert(metadata::Index(5), OperationParameter::Range("911!!!".into()))), undo_911___, "Undo operation failed");
+        // here, history will look like this:
+        // History Stack: ['c', 'a', 'l', 'l', ' '] |---| Undo Stack: ["911!!!"]
+    }
+
+    #[allow(unused)]
+    #[test]
+    fn test_use_with_buffer() {
+        let add_char = |ch: char, buf: &mut ContiguousBuffer, history: &mut History| {
+            let i = buf.cursor().absolute();
+            buf.insert(ch, true);
+            history.push_insert(i, ch);
+        };
+
+        let delete_char = |pos: metadata::Index, buf: &mut ContiguousBuffer, history: &mut History| {
+            let i = buf.cursor().absolute().offset(-1);
+            if let Some((from, to)) = buf.get_buffer_movement_result(Movement::Backward(TextKind::Char, 1)) {
+                if let Some(ch) = buf.get(to).cloned() {
+                    buf.delete(Movement::Backward(TextKind::Char, 1));
+                    history.push_delete(i, ch);
+                }
+            }
+        };
+
+        let mut sb = ContiguousBuffer::new(0, 1024);
+        let mut history = History::new();
+        let s = "Hello world";
+        for c in s.chars() {
+            add_char(c, &mut sb, &mut history);
+        }
+
+        if let Some(undo) = history.undo() {
+            match undo {
+                Operation::Insert(i, op) => match op {
+                    OperationParameter::Char(c) => sb.delete_at(*i),
+                    OperationParameter::Range(d) => sb.delete_range(*i, i.offset(d.len() as _)),
+                },
+                Operation::Delete(i, op) => {}
+            }
+        }
+
+        println!("{:#?}", history);
+        println!("{:?}. Cursor: p{:?}", sb.data, sb.cursor());
     }
 }
