@@ -1,6 +1,8 @@
 use super::metadata;
 use serde::{Deserialize, Serialize};
 
+// Todo: Implement serialization of the History data, to be used in the file caching/backup scheme
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum OperationParameter {
     Char(char),

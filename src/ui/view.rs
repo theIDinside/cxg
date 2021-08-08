@@ -374,7 +374,7 @@ impl View {
             BoundingBox::expand(&self.title_frame.to_bb(), Margin::Vertical(10)).translate_mut(Vec2i::new(0, -4)),
             RGBAColor::new(0.5, 0.5, 0.5, 1.0),
             (1, RGBAColor::black()),
-            PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+            PolygonType::RoundedUndecorated { corner_radius: 3.5 },
         );
 
         let bg_color = self.bg_color;
@@ -383,14 +383,14 @@ impl View {
                 self.view_frame.to_bb(),
                 bg_color,
                 (2, RGBAColor::black()),
-                PolygonType::RoundedDecorated { corner_radius: 5.0, texture },
+                PolygonType::RoundedDecorated { corner_radius: 3.5, texture },
             );
         } else {
             self.window_renderer.make_bordered_rect(
                 self.view_frame.to_bb(),
                 bg_color,
                 (2, RGBAColor::black()),
-                PolygonType::RoundedUndecorated { corner_radius: 5.0 },
+                PolygonType::RoundedUndecorated { corner_radius: 3.5 },
             );
         }
 

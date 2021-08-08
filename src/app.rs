@@ -634,9 +634,6 @@ impl<'app> Application<'app> {
 
     pub fn handle_key_event(&mut self, _window: &mut Window, key: glfw::Key, action: glfw::Action, modifier: glfw::Modifiers) {
         let time = std::time::Instant::now();
-        // todo: this is where we will hook the config library into. It will read from a config -> parse that into a map, which we map the
-        //  input against, and it will have to return an InputTranslation, which instead match on in this function, instead of matching
-        //  directly on key input.
         if key == glfw::Key::F2 && action == Action::Press && modifier == glfw::Modifiers::Control {
             self.translate_key_input = !self.translate_key_input;
         }

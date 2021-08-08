@@ -44,17 +44,14 @@ impl DebugView {
             BoundingBox::expand(&self.view.title_frame.to_bb(), Margin::Vertical(2)).translate_mut(Vec2i::new(0, -4)),
             bg_color.uniform_scale(-0.1),
             (1, bg_color.uniform_scale(-1.0)),
-            PolygonType::RoundedUndecorated { corner_radius: 15.0 },
+            PolygonType::RoundedUndecorated { corner_radius: 5.0 },
         );
         let mut view_bb = self.view.view_frame.to_bb();
         view_bb.max.x = self.view.title_frame.anchor.x + self.view.title_frame.width();
-        self.view.window_renderer.make_bordered_rect(
-            view_bb,
-            bg_color,
-            (2, bg_color.uniform_scale(-1.0)),
-            PolygonType::RoundedUndecorated { corner_radius: 15.0 },
-        );
-        let image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 40, v: 20 });
+        self.view
+            .window_renderer
+            .make_bordered_rect(view_bb, bg_color, (2, bg_color.uniform_scale(-1.0)), PolygonType::Undecorated);
+        let image_bb = BoundingBox::shrink(&self.view.view_frame.to_bb(), Margin::Perpendicular { h: 20, v: 20 });
         let mut see_through_bg = bg_color;
         see_through_bg.a = 0.1;
         self.view

@@ -1,6 +1,7 @@
 use crate::datastructure::generic::Vec2i;
 
 use super::basic::frame::Frame;
+// FIXME: fix so that when clicking a scroll bar, it doesn't snap it's top to the mouse cursor
 
 pub enum ScrollBarLayout {
     Horizontal,
