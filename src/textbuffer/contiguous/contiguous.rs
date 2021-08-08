@@ -12,7 +12,7 @@ use crate::{
     textbuffer::{
         cursor::MetaCursor,
         metadata::{self, calculate_hash},
-        operations::History,
+        operations::{History, OperationParameter},
         LineOperation, TextKind,
     },
     utils::{copy_slice_to, AsUsize},
@@ -310,6 +310,47 @@ impl ContiguousBuffer {
                         .or_else(|| Some(metadata::Index(self.len()))),
                 )
                 .map(|(begin, end)| String::from_iter(self.get_slice(*begin..*end)))
+        }
+    }
+
+    pub fn cut_range_or_line(&mut self) -> Option<String> {
+        if let Some(meta_cursor) = &self.meta_cursor {
+            match *meta_cursor {
+                MetaCursor::Absolute(meta_cursor) => {
+                    if *self.cursor_abs() >= self.len() || *meta_cursor >= self.len() {
+                        None
+                    } else {
+                        if meta_cursor < self.edit_cursor.pos {
+                            let res: String = self.data.drain(*meta_cursor..*self.edit_cursor.pos.offset(1)).collect();
+                            self.history.push_delete_range(meta_cursor, res.clone());
+                            self.rebuild_metadata();
+                            Some(res)
+                        } else {
+                            let res: String = self.data.drain(*self.edit_cursor.pos..*meta_cursor.offset(1)).collect();
+                            self.history.push_delete_range(meta_cursor, res.clone());
+                            self.rebuild_metadata();
+                            Some(res)
+                        }
+                    }
+                }
+                #[allow(unused)]
+                MetaCursor::LineRange { column, begin, end } => todo!(),
+            }
+        } else {
+            let row = self.edit_cursor.row;
+            self.meta_data
+                .get_line_start_index(row)
+                .zip(
+                    self.meta_data
+                        .get_line_start_index(row.offset(1))
+                        .or_else(|| Some(metadata::Index(self.len()))),
+                )
+                .map(|(begin, end)| {
+                    let res: String = self.data.drain(*begin..*end).collect();
+                    self.history.push_delete_range(begin, res.clone());
+                    self.rebuild_metadata();
+                    res
+                })
         }
     }
 
@@ -944,11 +985,11 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     #[allow(unused)]
-    fn line_operation<T>(&mut self, lines: T, op: &LineOperation)
+    fn line_operation<T>(&mut self, lines_range: T, op: &LineOperation)
     where
         T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
     {
-        let a = match lines.start_bound() {
+        let a = match lines_range.start_bound() {
             Bound::Included(a) => *a,
             Bound::Excluded(a) => *a,
             Bound::Unbounded => self.len(),
@@ -957,7 +998,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         let mut shift_tracking = 0;
         match op {
             LineOperation::ShiftLeft { shift_by } => {
-                if let Some(lines) = self.meta_data.get_lines(lines.clone()).or(self.meta_data.get_lines(a..)) {
+                if let Some(lines) = self.meta_data.get_lines(lines_range.clone()).or(self.meta_data.get_lines(a..)) {
                     for (cnt, &lb) in lines.iter().enumerate() {
                         if let Some(next_line_begin) = self.meta_data.get(metadata::Line(a + cnt + 1)) {
                             let line_len = *next_line_begin - *lb;
@@ -993,11 +1034,13 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 }
             }
             LineOperation::ShiftRight { shift_by } => {
-                if let Some(lines) = self.meta_data.get_lines(lines) {
+                if let Some(lines) = self.meta_data.get_lines(lines_range) {
+                    debugger_catch!(lines.len() > 0, DebuggerCatch::Handle(format!("We did not get any lines")));
                     let data: Vec<_> = (0..*shift_by).map(|_| ' ').collect();
                     for &lb in lines.iter() {
                         let lb = lb.offset(shift_tracking as _);
                         self.data.splice(*lb..*lb, data.iter().copied());
+                        self.history.push_insert_range(lb, data.iter().collect());
                         shift_tracking += *shift_by as i32;
                     }
                 }
@@ -1033,6 +1076,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     fn undo(&mut self) {
+        self.meta_cursor = None;
         if let Some(undo) = self.history.undo().cloned() {
             match undo {
                 crate::textbuffer::operations::Operation::Insert(i, op) => match op {
@@ -1045,6 +1089,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.insert(c, false);
                     }
                     crate::textbuffer::operations::OperationParameter::Range(d) => {
+                        self.meta_cursor = None;
                         self.cursor_goto(i);
                         for c in d.chars() {
                             self.insert(c, false);

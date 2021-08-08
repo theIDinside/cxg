@@ -45,9 +45,13 @@ impl History {
         self.undo_stack.clear();
     }
 
-    pub fn push_insert_range(&mut self, index: metadata::Index, op_param: String) {
-        self.history_stack
-            .push(Operation::Insert(index, OperationParameter::Range(op_param)));
+    pub fn push_insert_range(&mut self, index: metadata::Index, data: String) {
+        self.history_stack.push(Operation::Insert(index, OperationParameter::Range(data)));
+        self.invalidate_undo_stack();
+    }
+
+    pub fn push_delete_range(&mut self, index: metadata::Index, data: String) {
+        self.history_stack.push(Operation::Delete(index, OperationParameter::Range(data)));
         self.invalidate_undo_stack();
     }
 
@@ -56,20 +60,24 @@ impl History {
         let mut coalesced = false;
         if !ch.is_whitespace() {
             if let Some(Operation::Insert(i, o)) = self.history_stack.last_mut() {
-                match o {
+                coalesced = match o {
                     OperationParameter::Char(c) if !c.is_whitespace() && i.offset(1) == index => {
                         let mut s = String::with_capacity(2);
                         s.push(*c);
                         s.push(ch);
                         *o = OperationParameter::Range(s);
-                        coalesced = true;
+                        true
                     }
                     OperationParameter::Range(d) if i.offset(d.len() as _) == index => {
-                        d.push(ch);
-                        coalesced = true;
+                        if !d.contains(" ") {
+                            d.push(ch);
+                            true
+                        } else {
+                            false
+                        }
                     }
-                    _ => {}
-                }
+                    _ => false,
+                };
             }
         }
         if !coalesced {

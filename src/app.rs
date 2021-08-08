@@ -1009,7 +1009,14 @@ impl<'app> Application<'app> {
                     v.insert_ch(c)
                 }
             }
-            ViewAction::Cut => todo!(),
+            ViewAction::Cut => {
+                // let v = self.get_active_view();
+
+                if let Some(data) = self.get_active_view().buffer.cut_range_or_line() {
+                    self.clipboard.take(data);
+                }
+                self.get_active_view().set_need_redraw();
+            }
             ViewAction::Copy => {
                 let v = self.get_active_view();
                 if let Some(data) = v.buffer.copy_range_or_line() {
@@ -1036,25 +1043,16 @@ impl<'app> Application<'app> {
             }
             ViewAction::LineOperation(ref lineop) => {
                 let v = self.get_active_view();
-                match lineop {
-                    LineOperation::ShiftLeft { .. } | LineOperation::ShiftRight { .. } if v.buffer.get_selection().is_some() => {
-                        v.buffer.get_selection().map(|(begin, end)| {
-                            let md = v.buffer.meta_data();
-                            let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
-                            let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
-                            v.buffer.line_operation(a..b_inclusive + 1, lineop);
-                        });
-                    }
-                    LineOperation::ShiftLeft { .. } => {}
-                    LineOperation::ShiftRight { .. } => {}
-                    LineOperation::PasteAt { .. } => todo!(),
-                }
                 if let Some((begin, end)) = v.buffer.get_selection() {
                     let md = v.buffer.meta_data();
                     let a = unsafe { md.get_line_number_of_buffer_index(begin).unwrap_unchecked() };
                     let b_inclusive = unsafe { md.get_line_number_of_buffer_index(end).unwrap_unchecked() };
-                    v.buffer.line_operation(a..b_inclusive + 1, lineop);
+                    v.buffer.line_operation(a..=b_inclusive, lineop);
+                    v.set_need_redraw();
                 } else {
+                    let line = *v.buffer.cursor_row();
+                    v.buffer.line_operation(line..=line, lineop);
+                    v.set_need_redraw();
                 }
             }
             ViewAction::Debug => {
