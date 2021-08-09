@@ -353,10 +353,9 @@ impl InputBox {
         match self.mode {
             Mode::CommandInput(_c) => match _c {
                 // these need no interactive updating
-                CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find | CommandTag::SaveFile => {}
+                CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find | CommandTag::SaveFile | CommandTag::SetFontSize => {}
                 // these need interactive updating
                 CommandTag::OpenFile => self.update_list_of_files(),
-                CommandTag::SetFontSize => todo!(),
             },
             Mode::CommandList => {
                 self.update_list_of_commands();
