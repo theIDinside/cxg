@@ -162,6 +162,9 @@ impl InputBox {
                     CommandTag::SaveFile => {
                         self.draw_without_list(cmd);
                     }
+                    CommandTag::SetFontSize => {
+                        self.draw_without_list(cmd);
+                    }
                 },
                 Mode::CommandList => {
                     self.draw_with_list();
@@ -332,6 +335,7 @@ impl InputBox {
                 CommandTag::GotoInFile => todo!(),
                 CommandTag::OpenFile => todo!(),
                 CommandTag::SaveFile => todo!(),
+                CommandTag::SetFontSize => todo!(),
             },
             Mode::CommandList => {
                 if let Some(item) = self.selection_list.pop_selected() {
@@ -352,6 +356,7 @@ impl InputBox {
                 CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find | CommandTag::SaveFile => {}
                 // these need interactive updating
                 CommandTag::OpenFile => self.update_list_of_files(),
+                CommandTag::SetFontSize => todo!(),
             },
             Mode::CommandList => {
                 self.update_list_of_commands();
@@ -400,7 +405,7 @@ impl InputBehavior for InputBox {
         match self.mode {
             Mode::CommandInput(_cmd) => match _cmd {
                 // these do not need interactive updating of the list
-                CommandTag::SaveFile | CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find => {}
+                CommandTag::SaveFile | CommandTag::Goto | CommandTag::GotoInFile | CommandTag::Find | CommandTag::SetFontSize => {}
                 // these need interactive updating the of the list
                 CommandTag::OpenFile => self.update_list_of_files(),
             },

@@ -11,6 +11,7 @@ pub enum CommandTag {
     Find,
     OpenFile,
     SaveFile,
+    SetFontSize,
 }
 
 pub const COMMAND_NAMES: &[(&'static str, &'static CommandTag)] = &[
@@ -19,6 +20,7 @@ pub const COMMAND_NAMES: &[(&'static str, &'static CommandTag)] = &[
     ("FIND", &CommandTag::Find),
     ("OPENFILE", &CommandTag::OpenFile),
     ("SAVEFILE", &CommandTag::SaveFile),
+    ("SETFONTSIZE", &CommandTag::SetFontSize),
 ];
 
 impl CommandTag {
@@ -29,6 +31,7 @@ impl CommandTag {
             CommandTag::GotoInFile => "Insert file:line to go to:",
             CommandTag::OpenFile => "Open file:",
             CommandTag::SaveFile => "Save file:",
+            CommandTag::SetFontSize => "Set font size for active view",
         }
     }
 
@@ -39,6 +42,7 @@ impl CommandTag {
             CommandTag::Find => "Find",
             CommandTag::OpenFile => "Open file",
             CommandTag::SaveFile => "Save file",
+            CommandTag::SetFontSize => "Set font size",
         }
     }
 }

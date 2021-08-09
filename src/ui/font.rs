@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::datastructure::generic::Vec2i;
 use crate::debugger_catch;
@@ -32,6 +33,25 @@ pub struct Font {
     glyph_cache: HashMap<char, GlyphInfo>,
     texture_id: gl::types::GLuint,
     texture_dimensions: Vec2i,
+}
+
+pub struct Fonts {
+    menu_fonts: HashMap<i32, Rc<Font>>,
+    edit_fonts: HashMap<i32, Rc<Font>>,
+}
+
+impl Fonts {
+    pub fn new(menu_fonts: HashMap<i32, Rc<Font>>, edit_fonts: HashMap<i32, Rc<Font>>) -> Fonts {
+        Fonts { menu_fonts, edit_fonts }
+    }
+
+    pub fn menu_font(&self, size: i32) -> Option<Rc<Font>> {
+        self.menu_fonts.get(&size).cloned()
+    }
+
+    pub fn edit_font(&self, size: i32) -> Option<Rc<Font>> {
+        self.edit_fonts.get(&size).cloned()
+    }
 }
 
 fn debug_write_font_texture_to_file(font_path: &Path, pixels: &Vec<u8>, pixel_size: i32, tex_width: u32, tex_height: u32) {

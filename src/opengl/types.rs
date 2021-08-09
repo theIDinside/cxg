@@ -1,6 +1,7 @@
 use gl::types::GLfloat as glfloat;
 
 use crate::datastructure::generic::Vec2f;
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 pub struct UVCoordinates {
     pub u: glfloat,
@@ -102,6 +103,72 @@ impl RGBAColor {
     pub fn uniform_scale(&self, value: f32) -> RGBAColor {
         let &RGBAColor { r, g, b, a } = self;
         Self::new(r + value, g + value, b + value, a)
+    }
+}
+
+struct RGBAColorVisitor;
+
+impl Serialize for RGBAColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let RGBAColor { r, g, b, a } = self;
+        let res = format!("RGBA({}, {}, {}, {})", r, g, b, a);
+        serializer.serialize_str(&res)
+    }
+}
+
+impl<'de> Visitor<'de> for RGBAColorVisitor {
+    type Value = RGBAColor;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            "Expecting key combinations to be written in the form [modA +.. modN]+Key, for example: 
+        'ctrl+shift+O' or 'ctrl+O' or just 'O' for no modifiers",
+        )
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        const TAG: &'static str = "RGBA(";
+        let v = if &value[0..TAG.len()] == TAG { &value[TAG.len()..] } else { value };
+
+        assert_eq!(&v[v.len() - 1..], ")");
+        let v = &v[..v.len() - 1];
+        let mut r = 0.0;
+        let mut g = 0.0;
+        let mut b = 0.0;
+        let mut a = 0.0;
+        for (index, sub) in v.split(",").enumerate() {
+            match index {
+                0 => {
+                    r = sub.parse().unwrap();
+                }
+                1 => {
+                    g = sub.parse().unwrap();
+                }
+                2 => {
+                    b = sub.parse().unwrap();
+                }
+                3 => {
+                    a = sub.parse().unwrap();
+                }
+                _ => {}
+            }
+        }
+        Ok(RGBAColor::new(r, g, b, a))
+    }
+}
+
+impl<'de> Deserialize<'de> for RGBAColor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(RGBAColorVisitor)
     }
 }
 

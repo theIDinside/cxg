@@ -12,7 +12,7 @@ use crate::{
     textbuffer::{
         cursor::MetaCursor,
         metadata::{self, calculate_hash},
-        operations::{History, OperationParameter},
+        operations::History,
         LineOperation, TextKind,
     },
     utils::{copy_slice_to, AsUsize},

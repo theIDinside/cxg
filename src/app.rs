@@ -10,7 +10,6 @@ use crate::opengl::{
     shaders::{RectShader, TextShader},
     text_renderer::TextRenderer,
 };
-use crate::textbuffer::operations::LineOperation;
 use crate::textbuffer::{buffers::Buffers, CharBuffer};
 use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
@@ -18,11 +17,11 @@ use crate::ui::basic::{
 };
 use crate::ui::eventhandling::event::{key_press, AppAction, InputboxAction, ViewAction};
 use crate::ui::eventhandling::input::KeyboardInputContext;
+use crate::ui::font::Fonts;
 use crate::ui::{
     clipboard::ClipBoard,
     debug_view::DebugView,
     eventhandling::event::{CommandOutput, InputBehavior, InvalidInputElement},
-    font::Font,
     inputbox::{InputBox, Mode},
     panel::{Panel, PanelId},
     view::{Popup, View, ViewId},
@@ -31,14 +30,15 @@ use crate::ui::{
 
 use glfw::{Action, Key, Modifiers, MouseButton, Window};
 
+use serde::{Deserialize, Serialize};
+
 use std::iter::FromIterator;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
 pub static TEST_DATA: &str = include_str!("./textbuffer/contiguous/contiguous.rs");
-static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742123, a: 1.0 };
-static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.3242123, a: 1.0 };
+static INACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.021, g: 0.62, b: 0.742, a: 1.0 };
+static ACTIVE_VIEW_BACKGROUND: RGBAColor = RGBAColor { r: 0.071, g: 0.202, b: 0.324, a: 1.0 };
 
 fn all_views<'app>(panels: &'app Vec<Panel>) -> impl Iterator<Item = &View> + Clone {
     panels.iter().flat_map(|p| p.children.iter())
@@ -46,6 +46,22 @@ fn all_views<'app>(panels: &'app Vec<Panel>) -> impl Iterator<Item = &View> + Cl
 
 fn all_views_mut<'app>(panels: &'app mut Vec<Panel>) -> impl Iterator<Item = &'app mut View> + 'app {
     panels.iter_mut().flat_map(|p| p.children.iter_mut())
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ViewConfig {
+    background: RGBAColor,
+    inactive: RGBAColor,
+}
+
+pub struct AppConfig {
+    view_config: ViewConfig,
+}
+
+impl ViewConfig {
+    pub fn new(background: RGBAColor, inactive: RGBAColor) -> ViewConfig {
+        ViewConfig { background, inactive }
+    }
 }
 
 pub struct Application<'app> {
@@ -56,7 +72,7 @@ pub struct Application<'app> {
     /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
     panel_space_size: Size,
     /// Loaded fonts. Must be loaded up front, before application is initialized, as the reference must outlive Application<'app>
-    fonts: Vec<Rc<Font>>,
+    loaded_fonts: Fonts,
     /// The shader for the font
     font_shader: TextShader,
     /// Shaders for rectangles/windows/views
@@ -102,14 +118,14 @@ pub struct Application<'app> {
     pub translate_key_input: bool,
 
     pub input_context: KeyboardInputContext,
+
+    view_config: ViewConfig,
 }
 
 static mut INVALID_INPUT: InvalidInputElement = InvalidInputElement {};
 
 impl<'app> Application<'app> {
-    pub fn create(
-        fonts: Vec<Rc<Font>>, font_shader: TextShader, rect_shader: RectShader, polygon_shader: RectShader, debug_info: DebugInfo,
-    ) -> Application<'app> {
+    pub fn create(fonts: Fonts, font_shader: TextShader, rect_shader: RectShader, polygon_shader: RectShader, debug_info: DebugInfo) -> Application<'app> {
         let active_view_id = 0;
         let backgrounds = vec![
             (Path::new("./logo.png"), TextureType::Background(1)),
@@ -117,6 +133,12 @@ impl<'app> Application<'app> {
         ];
 
         polygon_shader.panic_if_not_ok("Polygon shader incorrect");
+
+        let rgba = RGBAColor::white();
+
+        let active_ = toml::to_string(&ACTIVE_VIEW_BACKGROUND);
+        let inactive_ = toml::to_string(&INACTIVE_VIEW_BACKGROUND);
+        println!("background = {}\ninactive = {}", active_.unwrap(), inactive_.unwrap());
 
         let tex_map = TextureMap::new(backgrounds);
         font_shader.bind();
@@ -158,8 +180,8 @@ impl<'app> Application<'app> {
             768,
             ACTIVE_VIEW_BACKGROUND,
             buffer,
-            fonts[0].clone(),
-            fonts[1].clone(),
+            fonts.edit_font(14).unwrap(),
+            fonts.menu_font(14).unwrap(),
             tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
         );
         panels[0].add_view(view);
@@ -176,8 +198,8 @@ impl<'app> Application<'app> {
             518,
             ACTIVE_VIEW_BACKGROUND,
             Buffers::free_buffer(),
-            fonts[0].clone(),
-            fonts[1].clone(),
+            fonts.edit_font(14).unwrap(),
+            fonts.menu_font(14).unwrap(),
             tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
         );
 
@@ -199,8 +221,8 @@ impl<'app> Application<'app> {
             768,
             dbg_view_bg_color,
             Buffers::free_buffer(),
-            fonts[0].clone(),
-            fonts[1].clone(),
+            fonts.edit_font(14).unwrap(),
+            fonts.menu_font(14).unwrap(),
             tex_map.textures.get(&TextureType::Background(2)).map(|t| *t).unwrap(),
         );
         debug_view.set_anchor(Vec2i::new(5, 763));
@@ -215,7 +237,7 @@ impl<'app> Application<'app> {
                 height: 500 + 2 * ib_border_margin, // fonts[1].row_height() + 2 * ib_border_margin
             },
         };
-        let input_box = InputBox::new(ib_frame, fonts[1].clone(), &font_shader, &rect_shader);
+        let input_box = InputBox::new(ib_frame, fonts.menu_font(14).unwrap(), &font_shader, &rect_shader);
         let rect_animation_renderer = RectRenderer::create(rect_shader.clone(), 8 * 60);
 
         let key_bindings = KeyBindings::default();
@@ -240,7 +262,7 @@ impl<'app> Application<'app> {
             _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
             panel_space_size: Size::new(1024, 768),
-            fonts,
+            loaded_fonts: fonts,
             // status_bar,
             font_shader,
             rect_shader,
@@ -262,6 +284,7 @@ impl<'app> Application<'app> {
             key_bindings,
             translate_key_input: true,
             input_context: KeyboardInputContext::TextView,
+            view_config: ViewConfig::new(ACTIVE_VIEW_BACKGROUND, INACTIVE_VIEW_BACKGROUND),
         };
         let v = res.panels.last_mut().and_then(|p| p.children.last_mut()).unwrap() as *mut _;
         res.active_keyboard_input = unsafe { &mut (*v) as &'app mut dyn InputBehavior };
@@ -287,8 +310,8 @@ impl<'app> Application<'app> {
             .unwrap_or(0)
             + 1;
         if let Some(p) = self.panels.iter_mut().find(|panel| panel.id == parent_panel) {
-            let font = self.fonts[0].clone();
-            let menu_font = self.fonts[1].clone();
+            let font = self.loaded_fonts.edit_font(14).unwrap();
+            let menu_font = self.loaded_fonts.menu_font(14).unwrap();
             let Size { width, height } = view_size;
             let view_name = view_name.as_ref().map(|name| name.as_ref()).unwrap_or("unnamed view");
             let view = View::new(
@@ -334,8 +357,8 @@ impl<'app> Application<'app> {
         }
         let id = {
             let view = self.get_active_view();
-            view.bg_color = INACTIVE_VIEW_BACKGROUND;
-            view.window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
+            view.bg_color = self.view_config.inactive;
+            view.window_renderer.set_color(self.view_config.inactive);
             view.update(None);
             view.id
         };
@@ -364,7 +387,7 @@ impl<'app> Application<'app> {
     }
 
     #[inline(always)]
-    pub fn get_active_view(&mut self) -> &mut View {
+    pub fn get_active_view(&self) -> &mut View {
         if self.popup.visible {
             return unsafe { &mut *(&self.popup.view as *const _ as *mut _) };
         } else {
@@ -911,9 +934,14 @@ impl<'app> Application<'app> {
             gl::Clear(gl::COLOR_BUFFER_BIT);
             gl::Viewport(0, 0, self.width() as _, self.height() as _);
         }
-
+        let active_view_id = self.get_active_view().id;
         // TODO: when z-indexing will become a thing, sort these first by that said z-index, back to front, before drawing
         for v in self.panels.iter_mut().flat_map(|p| p.children.iter_mut()) {
+            if v.id != active_view_id {
+                v.bg_color = self.view_config.inactive;
+            } else {
+                v.bg_color = self.view_config.background;
+            }
             v.draw();
         }
         unsafe {
@@ -1186,6 +1214,20 @@ impl<'app> Application<'app> {
                         }
                     }
                     CommandTag::SaveFile => todo!(),
+                    CommandTag::SetFontSize => {
+                        let input_data = &self.input_box.input_box.data.iter().collect::<String>();
+                        let f = self.loaded_fonts.edit_font(input_data.parse().unwrap());
+                        if let Some(font) = f {
+                            let v = self.get_active_view();
+                            v.set_font(font);
+                            v.set_need_redraw();
+                            self.input_box.visible = false;
+                            self.input_box.clear();
+                            self.input_context = KeyboardInputContext::TextView;
+                        } else {
+                            println!("No font loaded with size {}", input_data);
+                        }
+                    }
                 },
                 Mode::CommandList => {
                     if let Some(item) = self.input_box.selection_list.pop_selected() {

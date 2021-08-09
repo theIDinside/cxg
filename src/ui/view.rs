@@ -47,6 +47,7 @@ impl Into<ViewId> for u32 {
         ViewId(self)
     }
 }
+
 use crate::opengl::text_renderer as gltxt;
 pub struct View {
     pub name: String,
@@ -265,6 +266,11 @@ impl InputBehavior for View {
 
 impl View {
     const SCROLL_BAR_WIDTH: i32 = 15;
+
+    pub fn set_font(&mut self, font: Rc<Font>) {
+        self.edit_font = font;
+    }
+
     pub fn new(
         name: &str, view_id: ViewId, text_renderer: TextRenderer, mut cursor_renderer: RectRenderer, window_renderer: PolygonRenderer, width: i32, height: i32,
         bg_color: RGBAColor, mut buffer: Box<ContiguousBuffer>, edit_font: Rc<Font>, title_font: Rc<Font>, background_image: Texture,

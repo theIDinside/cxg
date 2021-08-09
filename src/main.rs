@@ -12,6 +12,9 @@ extern crate walkdir;
 extern crate serde;
 extern crate serde_json;
 
+// For application specific config ser/deser
+extern crate toml;
+
 // we use this to re-implement the glfw::Key and glfw::Modifiers structures
 // because it is _way_ easier since they are POD, so that we can serialize them easily with serde
 extern crate bitflags;
@@ -28,9 +31,9 @@ pub mod ui;
 #[macro_use]
 pub mod utils;
 
-use std::{path::Path, rc::Rc};
+use std::{collections::HashMap, path::Path, rc::Rc};
 
-use crate::{debuginfo::DebugInfo, utils::get_sys_error};
+use crate::{debuginfo::DebugInfo, ui::font::Fonts, utils::get_sys_error};
 
 use self::glfw::Context;
 use opengl::glinit;
@@ -117,9 +120,21 @@ fn main() -> Main {
         .chain(crate::utils::convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265]))
         .collect();
 
-    let font = ui::font::Font::new(font_path, 14, &char_range).expect("Failed to create font");
-    let menu_font = ui::font::Font::new(menu_font_path, 14, &char_range).expect("Failed to create font");
-    let fonts = vec![Rc::new(font), Rc::new(menu_font)];
+    let editor_font_name = "Editor font";
+    let menu_font_name = "Menu font";
+
+    let font_sizes = vec![14, 16, 18, 22, 24];
+
+    let mut edit_fonts = HashMap::new();
+    let mut menu_fonts = HashMap::new();
+    for size in font_sizes {
+        let font = Rc::new(ui::font::Font::new(font_path, size, &char_range).expect("Failed to create font"));
+        let menu_font = Rc::new(ui::font::Font::new(menu_font_path, size, &char_range).expect("Failed to create font"));
+        edit_fonts.insert(size, font);
+        menu_fonts.insert(size, menu_font);
+    }
+
+    let fonts = Fonts::new(menu_fonts, edit_fonts);
 
     // let mut text_renderer = opengl::text::TextRenderer::create(font_program.clone(), &fonts[], 64 * 1024 * 100).expect("Failed to create TextRenderer");
     let mut app = app::Application::create(fonts, font_program, rectangle_program, poly_program, debug_info);
