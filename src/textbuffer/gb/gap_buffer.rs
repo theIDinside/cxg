@@ -1,4 +1,4 @@
-use crate::utils::copy_slice_to;
+use crate::utils::non_overlap_copy_slice_to;
 use std::ops::Index;
 use std::ops::Range;
 use std::ptr::copy as copyrange;
@@ -134,7 +134,7 @@ where
         }
         unsafe {
             let destination = self.data.as_mut_ptr().offset(self.gap.start as isize);
-            copy_slice_to(destination, slice);
+            non_overlap_copy_slice_to(destination, slice);
         }
         self.gap.start += slice.len();
     }
@@ -232,10 +232,10 @@ where
 
         unsafe {
             // memcpy(src_a, newbuf.as_mut_ptr(), elem_count_a);
-            copy_slice_to(newbuf.as_mut_ptr(), ssrc_a);
+            non_overlap_copy_slice_to(newbuf.as_mut_ptr(), ssrc_a);
             let newgap_end = newbuf.as_mut_ptr().offset(newgap.end as isize);
             // memcpy(src_b, newgap_end, elem_count_b);
-            copy_slice_to(newgap_end, ssrc_b);
+            non_overlap_copy_slice_to(newgap_end, ssrc_b);
         }
         self.data = newbuf;
         self.gap = newgap;
