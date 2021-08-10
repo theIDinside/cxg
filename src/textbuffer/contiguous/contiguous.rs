@@ -15,7 +15,7 @@ use crate::{
         operations::History,
         LineOperation, TextKind,
     },
-    utils::{copy_slice_to, AsUsize},
+    utils::{non_overlap_copy_slice_to, AsUsize},
 };
 
 #[cfg(debug_assertions)]
@@ -126,17 +126,18 @@ impl ContiguousBuffer {
                 MetaCursor::LineRange { column, begin, end } => todo!(),
             }
         }
-        if slice.len() > 128 {
+        if self.capacity() < self.len() + slice.len() {
+            // we need re allocation
             let mut v = Vec::with_capacity(self.len() + slice.len() * 2);
             unsafe {
                 let abs = *self.edit_cursor.absolute() as isize;
                 let ptr = v.as_mut_ptr();
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr(), v.as_mut_ptr(), *self.cursor.absolute());
-                copy_slice_to(ptr, &self.data[..abs as usize]);
+                non_overlap_copy_slice_to(ptr, &self.data[..abs as usize]);
                 // std::ptr::copy_nonoverlapping(slice.as_ptr(), v.as_mut_ptr().offset(abs), slice.len());
-                copy_slice_to(ptr.offset(abs), slice);
+                non_overlap_copy_slice_to(ptr.offset(abs), slice);
                 // std::ptr::copy_nonoverlapping(self.data.as_ptr().offset(abs),v.as_mut_ptr().offset(abs + slice.len() as isize), self.len() - abs as usize);
-                copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize)..]);
+                non_overlap_copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize)..]);
 
                 v.set_len(self.len() + slice.len());
                 let new_abs_cursor_pos = metadata::Index(abs as usize + slice.len());
@@ -147,8 +148,22 @@ impl ContiguousBuffer {
                 self.edit_cursor = self.cursor_from_metadata(new_abs_cursor_pos).unwrap();
             }
         } else {
-            for c in slice {
-                self.insert(*c, true);
+            unsafe {
+                let new_len = self.len() + slice.len();
+                let abs = *self.edit_cursor.absolute() as isize;
+                let mut v = Vec::with_capacity(self.len() - abs as usize);
+                v.set_len(self.len() - abs as usize);
+                non_overlap_copy_slice_to(v.as_mut_ptr(), &self.data[abs as usize..]);
+                non_overlap_copy_slice_to(self.data.as_mut_ptr().offset(abs), slice);
+                non_overlap_copy_slice_to(self.data.as_mut_ptr().offset(abs + slice.len() as isize), &v[..]);
+                self.data.set_len(new_len);
+                self.size = new_len;
+                self.rebuild_metadata();
+                self.meta_data.set_buffer_size(self.size);
+                self.edit_cursor = self
+                    .cursor_from_metadata(self.edit_cursor.absolute().offset(slice.len() as _))
+                    .unwrap_or(self.edit_cursor);
+                self.history.push_insert_range(metadata::Index(abs as usize), slice.iter().collect());
             }
         }
     }
@@ -1034,15 +1049,19 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 }
             }
             LineOperation::ShiftRight { shift_by } => {
-                if let Some(lines) = self.meta_data.get_lines(lines_range) {
-                    debugger_catch!(lines.len() > 0, DebuggerCatch::Handle(format!("We did not get any lines")));
-                    let data: Vec<_> = (0..*shift_by).map(|_| ' ').collect();
-                    for &lb in lines.iter() {
-                        let lb = lb.offset(shift_tracking as _);
-                        self.data.splice(*lb..*lb, data.iter().copied());
-                        self.history.push_insert_range(lb, data.iter().collect());
-                        shift_tracking += *shift_by as i32;
+                if self.meta_cursor.is_some() {
+                    if let Some(lines) = self.meta_data.get_lines(lines_range) {
+                        debugger_catch!(lines.len() > 0, DebuggerCatch::Handle(format!("We did not get any lines")));
+                        let data: Vec<_> = (0..*shift_by).map(|_| ' ').collect();
+                        for &lb in lines.iter() {
+                            let lb = lb.offset(shift_tracking as _);
+                            self.data.splice(*lb..*lb, data.iter().copied());
+                            self.history.push_insert_range(lb, data.iter().collect());
+                            shift_tracking += *shift_by as i32;
+                        }
                     }
+                } else {
+                    self.insert_slice(&(0..*shift_by).map(|_| ' ').collect::<Vec<char>>());
                 }
             }
             LineOperation::PasteAt { insertion } => todo!(),
