@@ -17,7 +17,7 @@ use super::{
     Viewable, ACTIVE_VIEW_BACKGROUND,
 };
 use crate::{
-    cmd::{commands_matching, get_command, CommandTag},
+    cmd::{commands_matching, get_command, CommandTag, COMMAND_NAMES},
     datastructure::generic::Vec2i,
     opengl::{
         rectangle_renderer::RectRenderer,
@@ -130,6 +130,10 @@ impl InputBox {
         } else {
             self.selection_list.data.clear();
             self.selection_list.selection = None;
+            self.selection_list.data = COMMAND_NAMES
+                .iter()
+                .map(|(_, &tag)| CommandTag::name(tag).chars().collect())
+                .collect();
         }
     }
 
