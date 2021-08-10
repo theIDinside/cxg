@@ -153,9 +153,15 @@ impl ContiguousBuffer {
                 let abs = *self.edit_cursor.absolute() as isize;
                 let mut v = Vec::with_capacity(self.len() - abs as usize);
                 v.set_len(self.len() - abs as usize);
-                non_overlap_copy_slice_to(v.as_mut_ptr(), &self.data[abs as usize..]);
-                non_overlap_copy_slice_to(self.data.as_mut_ptr().offset(abs), slice);
-                non_overlap_copy_slice_to(self.data.as_mut_ptr().offset(abs + slice.len() as isize), &v[..]);
+
+                let v_ptr = v.as_mut_ptr();
+                let copy_slice_to_addr = self.data.as_mut_ptr().offset(abs);
+                let copy_remainder_to_addr = self.data.as_mut_ptr().offset(abs + slice.len() as isize);
+                let remainder_slice = &self.data[abs as usize..];
+
+                non_overlap_copy_slice_to(v_ptr, remainder_slice);
+                non_overlap_copy_slice_to(copy_slice_to_addr, slice);
+                non_overlap_copy_slice_to(copy_remainder_to_addr, &v);
                 self.data.set_len(new_len);
                 self.size = new_len;
                 self.rebuild_metadata();
