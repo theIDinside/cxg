@@ -54,10 +54,6 @@ pub struct ViewConfig {
     inactive: RGBAColor,
 }
 
-pub struct AppConfig {
-    view_config: ViewConfig,
-}
-
 impl ViewConfig {
     pub fn new(background: RGBAColor, inactive: RGBAColor) -> ViewConfig {
         ViewConfig { background, inactive }
@@ -133,8 +129,6 @@ impl<'app> Application<'app> {
         ];
 
         polygon_shader.panic_if_not_ok("Polygon shader incorrect");
-
-        let rgba = RGBAColor::white();
 
         let active_ = toml::to_string(&ACTIVE_VIEW_BACKGROUND);
         let inactive_ = toml::to_string(&INACTIVE_VIEW_BACKGROUND);
@@ -652,6 +646,7 @@ impl<'app> Application<'app> {
             self.active_keyboard_input = unsafe { &mut *(&mut self.input_box as *mut _) as &'app mut dyn InputBehavior };
             self.input_box.visible = true;
             self.input_context = KeyboardInputContext::InputBox;
+            self.input_box.update();
         }
     }
 

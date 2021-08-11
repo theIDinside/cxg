@@ -120,9 +120,6 @@ fn main() -> Main {
         .chain(crate::utils::convert_vec_of_u32_utf(&vec![0x2260, 0x2264, 0x2265]))
         .collect();
 
-    let editor_font_name = "Editor font";
-    let menu_font_name = "Menu font";
-
     let font_sizes = vec![14, 16, 18, 22, 24];
 
     let mut edit_fonts = HashMap::new();
