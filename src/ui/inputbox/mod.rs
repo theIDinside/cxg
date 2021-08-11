@@ -125,16 +125,23 @@ impl InputBox {
 
     pub fn update_list_of_commands(&mut self) {
         let name = &self.input_box.data.iter().collect::<String>();
-        if let Some(matches) = commands_matching(name) {
-            self.selection_list.data = matches.iter().map(|c| CommandTag::name(**c).chars().collect()).collect();
+        if !name.is_empty() {
+            if let Some(matches) = commands_matching(name) {
+                self.selection_list.data = matches.iter().map(|c| CommandTag::name(**c).chars().collect()).collect();
+                self.selection_list.selection = Some(0);
+            } else {
+                self.selection_list.clear();
+            }
         } else {
-            self.selection_list.data.clear();
-            self.selection_list.selection = None;
+            self.selection_list.selection = Some(0);
             self.selection_list.data = COMMAND_NAMES
                 .iter()
                 .map(|(_, &tag)| CommandTag::name(tag).chars().collect())
                 .collect();
+            assert_ne!(0, self.selection_list.data.len());
         }
+
+        self.needs_update = true;
     }
 
     pub fn draw(&mut self) {
@@ -270,7 +277,7 @@ impl InputBox {
         self.rect_renderer.add_rect(ltb_inner_frame, input_textbox_color);
 
         let color = self.input_box.text_render_settings.text_color;
-        if !self.input_box.data.is_empty() {
+        if !self.input_box.data.is_empty() || !self.selection_list.data.is_empty() {
             self.text_renderer
                 .push_draw_command(self.input_box.data.iter().map(|c| *c), color, t.min.x, t.max.y, self.font.clone());
             let color = self.selection_list.text_render_settings.text_color;
