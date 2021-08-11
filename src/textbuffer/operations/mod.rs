@@ -242,6 +242,7 @@ pub mod history_tests {
         assert_eq!(Some(&Operation::Insert(metadata::Index(now_begin as _), OperationParameter::Range("now".into()))), history.history_stack.last());
     }
 
+    #[allow(unused)]
     #[test]
     fn test_delete_bwd_coalescing() {
         let mut history = History::new();
