@@ -695,7 +695,6 @@ impl<'app> Application<'app> {
                     }
                 },
                 AppAction::OpenFile => self.toggle_input_box(Mode::CommandInput(CommandTag::OpenFile)),
-                AppAction::SaveFile => todo!(),
                 AppAction::SearchInFiles => todo!("Create input box action for searching in all files"),
                 AppAction::GotoLineInFile => self.toggle_input_box(Mode::CommandInput(CommandTag::Goto)),
                 AppAction::CycleFocus => {

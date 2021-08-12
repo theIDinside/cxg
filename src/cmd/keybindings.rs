@@ -362,7 +362,6 @@ pub fn app_default() -> HashMap<BindingRequirement, AppBinding> {
     map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
     map.insert(BindingRequirement(K::O, M::CONTROL), B::press(A::OpenFile));
     map.insert(BindingRequirement(K::I, M::CONTROL | M::SHIFT), B::press(A::OpenFile));
-    map.insert(BindingRequirement(K::S, M::CONTROL), B::press(A::SaveFile));
     map.insert(BindingRequirement(K::F, M::CONTROL | M::SHIFT), B::press(A::SearchInFiles));
     map.insert(BindingRequirement(K::G, M::CONTROL | M::SHIFT), B::press(A::GotoLineInFile));
     map.insert(BindingRequirement(K::Tab, M::CONTROL), B::press(A::CycleFocus));

@@ -68,7 +68,6 @@ pub enum ViewAction {
 pub enum AppAction {
     Cancel,
     OpenFile,
-    SaveFile,
     SearchInFiles,
     GotoLineInFile,
     CycleFocus,
