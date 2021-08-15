@@ -3,9 +3,7 @@
 use super::keyimpl::{KeyImpl, ModifiersImpl};
 use crate::{
     textbuffer::{operations::LineOperation, Movement, TextKind},
-    // AppAction, InputboxAction and ViewAction are currently the three contexts which can receive keyboard input (at least configurable
-    // keyboard input)
-    ui::eventhandling::event::{AppAction, InputboxAction, ViewAction},
+    ui::eventhandling::event::{AppAction, InputboxAction, OkModifier, ViewAction},
 };
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -292,8 +290,8 @@ pub fn ib_default() -> HashMap<BindingRequirement, InputboxBinding> {
     let mut ib_key_map = HashMap::new();
     ib_key_map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
     ib_key_map.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
-    ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), B::press(A::Ok));
-    ib_key_map.insert(BindingRequirement(K::Enter, M::SHIFT), B::press(A::Ok));
+    ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), B::press(A::Ok(OkModifier::None)));
+    ib_key_map.insert(BindingRequirement(K::Enter, M::SHIFT), B::press(A::Ok(OkModifier::Shift)));
     ib_key_map.insert(BindingRequirement(K::Left, M::empty()), B::held(A::MovecursorLeft));
     ib_key_map.insert(BindingRequirement(K::Right, M::empty()), B::held(A::MovecursorRight));
     ib_key_map.insert(BindingRequirement(K::Up, M::empty()), B::held(A::ScrollSelectionUp));
