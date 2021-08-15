@@ -1,7 +1,6 @@
 use crate::cmd::keybindings::KeyBindings;
 use crate::cmd::{get_command, CommandTag};
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
-use crate::debugger_catch;
 use crate::debuginfo::DebugInfo;
 use crate::opengl::types::RGBAColor;
 use crate::opengl::{
@@ -968,7 +967,7 @@ impl<'app> Application<'app> {
                     }
                 }
             }
-            InputboxAction::Ok => match self.input_box.mode {
+            InputboxAction::Ok(ok_code) => match self.input_box.mode {
                 Mode::CommandInput(cmd) => match cmd {
                     CommandTag::Goto => {
                         if let Ok(line) = self.input_box.input_box.data.iter().collect::<String>().parse::<usize>() {
@@ -986,11 +985,12 @@ impl<'app> Application<'app> {
                     CommandTag::Find => {
                         let input_data = &self.input_box.input_box.data.iter().collect::<String>();
                         let v = self.get_active_view();
-                        if glfw::Action::Press == window.get_key(glfw::Key::LeftShift) || glfw::Action::Repeat == window.get_key(glfw::Key::LeftShift) {
-                            println!("searching for previous");
-                            v.buffer.search_previous(&input_data);
-                        } else {
-                            v.buffer.search_next(&input_data);
+                        match ok_code {
+                            crate::ui::eventhandling::event::OkModifier::None => {
+                                v.buffer.search_next(&input_data);
+                            }
+                            crate::ui::eventhandling::event::OkModifier::Shift => v.buffer.search_previous(&input_data),
+                            _ => todo!("any other ok modifier for inputbox command Find, not implemented"),
                         }
                         v.set_view_on_buffer_cursor();
                         v.set_need_redraw();

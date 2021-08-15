@@ -27,6 +27,14 @@ pub enum InputElement {
     TextView,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum OkModifier {
+    None,
+    Shift,
+    Ctrl,
+    CtrlShift,
+}
+
 // Actions that take place inside an InputBox
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InputboxAction {
@@ -39,7 +47,7 @@ pub enum InputboxAction {
     Cut,
     Copy,
     Paste,
-    Ok,
+    Ok(OkModifier),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
