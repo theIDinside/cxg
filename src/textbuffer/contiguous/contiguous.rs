@@ -549,17 +549,44 @@ impl ContiguousBuffer {
         self.set_cursor(new_cursor.unwrap_or(self.edit_cursor));
     }
 
+    pub fn search_previous(&mut self, find: &str) {
+        if find.is_empty() {
+            return;
+        }
+        let v: Vec<char> = find.chars().collect();
+
+        const ITEM_RANGE: fn(usize, usize) -> std::ops::RangeInclusive<usize> = |idx: usize, len: usize| (idx.saturating_sub(len) + 1..=idx);
+
+        let mut idx = self.edit_cursor.pos.saturating_sub(1);
+        'scan_loop: while idx > 0 {
+            if self.data[idx] == unsafe { *v.last().unwrap_unchecked() } {
+                if let Some(sub_slice) = &self.data.get(ITEM_RANGE(idx, v.len())) {
+                    if *sub_slice == v {
+                        self.cursor_goto(metadata::Index(idx - v.len() + 1));
+                        break 'scan_loop;
+                    } else {
+                        idx = idx.saturating_sub(v.len());
+                    }
+                } else {
+                    break 'scan_loop;
+                }
+            } else {
+                idx = idx.saturating_sub(1);
+            }
+        }
+    }
+
     pub fn search_next(&mut self, find: &str) {
         let v: Vec<char> = find.chars().collect();
         let mut idx = *self.edit_cursor.pos + 1;
-        while idx < self.len() {
+        'scan_loop: while idx < self.len() {
             if self.data[idx] == v[0] {
                 if let Some(sub_ref_slice) = &self.data.get(idx..idx + v.len()) {
                     if sub_ref_slice[v.len() - 1] == v[v.len() - 1] {
                         if sub_ref_slice[..] == v[..] {
                             println!("Found {} at {} ({:?})", find, idx, &self.data[idx..(idx + v.len())]);
                             self.cursor_goto(metadata::Index(idx));
-                            return;
+                            break 'scan_loop;
                         } else {
                             idx += v.len();
                         }
@@ -567,14 +594,12 @@ impl ContiguousBuffer {
                         idx += v.len();
                     }
                 } else {
-                    println!("could not find __{}__", find);
-                    return;
+                    break 'scan_loop;
                 }
             } else {
                 idx += 1;
             }
         }
-        println!("could not find {}", find);
     }
 }
 

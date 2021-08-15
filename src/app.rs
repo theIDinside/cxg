@@ -664,7 +664,7 @@ impl<'app> Application<'app> {
                 if let Some(translation) = act {
                     // handle_input_box(&self, &input_box);
                     // println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
-                    self.handle_input_for_inputbox(translation);
+                    self.handle_input_for_inputbox(_window, translation);
                     None
                 } else {
                     self.key_bindings.translate_app_input(key, action, modifier)
@@ -939,7 +939,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_input_for_inputbox(&mut self, translation: InputboxAction) {
+    pub fn handle_input_for_inputbox(&mut self, window: &mut glfw::Window, translation: InputboxAction) {
         match translation {
             InputboxAction::Cancel => {
                 self.input_box.clear();
@@ -986,7 +986,12 @@ impl<'app> Application<'app> {
                     CommandTag::Find => {
                         let input_data = &self.input_box.input_box.data.iter().collect::<String>();
                         let v = self.get_active_view();
-                        v.buffer.search_next(&input_data);
+                        if glfw::Action::Press == window.get_key(glfw::Key::LeftShift) || glfw::Action::Repeat == window.get_key(glfw::Key::LeftShift) {
+                            println!("searching for previous");
+                            v.buffer.search_previous(&input_data);
+                        } else {
+                            v.buffer.search_next(&input_data);
+                        }
                         v.set_view_on_buffer_cursor();
                         v.set_need_redraw();
                     }
