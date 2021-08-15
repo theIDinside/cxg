@@ -167,16 +167,6 @@ pub struct KeyBindings {
     pub inputbox_actions: HashMap<BindingRequirement, InputboxBinding>,
 }
 
-/*
-    App Actions: {
-        "ctrl+O": {
-            "pressed": "AppAction::OpenFile",
-            "repeated": "None",
-            "released": "None",
-        },
-    }
-*/
-
 fn magic(glfw_key: glfw::Key, glfw_modifiers: glfw::Modifiers) -> (KeyImpl, ModifiersImpl) {
     unsafe { (std::mem::transmute(glfw_key), std::mem::transmute(glfw_modifiers)) }
 }
@@ -241,25 +231,6 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     use ViewAction as A;
 
     let mut m = HashMap::new();
-    /*
-        Cancel,
-        SaveFile,
-        OpenFile,
-        Movement(Movement),
-        TextSelect(Movement),
-        Find,
-        Goto,
-        Delete(Movement),
-        ChangeValueOfAssignment,
-        InsertStr(String),
-        Cut,
-        Copy,
-        Paste,
-        Undo,
-        Redo,
-        LineOperation(LineOperation),
-        Debug,
-    */
 
     m.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
     m.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
@@ -345,20 +316,6 @@ pub fn app_default() -> HashMap<BindingRequirement, AppBinding> {
     use KeyImpl as K;
     use ModifiersImpl as M;
     let mut map = HashMap::new();
-    /*
-        Cancel,
-        OpenFile,
-        SaveFile,
-        SearchInFiles,
-        GotoLineInFile,
-        CycleFocus,
-        HideFocused,
-        ShowAll,
-        ShowDebugInterface,
-        CloseActiveView(bool),
-        Quit,
-        OpenNewView,
-    */
     map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
     map.insert(BindingRequirement(K::O, M::CONTROL), B::press(A::OpenFile));
     map.insert(BindingRequirement(K::I, M::CONTROL | M::SHIFT), B::press(A::OpenFile));

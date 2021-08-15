@@ -15,20 +15,20 @@ use crate::ui::basic::{
     coordinate::{Coordinate, Layout, PointArithmetic, Size},
     frame::Frame,
 };
-use crate::ui::eventhandling::event::{key_press, AppAction, InputboxAction, ViewAction};
+use crate::ui::eventhandling::event::{AppAction, InputboxAction, ViewAction};
 use crate::ui::eventhandling::input::KeyboardInputContext;
 use crate::ui::font::Fonts;
 use crate::ui::{
     clipboard::ClipBoard,
     debug_view::DebugView,
-    eventhandling::event::{CommandOutput, InputBehavior, InvalidInputElement},
+    eventhandling::event::{InputBehavior, InvalidInputElement},
     inputbox::{InputBox, Mode},
     panel::{Panel, PanelId},
     view::{Popup, View, ViewId},
     MouseState, Viewable, UID,
 };
 
-use glfw::{Action, Key, Modifiers, MouseButton, Window};
+use glfw::{Action, MouseButton, Window};
 
 use serde::{Deserialize, Serialize};
 
