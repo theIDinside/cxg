@@ -847,7 +847,6 @@ impl Viewable for View {
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
         } else if self.scroll_bar.frame.to_bb().box_hit_check(validated_inside_pos) {
-            println!("Scroll bar clicked");
             self.scroll_bar_interacting = true;
             // if we clicked on scroll bar, but not on slider, we want the slider to jump to this location
             if !self.scroll_bar.slider.to_bb().box_hit_check(validated_inside_pos) {
