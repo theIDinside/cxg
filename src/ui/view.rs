@@ -5,11 +5,11 @@ use super::eventhandling::event::{key_press, key_press_repeat, CommandOutput, In
 use super::eventhandling::input::KeyboardInputContext;
 use super::panel::PanelId;
 use super::scrollbar::{ScrollBar, ScrollBarLayout};
+use super::Viewable;
 use super::{
     basic::{coordinate::Size, frame::Frame},
     font::Font,
 };
-use super::{MouseState, Viewable};
 use crate::datastructure::generic::Vec2i;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};

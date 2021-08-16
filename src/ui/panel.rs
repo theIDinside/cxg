@@ -1,7 +1,7 @@
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Coordinate, Layout, Size};
 use super::view::{View, ViewId};
-use super::{MouseState, Viewable};
+use super::Viewable;
 use crate::ui::Vec2i;
 
 use std::fmt::Formatter;

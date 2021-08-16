@@ -44,10 +44,6 @@ fn all_views<'app>(panels: &'app Vec<Panel>) -> impl Iterator<Item = &View> + Cl
     panels.iter().flat_map(|p| p.children.iter())
 }
 
-fn all_views_mut<'app>(panels: &'app mut Vec<Panel>) -> impl Iterator<Item = &'app mut View> + 'app {
-    panels.iter_mut().flat_map(|p| p.children.iter_mut())
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct ViewConfig {
     background: RGBAColor,
@@ -61,8 +57,6 @@ impl ViewConfig {
 }
 
 pub struct Application<'app> {
-    /// Window Title
-    _title_bar: String,
     /// Window Size
     pub window_size: Size,
     /// Total space of window, that can be occupied by panels (status bar for instance, is *not* counted among this space)
@@ -253,7 +247,6 @@ impl<'app> Application<'app> {
         }
 
         let mut res = Application {
-            _title_bar: "cxgledit".into(),
             window_size: Size::new(1024, 768),
             panel_space_size: Size::new(1024, 768),
             loaded_fonts: fonts,
@@ -326,7 +319,6 @@ impl<'app> Application<'app> {
             p.add_view(view);
             unsafe {
                 (*self.active_view).bg_color = INACTIVE_VIEW_BACKGROUND;
-                // (*self.active_view).window_renderer.set_color(INACTIVE_VIEW_BACKGROUND);
                 (*self.active_view).update(None);
             }
             self.active_view = p.get_view(view_id.into()).unwrap() as *mut _;
@@ -460,8 +452,6 @@ impl<'app> Application<'app> {
                 }
                 glfw::WindowEvent::Char(ch) => {
                     self.active_keyboard_input.handle_char(ch);
-                    // let v = self.get_active_view();
-                    // v.insert_ch(ch);
                 }
                 glfw::WindowEvent::Key(key, _, action, m) => {
                     self.handle_key_event(window, key, action, m);
@@ -556,19 +546,31 @@ impl<'app> Application<'app> {
             MouseState::UIElementDrag(_maybe_view, _btn, _pos) => {}
             MouseState::UIElementDragAction(_view, _btn, begin, current) => {
                 let pos = begin.to_i32();
-                let view_handling_action = self
-                    .panels
-                    .iter_mut()
-                    .flat_map(|p| p.children.iter_mut())
-                    .find(|v| v.bounding_box().box_hit_check(pos));
-                if let Some(handling_view) = view_handling_action {
-                    if let Some(begin) = handling_view.mouse_dragged(begin.to_i32(), current.to_i32()) {
+
+                if let Some(continue_handling_view) = self.panels.iter_mut().flat_map(|p| p.children.iter_mut()).find(|v| v.id == _view) {
+                    let v_bb = continue_handling_view.bounding_box();
+                    let current = current.to_i32().clamped(&v_bb);
+                    let begin = begin.to_i32().clamped(&v_bb);
+                    if let Some(begin) = continue_handling_view.mouse_dragged(begin, current) {
                         self.mouse_state = MouseState::UIElementDragAction(_view, _btn, begin.to_f64(), begin.to_f64());
                     } else {
                         self.mouse_state = new_state;
                     }
                 } else {
-                    self.mouse_state = new_state;
+                    let view_handling_action = self
+                        .panels
+                        .iter_mut()
+                        .flat_map(|p| p.children.iter_mut())
+                        .find(|v| v.bounding_box().box_hit_check(pos));
+                    if let Some(handling_view) = view_handling_action {
+                        if let Some(begin) = handling_view.mouse_dragged(begin.to_i32(), current.to_i32()) {
+                            self.mouse_state = MouseState::UIElementDragAction(_view, _btn, begin.to_f64(), begin.to_f64());
+                        } else {
+                            self.mouse_state = new_state;
+                        }
+                    } else {
+                        self.mouse_state = new_state;
+                    }
                 }
             }
             MouseState::Released(_btn, pos) => {
@@ -670,7 +672,7 @@ impl<'app> Application<'app> {
                 if let Some(translation) = act {
                     // handle_input_box(&self, &input_box);
                     // println!("{:?} - Key {:?} Modifier: {:?}, Action: {:?}", self.input_context, key, modifier, translation);
-                    self.handle_input_for_inputbox(_window, translation);
+                    self.handle_input_for_inputbox(translation);
                     None
                 } else {
                     self.key_bindings.translate_app_input(key, action, modifier)
@@ -942,7 +944,7 @@ impl<'app> Application<'app> {
         }
     }
 
-    pub fn handle_input_for_inputbox(&mut self, window: &mut glfw::Window, translation: InputboxAction) {
+    pub fn handle_input_for_inputbox(&mut self, translation: InputboxAction) {
         match translation {
             InputboxAction::Cancel => {
                 self.input_box.clear();

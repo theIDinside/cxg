@@ -1,6 +1,8 @@
 pub mod generic {
     use std::ops::{Add, AddAssign, Mul, MulAssign};
 
+    use crate::ui::basic::boundingbox::BoundingBox;
+
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct Vec2<T> {
         pub x: T,
@@ -17,6 +19,12 @@ pub mod generic {
     impl Vec2<i32> {
         pub fn to_f64(&self) -> Vec2<f64> {
             Vec2d { x: self.x as f64, y: self.y as f64 }
+        }
+
+        pub fn clamped(&self, bb: &BoundingBox) -> Vec2i {
+            let &Vec2i { x, y } = self;
+            let BoundingBox { min, max } = bb;
+            Vec2i::new(x.clamp(min.x, max.x), y.clamp(min.y, max.y))
         }
     }
 

@@ -45,7 +45,7 @@ pub enum MouseState {
     /// UIElementDragAction is a mouse state that represents a mouse click and drag
     /// that the UI element should register itself, and handle what decision to take.
     /// In contrast with UIElementDrag, which is a MouseState that Application<'app> should handle
-    /// Since it involves how the Application lays element out in the UI.
+    /// Since it involves how the Application lays element out in the UI, etc
     UIElementDragAction(ViewId, glfw::MouseButton, Vec2d, Vec2d),
     /// Mouse state for when/where the mouse button was released
     Released(glfw::MouseButton, Vec2d),

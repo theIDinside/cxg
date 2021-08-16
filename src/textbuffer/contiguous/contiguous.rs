@@ -19,9 +19,6 @@ use crate::{
     Assert,
 };
 
-#[cfg(debug_assertions)]
-use crate::DebuggerCatch;
-
 pub struct ContiguousBuffer {
     pub id: u32,
     pub data: Vec<char>,
