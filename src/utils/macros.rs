@@ -61,13 +61,21 @@ macro_rules! debugger_catch {
     };
 }
 
+/// Conditionally compiled only for debug builds. This is the exact equivalent of using the #[cfg(debug_assertions)] attribute on a statement or scope
+/// but it's wrapped in a macro here, to signal intent more clearly to the reader
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! only_in_debug {
     ($e:expr) => {
-        #[cfg(debug_assertions)]
-        {
-            $e
-        }
+        $e
+    };
+}
+
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! only_in_debug {
+    ($e:expr) => {
+        
     };
 }
 
@@ -91,14 +99,30 @@ macro_rules! debugger_catch {
 macro_rules! Assert {
     ($assert_expr:expr, $message:literal) => {
         if !$assert_expr {
-            panic!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
+            println!("Assert failed - {} @ {}:{}:{}", $message, file!(), line!(), column!());
+            unsafe { 
+                let res = libc::raise(libc::SIGTRAP);
+                if res != 0 {
+                    panic!("Error sending SIGTRAP signal. Debugger will not be notified (probably). System error message:{}", crate::utils::get_sys_error().unwrap());
+                } else { 
+                    println!("Reached stoppable debug statement");
+                }
+            }
         }
     };
 
     ($assert_expr:expr, $message:expr) => {
         let (file, line, column) = (file!(), line!(), column!());
         if !$assert_expr {
-            panic!("Assert failed - {} @ {}:{}:{}", $message, file, line, column);
+            println!("Assert failed - {} @ {}:{}:{}", $message, file, line, column);
+            unsafe { 
+                let res = libc::raise(libc::SIGTRAP);
+                if res != 0 {
+                    panic!("Error sending SIGTRAP signal. Debugger will not be notified (probably). System error message:{}", crate::utils::get_sys_error().unwrap());
+                } else { 
+                    println!("Reached stoppable debug statement");
+                }
+            }
         }
     };
 }

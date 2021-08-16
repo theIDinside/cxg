@@ -3,7 +3,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::datastructure::generic::Vec2i;
-use crate::debugger_catch;
+use crate::Assert;
 
 /// Contains the texture coordinates & related glyph info about size & dimension
 pub struct GlyphInfo {
@@ -131,7 +131,7 @@ impl Font {
                     let mut pixel_index = (y * texture_dimension.x + x) as usize;
                     let bitmap_index = (row * bitmap.pitch() + col) as usize;
                     if pixel_index >= pixels.len() {
-                        debugger_catch!(!(pixel_index >= 262144), crate::DebuggerCatch::Handle("Pixel index must remaing below 262144".into()));
+                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144".into());
                         pixel_index = pixels.len() - 1;
                     }
                     pixels[pixel_index] = bitmap.buffer()[bitmap_index];
@@ -215,7 +215,7 @@ impl Font {
                     let mut pixel_index = (y * texture_dimension.x + x) as usize;
                     let bitmap_index = (row * bitmap.pitch() + col) as usize;
                     if pixel_index >= pixels.len() {
-                        debugger_catch!(!(pixel_index >= 262144), crate::DebuggerCatch::Handle("Pixel index must remaing below 262144".into()));
+                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144".into());
                         pixel_index = pixels.len() - 1;
                     }
                     pixels[pixel_index] = bitmap.buffer()[bitmap_index];

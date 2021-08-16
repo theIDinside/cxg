@@ -4,7 +4,7 @@ use std::iter::Step;
 use std::path::{Path, PathBuf};
 
 /// Macros used in this module
-use crate::debugger_catch;
+use crate::Assert;
 use crate::IndexingType;
 
 use super::CharBuffer;
@@ -65,7 +65,7 @@ impl MetaData {
     }
 
     pub fn get_line_length_of(&self, line_index: Line) -> Option<Length> {
-        debugger_catch!(*line_index <= self.line_begin_indices.len(), "requested line number is outside of buffer");
+        Assert!(*line_index <= self.line_begin_indices.len(), "requested line number is outside of buffer");
         self.line_begin_indices
             .windows(2)
             .skip(*line_index)

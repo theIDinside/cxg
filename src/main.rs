@@ -1,6 +1,12 @@
-#![feature(macro_attributes_in_derive_output)]
-#![feature(core_intrinsics, step_trait, test, option_result_unwrap_unchecked)]
-#[rustfmt::skip::macros(debugger_catch)]
+#![feature(
+    core_intrinsics,
+    step_trait,
+    test,
+    option_result_unwrap_unchecked,
+    macro_attributes_in_derive_output,
+    stmt_expr_attributes // conditional compilation, so that we can place debug printlines a little bit where we want
+)]
+#[rustfmt::skip::macros(debugger_catch, Assert)]
 extern crate freetype as ft;
 extern crate gl;
 extern crate glfw;

@@ -2,6 +2,7 @@ use crate::cmd::keybindings::KeyBindings;
 use crate::cmd::{get_command, CommandTag};
 use crate::datastructure::generic::{Vec2, Vec2d, Vec2i};
 use crate::debuginfo::DebugInfo;
+use crate::only_in_debug;
 use crate::opengl::types::RGBAColor;
 use crate::opengl::{
     polygon_renderer::{PolygonRenderer, TextureMap, TextureType},
@@ -830,7 +831,7 @@ impl<'app> Application<'app> {
     pub fn handle_input_for_textview(&mut self, input: ViewAction) {
         match input {
             ViewAction::Cancel => {
-                println!("no action for cancel")
+                only_in_debug!(println!("no action for cancel"));
             }
             ViewAction::Movement(movement) => {
                 let v = self.get_active_view();
@@ -852,16 +853,13 @@ impl<'app> Application<'app> {
                 }
             }
             ViewAction::Cut => {
-                // let v = self.get_active_view();
-
                 if let Some(data) = self.get_active_view().buffer.cut_range_or_line() {
                     self.clipboard.take(data);
                 }
                 self.get_active_view().set_need_redraw();
             }
             ViewAction::Copy => {
-                let v = self.get_active_view();
-                if let Some(data) = v.buffer.copy_range_or_line() {
+                if let Some(data) = self.get_active_view().buffer.copy_range_or_line() {
                     self.clipboard.take(data);
                 }
             }
@@ -1012,8 +1010,7 @@ impl<'app> Application<'app> {
                                     let v = self.get_active_view();
                                     if v.buffer.empty() {
                                         v.buffer.load_file(&p);
-                                        v.set_need_redraw();
-                                        v.update(None);
+                                        v.set_view_on_buffer_cursor();
                                         self.active_keyboard_input = unsafe { &mut (*self.active_view) as &mut dyn InputBehavior };
                                         self.input_box.visible = false;
                                     } else {
@@ -1021,10 +1018,9 @@ impl<'app> Application<'app> {
                                         let f_name = p.file_name();
                                         self.open_text_view(p_id.unwrap(), f_name.and_then(|s| s.to_str()).map(|f| f.to_string()), self.window_size);
                                         let v = self.get_active_view();
-                                        crate::debugger_catch!(&p.exists(), crate::DebuggerCatch::Handle("File was not found!".into()));
+                                        crate::Assert!(&p.exists(), "File was not found!");
                                         v.buffer.load_file(&p);
-                                        v.set_need_redraw();
-                                        v.update(None);
+                                        v.set_view_on_buffer_cursor();
                                         self.input_box.visible = false;
                                     }
                                     self.input_box.clear();

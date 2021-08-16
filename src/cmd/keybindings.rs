@@ -231,7 +231,12 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     let mut m = HashMap::new();
 
     m.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::Escape, M::SHIFT), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::Escape, M::CONTROL), B::press(A::Cancel));
     m.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::CapsLock, M::SHIFT), B::press(A::Cancel));
+    m.insert(BindingRequirement(K::CapsLock, M::CONTROL), B::press(A::Cancel));
+
     m.insert(BindingRequirement(K::S, M::CONTROL), B::press(A::SaveFile));
     m.insert(BindingRequirement(K::O, M::CONTROL), B::press(A::OpenFile));
     m.insert(BindingRequirement(K::Left, M::empty()), B::held(A::Movement(Movement::Backward(TextKind::Char, 1))));
@@ -289,7 +294,13 @@ pub fn ib_default() -> HashMap<BindingRequirement, InputboxBinding> {
     use ModifiersImpl as M;
     let mut ib_key_map = HashMap::new();
     ib_key_map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::Escape, M::SHIFT), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::Escape, M::CONTROL), B::press(A::Cancel));
+
     ib_key_map.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::CapsLock, M::CONTROL), B::press(A::Cancel));
+    ib_key_map.insert(BindingRequirement(K::CapsLock, M::SHIFT), B::press(A::Cancel));
+
     ib_key_map.insert(BindingRequirement(K::Enter, M::empty()), B::press(A::Ok(OkModifier::None)));
     ib_key_map.insert(BindingRequirement(K::Enter, M::SHIFT), B::press(A::Ok(OkModifier::Shift)));
     ib_key_map.insert(BindingRequirement(K::Left, M::empty()), B::held(A::MovecursorLeft));
@@ -316,6 +327,13 @@ pub fn app_default() -> HashMap<BindingRequirement, AppBinding> {
     use ModifiersImpl as M;
     let mut map = HashMap::new();
     map.insert(BindingRequirement(K::Escape, M::empty()), B::press(A::Cancel));
+    map.insert(BindingRequirement(K::Escape, M::CONTROL), B::press(A::Cancel));
+    map.insert(BindingRequirement(K::Escape, M::SHIFT), B::press(A::Cancel));
+
+    map.insert(BindingRequirement(K::CapsLock, M::empty()), B::press(A::Cancel));
+    map.insert(BindingRequirement(K::CapsLock, M::CONTROL), B::press(A::Cancel));
+    map.insert(BindingRequirement(K::CapsLock, M::SHIFT), B::press(A::Cancel));
+
     map.insert(BindingRequirement(K::O, M::CONTROL), B::press(A::OpenFile));
     map.insert(BindingRequirement(K::I, M::CONTROL | M::SHIFT), B::press(A::OpenFile));
     map.insert(BindingRequirement(K::F, M::CONTROL | M::SHIFT), B::press(A::SearchInFiles));

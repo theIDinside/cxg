@@ -8,14 +8,15 @@ use std::{
 
 use super::super::{cursor::BufferCursor, CharBuffer, Movement};
 use crate::{
-    debugger_catch, only_in_debug,
+    only_in_debug,
     textbuffer::{
         cursor::MetaCursor,
-        metadata::{self, calculate_hash},
+        metadata::{self as md, calculate_hash},
         operations::History,
         LineOperation, TextKind,
     },
     utils::{non_overlap_copy_slice_to, AsUsize},
+    Assert,
 };
 
 #[cfg(debug_assertions)]
@@ -28,7 +29,7 @@ pub struct ContiguousBuffer {
     pub meta_cursor: Option<MetaCursor>,
     history: History,
     size: usize,
-    meta_data: metadata::MetaData,
+    meta_data: md::MetaData,
 }
 
 impl std::hash::Hash for ContiguousBuffer {
@@ -46,7 +47,7 @@ impl ContiguousBuffer {
             meta_cursor: None,
             history: History::new(),
             size: 0,
-            meta_data: metadata::MetaData::new(None),
+            meta_data: md::MetaData::new(None),
         }
     }
 
@@ -62,27 +63,27 @@ impl ContiguousBuffer {
         self.edit_cursor.clone()
     }
 
-    pub fn set_absolute_meta_cursor(&mut self, pos: metadata::Index) {
+    pub fn set_absolute_meta_cursor(&mut self, pos: md::Index) {
         self.meta_cursor = Some(MetaCursor::Absolute(pos));
     }
 
-    pub fn get(&self, idx: metadata::Index) -> Option<&char> {
+    pub fn get(&self, idx: md::Index) -> Option<&char> {
         self.data.get(*idx)
     }
 
-    pub fn get_unchecked(&self, idx: metadata::Index) -> &char {
+    pub fn get_unchecked(&self, idx: md::Index) -> &char {
         unsafe { self.data.get_unchecked(*idx) }
     }
 
     pub fn get_slice(&self, range: std::ops::Range<usize>) -> &[char] {
-        debugger_catch!(
+        Assert!(
             range.start <= self.len() && range.end <= self.len(),
-            DebuggerCatch::Handle(format!("Illegal access of buffer; getting range {:?} from buffer of only {} len", range.clone(), self.len()))
+            format!("Illegal access of buffer; getting range {:?} from buffer of only {} len", range.clone(), self.len())
         );
         unsafe { &self.data.get_unchecked(range.clone()) }
     }
 
-    pub fn get_lines_as_slices(&self, first: metadata::Line, last: metadata::Line) -> Vec<&[char]> {
+    pub fn get_lines_as_slices(&self, first: md::Line, last: md::Line) -> Vec<&[char]> {
         debug_assert!(first < last, "Last line must come after first line");
         let mut res = Vec::with_capacity(*(last - first));
         for l in first..=last {
@@ -93,8 +94,8 @@ impl ContiguousBuffer {
         res
     }
 
-    pub fn line_length(&self, line: metadata::Line) -> Option<metadata::Length> {
-        use metadata::Length as L;
+    pub fn line_length(&self, line: md::Line) -> Option<md::Length> {
+        use md::Length as L;
         self.meta_data.get(line).and_then(|a| {
             self.meta_data
                 .get(line.offset(1))
@@ -120,7 +121,7 @@ impl ContiguousBuffer {
                     self.meta_cursor = None;
                     self.size = self.data.len();
                     self.rebuild_metadata();
-                    self.cursor_goto(metadata::Index(erase_from));
+                    self.cursor_goto(md::Index(erase_from));
                 }
                 #[allow(unused)]
                 MetaCursor::LineRange { column, begin, end } => todo!(),
@@ -140,7 +141,7 @@ impl ContiguousBuffer {
                 non_overlap_copy_slice_to(ptr.offset(abs + slice.len() as isize), &self.data[(abs as usize)..]);
 
                 v.set_len(self.len() + slice.len());
-                let new_abs_cursor_pos = metadata::Index(abs as usize + slice.len());
+                let new_abs_cursor_pos = md::Index(abs as usize + slice.len());
                 self.size = v.len();
                 self.data = v;
                 self.rebuild_metadata();
@@ -169,7 +170,7 @@ impl ContiguousBuffer {
                 self.edit_cursor = self
                     .cursor_from_metadata(self.edit_cursor.absolute().offset(slice.len() as _))
                     .unwrap_or(self.edit_cursor);
-                self.history.push_insert_range(metadata::Index(abs as usize), slice.iter().collect());
+                self.history.push_insert_range(md::Index(abs as usize), slice.iter().collect());
             }
         }
     }
@@ -204,22 +205,22 @@ impl ContiguousBuffer {
                     if let Some(&c) = self.get(self.edit_cursor.absolute()) {
                         if c.is_alphanumeric() {
                             self.edit_cursor = self.find_next(|c| c.is_whitespace()).unwrap_or(BufferCursor {
-                                pos: metadata::Index(self.len()),
-                                row: metadata::Line(self.meta_data.line_count() - 1),
-                                col: metadata::Column(
+                                pos: md::Index(self.len()),
+                                row: md::Line(self.meta_data.line_count() - 1),
+                                col: md::Column(
                                     self.meta_data
-                                        .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
+                                        .get_line_start_index(md::Line(self.meta_data.line_count() - 1))
                                         .map(|v| self.len() - *v)
                                         .unwrap(),
                                 ),
                             });
                         } else if c.is_whitespace() {
                             self.edit_cursor = self.find_next(|c| c.is_alphanumeric()).unwrap_or(BufferCursor {
-                                pos: metadata::Index(self.len()),
-                                row: metadata::Line(self.meta_data.line_count() - 1),
-                                col: metadata::Column(
+                                pos: md::Index(self.len()),
+                                row: md::Line(self.meta_data.line_count() - 1),
+                                col: md::Column(
                                     self.meta_data
-                                        .get_line_start_index(metadata::Line(self.meta_data.line_count() - 1))
+                                        .get_line_start_index(md::Line(self.meta_data.line_count() - 1))
                                         .map(|v| self.len() - *v)
                                         .unwrap(),
                                 ),
@@ -251,17 +252,14 @@ impl ContiguousBuffer {
             TextKind::Char => {
                 if *self.edit_cursor.absolute() as i64 - count as i64 > 0 {
                     for _ in 0..count {
-                        self.edit_cursor.pos -= metadata::Index(1);
+                        self.edit_cursor.pos -= md::Index(1);
                         if let Some('\n') = self.get(self.edit_cursor.absolute()) {
-                            self.edit_cursor.row -= metadata::Line(1);
-                            self.edit_cursor.col = metadata::Column(
-                                *(self.edit_cursor.absolute()
-                                    - self
-                                        .find_prev_newline_pos_from(self.edit_cursor.absolute())
-                                        .unwrap_or(metadata::Index(0))),
+                            self.edit_cursor.row -= md::Line(1);
+                            self.edit_cursor.col = md::Column(
+                                *(self.edit_cursor.absolute() - self.find_prev_newline_pos_from(self.edit_cursor.absolute()).unwrap_or(md::Index(0))),
                             )
                         } else {
-                            self.edit_cursor.col -= metadata::Column(1);
+                            self.edit_cursor.col -= md::Column(1);
                         }
                     }
                 } else {
@@ -328,7 +326,7 @@ impl ContiguousBuffer {
                 .zip(
                     self.meta_data
                         .get_line_start_index(row.offset(1))
-                        .or_else(|| Some(metadata::Index(self.len()))),
+                        .or_else(|| Some(md::Index(self.len()))),
                 )
                 .map(|(begin, end)| String::from_iter(self.get_slice(*begin..*end)))
         }
@@ -364,7 +362,7 @@ impl ContiguousBuffer {
                 .zip(
                     self.meta_data
                         .get_line_start_index(row.offset(1))
-                        .or_else(|| Some(metadata::Index(self.len()))),
+                        .or_else(|| Some(md::Index(self.len()))),
                 )
                 .map(|(begin, end)| {
                     let res: String = self.data.drain(*begin..*end).collect();
@@ -377,7 +375,7 @@ impl ContiguousBuffer {
 
     /// Returns the (possibly) selected range. This always makes sure to return begin .. end, since the meta cursor can be both behind and in front
     /// of the edit_cursor
-    pub fn get_selection(&self) -> Option<(metadata::Index, metadata::Index)> {
+    pub fn get_selection(&self) -> Option<(md::Index, md::Index)> {
         if let Some(meta_cursor) = &self.meta_cursor {
             match *meta_cursor {
                 MetaCursor::Absolute(meta_cursor) => {
@@ -407,17 +405,17 @@ impl ContiguousBuffer {
     /// They explicitly only deal with absolute positions/indices, and before returning, calls this function
     /// to return an Option of a well formed BufferCursor
 
-    fn find_index_of_prev_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
+    fn find_index_of_prev_from(&self, start_position: md::Index, f: fn(char) -> bool) -> Option<md::Index> {
         self.data.get(0..=(*start_position)).and_then(|range| {
             range
                 .iter()
                 .rev()
                 .position(|c| f(*c))
-                .map(|len_from_pos| metadata::Index(*start_position - len_from_pos))
+                .map(|len_from_pos| md::Index(*start_position - len_from_pos))
         })
     }
 
-    fn find_index_of_next_from(&self, start_position: metadata::Index, f: fn(char) -> bool) -> Option<metadata::Index> {
+    fn find_index_of_next_from(&self, start_position: md::Index, f: fn(char) -> bool) -> Option<md::Index> {
         self.iter()
             .skip(*start_position)
             .position(|&ch| f(ch))
@@ -429,7 +427,7 @@ impl ContiguousBuffer {
             .enumerate()
             .skip(*self.cursor_abs() + 1)
             .find(|(_, &ch)| f(ch))
-            .and_then(|(i, _)| self.cursor_from_metadata(metadata::Index(i)))
+            .and_then(|(i, _)| self.cursor_from_metadata(md::Index(i)))
     }
 
     fn find_prev(&self, f: fn(char) -> bool) -> Option<BufferCursor> {
@@ -438,10 +436,10 @@ impl ContiguousBuffer {
             .iter()
             .rev()
             .position(|&c| f(c))
-            .and_then(|char_index_predicate_true_for| self.cursor_from_metadata(metadata::Index(cursor_pos - char_index_predicate_true_for - 1)))
+            .and_then(|char_index_predicate_true_for| self.cursor_from_metadata(md::Index(cursor_pos - char_index_predicate_true_for - 1)))
     }
 
-    fn find_prev_newline_pos_from(&self, abs_pos: metadata::Index) -> Option<metadata::Index> {
+    fn find_prev_newline_pos_from(&self, abs_pos: md::Index) -> Option<md::Index> {
         let abs_pos = *abs_pos;
         if abs_pos >= self.data.len() {
             self.meta_data.line_begin_indices.last().map(|v| *v)
@@ -451,7 +449,7 @@ impl ContiguousBuffer {
                 .rev()
                 .skip(reversed_abs_position)
                 .position(|c| *c == '\n')
-                .map(|v| metadata::Index(abs_pos - (v)))
+                .map(|v| md::Index(abs_pos - (v)))
         }
     }
 
@@ -460,7 +458,7 @@ impl ContiguousBuffer {
             for _ in 0..count {
                 if let Some('\n') = self.get(self.edit_cursor.absolute()) {
                     self.edit_cursor.row = self.edit_cursor.row.offset(1);
-                    self.edit_cursor.col = metadata::Column(0);
+                    self.edit_cursor.col = md::Column(0);
                 } else {
                     self.edit_cursor.col = self.edit_cursor.col.offset(1);
                 }
@@ -470,7 +468,7 @@ impl ContiguousBuffer {
             for _ in *self.edit_cursor.absolute()..self.data.len() {
                 if let Some('\n') = self.get(self.edit_cursor.absolute()) {
                     self.edit_cursor.row = self.edit_cursor.row.offset(1);
-                    self.edit_cursor.col = metadata::Column(0);
+                    self.edit_cursor.col = md::Column(0);
                 } else {
                     self.edit_cursor.col = self.edit_cursor.col.offset(1);
                 }
@@ -485,14 +483,10 @@ impl ContiguousBuffer {
                 self.edit_cursor.pos = self.edit_cursor.pos.offset(-1);
                 if let Some('\n') = self.get(self.edit_cursor.absolute()) {
                     self.edit_cursor.row = self.edit_cursor.row.offset(-1);
-                    self.edit_cursor.col = metadata::Column(
-                        *(self.edit_cursor.absolute()
-                            - self
-                                .find_prev_newline_pos_from(self.edit_cursor.absolute())
-                                .unwrap_or(metadata::Index(0))),
-                    )
+                    self.edit_cursor.col =
+                        md::Column(*(self.edit_cursor.absolute() - self.find_prev_newline_pos_from(self.edit_cursor.absolute()).unwrap_or(md::Index(0))))
                 } else {
-                    self.edit_cursor.col -= metadata::Column(1);
+                    self.edit_cursor.col -= md::Column(1);
                 }
             }
         } else {
@@ -501,8 +495,8 @@ impl ContiguousBuffer {
     }
 
     fn cursor_move_up(&mut self) {
-        if self.cursor_row() == metadata::Line(0) {
-            self.cursor_goto(metadata::Index(0));
+        if self.cursor_row() == md::Line(0) {
+            self.cursor_goto(md::Index(0));
         } else {
             let prior_line = self.cursor_row().offset(-1);
             self.edit_cursor = self
@@ -529,7 +523,7 @@ impl ContiguousBuffer {
         {
             let a = self.line_length(next_line_index);
             let b = self.meta_data.line_length(next_line_index);
-            debugger_catch!(a == b, DebuggerCatch::Handle(format!("Line length operation failed")));
+            Assert!(a == b, "Line length operation failed");
         }
         let new_cursor = self
             .line_length(next_line_index)
@@ -562,7 +556,7 @@ impl ContiguousBuffer {
             if self.data[idx] == unsafe { *v.last().unwrap_unchecked() } {
                 if let Some(sub_slice) = &self.data.get(ITEM_RANGE(idx, v.len())) {
                     if *sub_slice == v {
-                        self.cursor_goto(metadata::Index(idx - v.len() + 1));
+                        self.cursor_goto(md::Index(idx - v.len() + 1));
                         break 'scan_loop;
                     } else {
                         idx = idx.saturating_sub(v.len());
@@ -585,7 +579,7 @@ impl ContiguousBuffer {
                     if sub_ref_slice[v.len() - 1] == v[v.len() - 1] {
                         if sub_ref_slice[..] == v[..] {
                             println!("Found {} at {} ({:?})", find, idx, &self.data[idx..(idx + v.len())]);
-                            self.cursor_goto(metadata::Index(idx));
+                            self.cursor_goto(md::Index(idx));
                             break 'scan_loop;
                         } else {
                             idx += v.len();
@@ -647,22 +641,22 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     #[inline(always)]
-    fn cursor_row(&self) -> metadata::Line {
+    fn cursor_row(&self) -> md::Line {
         self.edit_cursor.row
     }
 
     #[inline(always)]
-    fn cursor_col(&self) -> metadata::Column {
+    fn cursor_col(&self) -> md::Column {
         self.edit_cursor.col
     }
 
     #[inline(always)]
-    fn cursor_abs(&self) -> metadata::Index {
+    fn cursor_abs(&self) -> md::Index {
         self.edit_cursor.pos
     }
 
     fn insert(&mut self, ch: char, register_history: bool) {
-        use metadata::{Column as Col, Index};
+        use md::{Column as Col, Index};
         let pos = self.edit_cursor.absolute();
         debug_assert!(self.edit_cursor.absolute() <= Index(self.len()), "You can't insert something outside of the range of [0..len()]");
         if let Some(marker) = &self.meta_cursor {
@@ -704,7 +698,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     fn delete_if_selection(&mut self) -> bool {
-        use metadata::Index;
+        use md::Index;
         if self.empty() {
             false
         } else {
@@ -749,7 +743,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
 
     // todo(optimization): don't do the expensive rebuild of meta data after each delete. It's a pretty costly operation.
     fn delete(&mut self, dir: Movement) {
-        use metadata::Index;
+        use md::Index;
         if self.empty() {
             return;
         }
@@ -845,7 +839,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         self.meta_data.clear_line_index_metadata();
         for (i, ch) in self.data.iter().enumerate() {
             if *ch == '\n' {
-                self.meta_data.push_new_line_begin(metadata::Index(i + 1));
+                self.meta_data.push_new_line_begin(md::Index(i + 1));
             }
         }
         let cs = calculate_hash(self);
@@ -853,7 +847,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     #[inline(always)]
-    fn meta_data(&self) -> &metadata::MetaData {
+    fn meta_data(&self) -> &md::MetaData {
         &self.meta_data
     }
 
@@ -879,7 +873,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         }
     }
 
-    fn get_buffer_movement_result(&mut self, dir: Movement) -> Option<(metadata::Index, metadata::Index)> {
+    fn get_buffer_movement_result(&mut self, dir: Movement) -> Option<(md::Index, md::Index)> {
         let old = self.cursor().clone();
         self.move_cursor(dir);
         let res = Some((old.absolute(), self.cursor().absolute()));
@@ -890,7 +884,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     /// Clears the meta cursor when moving, so if the desired action is to set a range of selected data
     /// the start position of the meta cursor has to be set _after_ calling this method
     fn move_cursor(&mut self, dir: Movement) {
-        use super::super::metadata::Index;
+        use md::Index;
         self.meta_cursor = None;
         match dir {
             Movement::Forward(kind, count) => {
@@ -953,7 +947,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.cursor_goto(block_begin);
                     }
                 }
-                TextKind::File => self.cursor_goto(metadata::Index(self.len()).offset(-1)),
+                TextKind::File => self.cursor_goto(md::Index(self.len()).offset(-1)),
                 _ => {
                     todo!("TextKind::{:?} not yet implemented", kind)
                 }
@@ -976,9 +970,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                         self.data.insert(i, ch);
                     }
                     self.rebuild_metadata();
-                    self.edit_cursor = self
-                        .cursor_from_metadata(metadata::Index(self.len()))
-                        .unwrap_or(BufferCursor::default());
+                    self.edit_cursor = self.cursor_from_metadata(md::Index(self.len())).unwrap_or(BufferCursor::default());
                     self.size = self.data.len();
                     self.meta_data.set_buffer_size(self.size);
                     self.meta_data.file_name = Some(path.to_path_buf());
@@ -994,6 +986,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                 println!("failed to OPEN file: {}", e);
             }
         }
+        self.cursor_goto(md::Index(self.len()));
     }
 
     fn save_file(&mut self, path: &Path) {
@@ -1023,17 +1016,13 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
     }
 
     fn goto_line(&mut self, line: usize) {
-        self.cursor_goto(
-            self.meta_data
-                .get_line_start_index(metadata::Line(line))
-                .unwrap_or(self.cursor_abs()),
-        );
+        self.cursor_goto(self.meta_data.get_line_start_index(md::Line(line)).unwrap_or(self.cursor_abs()));
     }
 
     #[allow(unused)]
     fn line_operation<T>(&mut self, lines_range: T, op: &LineOperation)
     where
-        T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[metadata::Index], Output = [metadata::Index]> + Clone + std::ops::RangeBounds<usize>,
+        T: std::ops::RangeBounds<usize> + std::slice::SliceIndex<[md::Index], Output = [md::Index]> + Clone + std::ops::RangeBounds<usize>,
     {
         let a = match lines_range.start_bound() {
             Bound::Included(a) => *a,
@@ -1046,7 +1035,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
             LineOperation::ShiftLeft { shift_by } => {
                 if let Some(lines) = self.meta_data.get_lines(lines_range.clone()).or(self.meta_data.get_lines(a..)) {
                     for (cnt, &lb) in lines.iter().enumerate() {
-                        if let Some(next_line_begin) = self.meta_data.get(metadata::Line(a + cnt + 1)) {
+                        if let Some(next_line_begin) = self.meta_data.get(md::Line(a + cnt + 1)) {
                             let line_len = *next_line_begin - *lb;
                             let lb = *lb.offset(shift_tracking as isize);
                             let shiftable = self.data[lb..lb + std::cmp::min(*shift_by, line_len)]
@@ -1082,7 +1071,7 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
             LineOperation::ShiftRight { shift_by } => {
                 if self.meta_cursor.is_some() {
                     if let Some(lines) = self.meta_data.get_lines(lines_range) {
-                        debugger_catch!(lines.len() > 0, DebuggerCatch::Handle(format!("We did not get any lines")));
+                        Assert!(lines.len() > 0, "We did not get any lines");
                         let data: Vec<_> = (0..*shift_by).map(|_| ' ').collect();
                         for &lb in lines.iter() {
                             let lb = lb.offset(shift_tracking as _);
@@ -1112,14 +1101,14 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
         }
     }
 
-    fn delete_at(&mut self, index: metadata::Index) {
+    fn delete_at(&mut self, index: md::Index) {
         // todo: optimize so we don't have to rebuild all the metadata
         self.data.remove(*index);
         self.cursor_goto(index);
         self.rebuild_metadata();
     }
 
-    fn delete_range(&mut self, begin: metadata::Index, end: metadata::Index) {
+    fn delete_range(&mut self, begin: md::Index, end: md::Index) {
         self.data.drain(*begin..*end);
         self.cursor_goto(begin);
         self.rebuild_metadata();

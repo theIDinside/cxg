@@ -11,12 +11,12 @@ use super::{
     font::Font,
 };
 use crate::datastructure::generic::Vec2i;
-use crate::debugger_catch;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
 use crate::textbuffer::cursor::MetaCursor;
 use crate::textbuffer::operations::LineOperation;
 use crate::ui::basic::coordinate::Margin;
+use crate::Assert;
 use crate::{app::TEST_DATA, opengl::types::RGBColor};
 
 use crate::textbuffer::{
@@ -665,7 +665,7 @@ impl View {
     }
 
     pub fn load_file(&mut self, path: &Path) {
-        debugger_catch!(self.buffer.empty(), crate::DebuggerCatch::Handle(format!("View must be empty in order to load data from file")));
+        Assert!(self.buffer.empty(), "View must be empty in order to load data from file");
         if self.buffer.empty() {
             self.buffer.load_file(path);
             self.set_view_on_buffer_cursor();
@@ -841,10 +841,7 @@ impl Viewable for View {
     }
 
     fn mouse_clicked(&mut self, validated_inside_pos: Vec2i) {
-        debugger_catch!(
-            self.bounding_box().box_hit_check(validated_inside_pos),
-            crate::DebuggerCatch::Handle(format!("This coordinate is not enclosed by this view"))
-        );
+        Assert!(self.bounding_box().box_hit_check(validated_inside_pos), "This coordinate is not enclosed by this view");
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
         } else if self.scroll_bar.frame.to_bb().box_hit_check(validated_inside_pos) {

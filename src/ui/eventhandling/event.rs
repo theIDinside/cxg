@@ -1,3 +1,5 @@
+use super::input::KeyboardInputContext;
+use crate::Assert;
 use crate::{
     cmd::CommandTag,
     textbuffer::{operations::LineOperation, Movement},
@@ -5,8 +7,6 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, path::PathBuf};
-
-use super::input::KeyboardInputContext;
 
 /// InputResponse is communcation that goes from objects that implement InputBehavior trait
 /// and as such, might need to communicate back results, to the Application object, such as results from run commands,
@@ -132,13 +132,13 @@ pub struct InvalidInputElement {}
 impl InputBehavior for InvalidInputElement {
     fn handle_key(&mut self, _key: glfw::Key, _action: glfw::Action, _modifier: glfw::Modifiers) -> CommandOutput {
         println!("Default Invalid Input Handler: {:?} {:?} {:?}", _key, _action, _modifier);
-        crate::debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
+        Assert!(false, "InvalidInput State");
         CommandOutput::None
     }
 
     fn handle_char(&mut self, _ch: char) {
         println!("Default Invalid Input Handler: {}", _ch);
-        crate::debugger_catch!(false, crate::DebuggerCatch::Handle(format!("InvalidInput State")));
+        Assert!(false, "InvalidInput State");
     }
 
     fn get_uid(&self) -> Option<UID> {

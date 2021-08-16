@@ -1,7 +1,7 @@
+use crate::textbuffer::cursor::BufferCursor;
+use crate::Assert;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-
-use crate::{debugger_catch, textbuffer::cursor::BufferCursor};
 
 use self::{
     metadata::{calculate_hash, MetaData},
@@ -210,7 +210,7 @@ pub trait CharBuffer<'a>: std::hash::Hash {
         use metadata::Index as Idx;
         use metadata::Line;
         let absolute_position = *absolute_position;
-        debugger_catch!(absolute_position <= self.len(), "absolute position is outside of the buffer");
+        Assert!(absolute_position <= self.len(), "absolute position is outside of the buffer");
         if absolute_position == self.len() {
             Some(BufferCursor {
                 pos: Idx(absolute_position),
