@@ -131,7 +131,7 @@ impl Font {
                     let mut pixel_index = (y * texture_dimension.x + x) as usize;
                     let bitmap_index = (row * bitmap.pitch() + col) as usize;
                     if pixel_index >= pixels.len() {
-                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144".into());
+                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144");
                         pixel_index = pixels.len() - 1;
                     }
                     pixels[pixel_index] = bitmap.buffer()[bitmap_index];
@@ -215,7 +215,7 @@ impl Font {
                     let mut pixel_index = (y * texture_dimension.x + x) as usize;
                     let bitmap_index = (row * bitmap.pitch() + col) as usize;
                     if pixel_index >= pixels.len() {
-                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144".into());
+                        Assert!(!(pixel_index >= 262144), "Pixel index must remaing below 262144");
                         pixel_index = pixels.len() - 1;
                     }
                     pixels[pixel_index] = bitmap.buffer()[bitmap_index];

@@ -562,9 +562,14 @@ impl<'app> Application<'app> {
                     .flat_map(|p| p.children.iter_mut())
                     .find(|v| v.bounding_box().box_hit_check(pos));
                 if let Some(handling_view) = view_handling_action {
-                    handling_view.mouse_dragged(begin.to_i32(), current.to_i32());
+                    if let Some(begin) = handling_view.mouse_dragged(begin.to_i32(), current.to_i32()) {
+                        self.mouse_state = MouseState::UIElementDragAction(_view, _btn, begin.to_f64(), begin.to_f64());
+                    } else {
+                        self.mouse_state = new_state;
+                    }
+                } else {
+                    self.mouse_state = new_state;
                 }
-                self.mouse_state = new_state;
             }
             MouseState::Released(_btn, pos) => {
                 match self.mouse_state {
@@ -619,6 +624,7 @@ impl<'app> Application<'app> {
                         }
                     }
                     _ => {
+                        self.get_active_view().scroll_bar_interacting = false;
                         self.mouse_state = MouseState::None;
                     }
                 }

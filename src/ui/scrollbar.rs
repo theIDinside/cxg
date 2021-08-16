@@ -50,7 +50,21 @@ impl ScrollBar {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
                 let percent = (self.frame.anchor.y - pos.y) as f64 / self.frame.size.height as f64;
+                println!("percent value: {}", percent);
                 self.slider.anchor.y = pos.y.clamp(0 + self.slider.size.height, self.frame.anchor.y);
+                self.scroll_value = ((self.max as f64 * percent).floor() as usize).clamp(0, self.max);
+                self.ui_update();
+            }
+        }
+    }
+
+    pub fn scroll_by(&mut self, value: i32) {
+        match self.layout {
+            ScrollBarLayout::Horizontal => todo!(),
+            ScrollBarLayout::Vertical => {
+                let percent = (self.frame.anchor.y - self.slider.anchor.y) as f64 / self.frame.size.height as f64;
+                println!("percent value: {}", percent);
+                self.slider.anchor.y = (self.slider.anchor.y + value).clamp(0 + self.slider.size.height, self.frame.anchor.y);
                 self.scroll_value = ((self.max as f64 * percent).floor() as usize).clamp(0, self.max);
                 self.ui_update();
             }

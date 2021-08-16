@@ -14,6 +14,12 @@ pub mod generic {
         }
     }
 
+    impl Vec2<i32> {
+        pub fn to_f64(&self) -> Vec2<f64> {
+            Vec2d { x: self.x as f64, y: self.y as f64 }
+        }
+    }
+
     impl Vec2<f64> {
         pub fn to_i32(&self) -> Vec2i {
             Vec2i { x: self.x as i32, y: self.y as i32 }

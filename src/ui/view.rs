@@ -5,11 +5,11 @@ use super::eventhandling::event::{key_press, key_press_repeat, CommandOutput, In
 use super::eventhandling::input::KeyboardInputContext;
 use super::panel::PanelId;
 use super::scrollbar::{ScrollBar, ScrollBarLayout};
-use super::Viewable;
 use super::{
     basic::{coordinate::Size, frame::Frame},
     font::Font,
 };
+use super::{MouseState, Viewable};
 use crate::datastructure::generic::Vec2i;
 use crate::opengl::polygon_renderer::{PolygonRenderer, PolygonType, Texture};
 use crate::opengl::{rectangle_renderer::RectRenderer, text_renderer::TextRenderer, types::RGBAColor};
@@ -71,6 +71,7 @@ pub struct View {
     background_image: Texture,
     text_margin_left: i32,
     scroll_bar: ScrollBar,
+    pub scroll_bar_interacting: bool,
 }
 
 pub struct Popup {
@@ -311,6 +312,7 @@ impl View {
             background_image,
             text_margin_left: 4,
             scroll_bar: sb,
+            scroll_bar_interacting: false,
         };
 
         v.update(None);
@@ -845,23 +847,28 @@ impl Viewable for View {
         // means we clicked the title frame, we do not need to scan where the buffer cursor should land, we only need to activate the view
         if BoundingBox::from_frame(&self.title_frame).box_hit_check(validated_inside_pos) {
         } else if self.scroll_bar.frame.to_bb().box_hit_check(validated_inside_pos) {
-            self.scroll_bar.scroll_to_ui_pos(validated_inside_pos);
-            let md = self.buffer.meta_data();
-            let buf_view_begin = *self
-                .buffer
-                .meta_data()
-                .get_line_start_index(Line(self.scroll_bar.scroll_value.clamp(0, md.line_count() - 1)))
-                .unwrap();
-            let buf_view_end = self
-                .buffer
-                .meta_data()
-                .get_line_start_index(Line(self.scroll_bar.scroll_value).offset(self.rows_displayable() as _))
-                .map_or(self.buffer.len(), |v| *v);
+            println!("Scroll bar clicked");
+            self.scroll_bar_interacting = true;
+            // if we clicked on scroll bar, but not on slider, we want the slider to jump to this location
+            if !self.scroll_bar.slider.to_bb().box_hit_check(validated_inside_pos) {
+                self.scroll_bar.scroll_to_ui_pos(validated_inside_pos);
+                let md = self.buffer.meta_data();
+                let buf_view_begin = *self
+                    .buffer
+                    .meta_data()
+                    .get_line_start_index(Line(self.scroll_bar.scroll_value.clamp(0, md.line_count() - 1)))
+                    .unwrap();
+                let buf_view_end = self
+                    .buffer
+                    .meta_data()
+                    .get_line_start_index(Line(self.scroll_bar.scroll_value).offset(self.rows_displayable() as _))
+                    .map_or(self.buffer.len(), |v| *v);
 
-            self.buffer_in_view = buf_view_begin..buf_view_end;
-            self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
-            self.view_changed = true;
-            self.set_need_redraw();
+                self.buffer_in_view = buf_view_begin..buf_view_end;
+                self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+                self.view_changed = true;
+                self.set_need_redraw();
+            }
         } else {
             self.buffer.meta_cursor = None;
             if let Some(final_index_pos) = self.mouse_to_buffer_position(validated_inside_pos) {
@@ -870,27 +877,30 @@ impl Viewable for View {
         }
     }
 
-    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinate: Vec2i) {
-        if let Some((begin_coord_idx, target_coord_idx)) = self
-            .mouse_to_buffer_position(begin_coordinate)
-            .zip(self.mouse_to_buffer_position(current_coordinate))
-        {
-            match self.buffer.meta_cursor {
-                Some(MetaCursor::Absolute(..)) => {
-                    self.buffer.cursor_goto(target_coord_idx);
+    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinate: Vec2i) -> Option<Vec2i> {
+        if !self.scroll_bar_interacting {
+            if let Some((begin_coord_idx, target_coord_idx)) = self
+                .mouse_to_buffer_position(begin_coordinate)
+                .zip(self.mouse_to_buffer_position(current_coordinate))
+            {
+                match self.buffer.meta_cursor {
+                    Some(MetaCursor::Absolute(..)) => {
+                        self.buffer.cursor_goto(target_coord_idx);
+                    }
+                    _ => {
+                        self.buffer.cursor_goto(target_coord_idx);
+                        self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
+                    }
                 }
-                _ => {
-                    self.buffer.cursor_goto(target_coord_idx);
-                    self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
-                }
+                self.set_view_on_buffer_cursor();
             }
-            self.set_view_on_buffer_cursor();
-        } else if self.scroll_bar.frame.to_bb().box_hit_check(begin_coordinate) {
+            None
+        } else {
             match self.scroll_bar.layout {
                 ScrollBarLayout::Horizontal => todo!(),
                 ScrollBarLayout::Vertical => {
-                    let translated = Vec2i::new(self.scroll_bar.frame.anchor.x, current_coordinate.y);
-                    self.scroll_bar.scroll_to_ui_pos(translated);
+                    let diff = current_coordinate.y - begin_coordinate.y;
+                    self.scroll_bar.scroll_by(diff);
                     let md = self.buffer.meta_data();
                     let buf_view_begin = *self
                         .buffer
@@ -906,10 +916,57 @@ impl Viewable for View {
                     self.buffer_in_view = buf_view_begin..buf_view_end;
                     self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
                     self.view_changed = true;
+                    Some(current_coordinate)
+                }
+            }
+        }
+        /*
+        if let Some((begin_coord_idx, target_coord_idx)) = self
+            .mouse_to_buffer_position(begin_coordinate)
+            .zip(self.mouse_to_buffer_position(current_coordinate))
+        {
+            match self.buffer.meta_cursor {
+                Some(MetaCursor::Absolute(..)) => {
+                    self.buffer.cursor_goto(target_coord_idx);
+                }
+                _ => {
+                    self.buffer.cursor_goto(target_coord_idx);
+                    self.buffer.meta_cursor = Some(MetaCursor::Absolute(begin_coord_idx));
+                }
+            }
+            self.set_view_on_buffer_cursor();
+            None
+        } else if self.scroll_bar.frame.to_bb().box_hit_check(begin_coordinate) {
+            match self.scroll_bar.layout {
+                ScrollBarLayout::Horizontal => todo!(),
+                ScrollBarLayout::Vertical => {
+                    let translated = Vec2i::new(self.scroll_bar.frame.anchor.x, current_coordinate.y);
+                    println!("Scrollbar {:?} - Current coord: {:?} (Begin coord: {:?}", self.scroll_bar.slider.anchor, current_coordinate, begin_coordinate);
+                    let diff = current_coordinate.y - begin_coordinate.y;
+                    // self.scroll_bar.scroll_to_ui_pos(translated);
+                    self.scroll_bar.scroll_by(diff);
+                    let md = self.buffer.meta_data();
+                    let buf_view_begin = *self
+                        .buffer
+                        .meta_data()
+                        .get_line_start_index(Line(self.scroll_bar.scroll_value.clamp(0, md.line_count() - 1)))
+                        .unwrap();
+                    let buf_view_end = self
+                        .buffer
+                        .meta_data()
+                        .get_line_start_index(Line(self.scroll_bar.scroll_value).offset(self.rows_displayable() as _))
+                        .map_or(self.buffer.len(), |v| *v);
+
+                    self.buffer_in_view = buf_view_begin..buf_view_end;
+                    self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+                    self.view_changed = true;
+                    Some(current_coordinate)
                 }
             }
         } else {
             self.buffer.meta_cursor = None;
+            None
         }
+        */
     }
 }

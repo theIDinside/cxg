@@ -1,7 +1,7 @@
 use super::boundingbox::BoundingBox;
 use super::coordinate::{Coordinate, Layout, Size};
 use super::view::{View, ViewId};
-use super::Viewable;
+use super::{MouseState, Viewable};
 use crate::ui::Vec2i;
 
 use std::fmt::Formatter;
@@ -221,7 +221,7 @@ impl Viewable for Panel {
         todo!()
     }
 
-    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) {
+    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) -> Option<Vec2i> {
         todo!()
     }
 }

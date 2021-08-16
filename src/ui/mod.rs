@@ -79,6 +79,11 @@ pub trait Viewable {
     fn resize(&mut self, size: Size);
     fn set_anchor(&mut self, anchor: Vec2i);
     fn bounding_box(&self) -> BoundingBox;
+    /// Mouse click handler. Must take a screen coordinate that is validated to be inside this view element
+    /// * `screen_coordinate` - coordinate where the mouse was clicked. Must be validated to actually be inside this view element, or cause UB
     fn mouse_clicked(&mut self, screen_coordinate: Vec2i);
-    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinated: Vec2i);
+    /// Mouse click handler. Must take a screen coordinate that is validated to be inside this view element
+    /// * `begin_coordinate` - The begin coordinate of this mouse drag action (i.e. prior mouse position to this mouse movement)
+    /// * `current_coordinate` - The current coordinate of this mouse drag action (i.e. current mouse position)
+    fn mouse_dragged(&mut self, begin_coordinate: Vec2i, current_coordinated: Vec2i) -> Option<Vec2i>;
 }

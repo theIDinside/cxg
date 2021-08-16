@@ -546,7 +546,7 @@ impl Viewable for InputBox {
         todo!()
     }
 
-    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) {
+    fn mouse_dragged(&mut self, _begin_coordinate: Vec2i, _current_coordinated: Vec2i) -> Option<Vec2i> {
         todo!()
     }
 }
