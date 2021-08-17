@@ -212,6 +212,16 @@ macro_rules! IndexingType {
                     Self(result as usize)
                 }
             }
+
+            pub fn clamp(&self, a: $wrapped_type, b: $wrapped_type) -> Self {
+                let &Self(value) = self;
+                Self(value.clamp(a, b))
+            }
+
+            pub fn clamp_this(&mut self, a: $wrapped_type, b: $wrapped_type) {
+                let Self(ref mut value) = self;
+                *value = (*value).clamp(a, b);
+            }
         }
 
         impl Step for $safe_type {

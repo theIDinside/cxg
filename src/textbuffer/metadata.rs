@@ -81,6 +81,11 @@ impl MetaData {
         self.line_begin_indices.get(*line_number).cloned()
     }
 
+    /// This is a safe operation _always_ since there will always be one line in any buffer, regardless
+    pub fn get_last_line(&self) -> Index {
+        unsafe { *self.line_begin_indices.get_unchecked(self.line_begin_indices.len() - 1) }
+    }
+
     /// Returns the buffer indices of the beginning of line a and b. If *either* line does not exist in buffer, function will return None
     pub fn get_byte_indices_of_lines(&self, line_a: Line, line_b: Line) -> (Option<Index>, Option<Index>) {
         let a = self.get_line_start_index(line_a);

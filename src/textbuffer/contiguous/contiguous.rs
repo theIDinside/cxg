@@ -571,24 +571,15 @@ impl ContiguousBuffer {
         let v: Vec<char> = find.chars().collect();
         let mut idx = *self.edit_cursor.pos + 1;
         'scan_loop: while idx < self.len() {
-            if self.data[idx] == v[0] {
-                if let Some(sub_ref_slice) = &self.data.get(idx..idx + v.len()) {
-                    if sub_ref_slice[v.len() - 1] == v[v.len() - 1] {
-                        if sub_ref_slice[..] == v[..] {
-                            println!("Found {} at {} ({:?})", find, idx, &self.data[idx..(idx + v.len())]);
-                            self.cursor_goto(md::Index(idx));
-                            break 'scan_loop;
-                        } else {
-                            idx += v.len();
-                        }
-                    } else {
-                        idx += v.len();
-                    }
+            if let Some(sub_ref_slice) = &self.data.get(idx..idx + v.len()) {
+                if let Some(p) = sub_ref_slice.iter().zip(v.iter()).position(|(a, b)| a != b) {
+                    idx += p + 1;
                 } else {
+                    self.cursor_goto(md::Index(idx));
                     break 'scan_loop;
                 }
             } else {
-                idx += 1;
+                break 'scan_loop;
             }
         }
     }

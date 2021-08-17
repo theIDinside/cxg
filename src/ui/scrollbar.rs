@@ -49,8 +49,9 @@ impl ScrollBar {
         match self.layout {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
-                let percent = (self.frame.anchor.y - pos.y) as f64 / self.frame.size.height as f64;
                 self.slider.anchor.y = pos.y.clamp(0 + self.slider.size.height, self.frame.anchor.y);
+                let percent = (self.frame.anchor.y - self.slider.anchor.y - self.slider.size.height).clamp(0, self.frame.size.height) as f64
+                    / self.frame.size.height as f64;
                 self.scroll_value = ((self.max as f64 * percent).floor() as usize).clamp(0, self.max);
                 self.ui_update();
             }
@@ -61,8 +62,9 @@ impl ScrollBar {
         match self.layout {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
-                let percent = (self.frame.anchor.y - self.slider.anchor.y) as f64 / self.frame.size.height as f64;
                 self.slider.anchor.y = (self.slider.anchor.y + value).clamp(0 + self.slider.size.height, self.frame.anchor.y);
+                let percent = (self.frame.anchor.y - self.slider.anchor.y - self.slider.size.height).clamp(0, self.frame.size.height) as f64
+                    / self.frame.size.height as f64;
                 self.scroll_value = ((self.max as f64 * percent).floor() as usize).clamp(0, self.max);
                 self.ui_update();
             }
@@ -73,8 +75,11 @@ impl ScrollBar {
         match self.layout {
             ScrollBarLayout::Horizontal => todo!(),
             ScrollBarLayout::Vertical => {
-                let percent = self.scroll_value as f64 / self.max as f64;
-                self.slider.anchor.y = self.frame.anchor.y - (percent * self.frame.height() as f64) as i32;
+                self.slider.size.height = std::cmp::max(35, self.frame.size.height / self.max as i32);
+                self.slider.anchor.x = self.frame.anchor.x;
+                let percent = (self.scroll_value as f64 / self.max as f64).clamp(0.0, 1.0);
+                let tmp = self.frame.anchor.y - (percent * self.frame.height() as f64) as i32;
+                self.slider.anchor.y = tmp.clamp(0 + self.slider.height(), self.frame.anchor.y);
             }
         }
     }

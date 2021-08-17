@@ -336,9 +336,11 @@ impl View {
             let view_line = ((ay - my) as f64 / self.get_text_font().row_height() as f64).floor() as isize;
             let line_clicked = Line(self.topmost_line_in_buffer as usize).offset(view_line);
 
-            let start_index = md
-                .get_line_start_index(line_clicked)
-                .unwrap_or(md.get_line_start_index(Line(md.line_count() - 1)).unwrap());
+            let start_index = md.get_line_start_index(line_clicked).unwrap_or(md.get_last_line());
+            Assert!(
+                *start_index <= self.buffer.len(),
+                format!("Illegal access of buffer; getting start {} from buffer of only {} len", *start_index, self.buffer.len(),)
+            );
 
             let end_index = md.get_line_start_index(line_clicked.offset(1)).unwrap_or(Index(self.buffer.len()));
 
@@ -548,13 +550,13 @@ impl View {
         } else {
             // means we drag-selected upwards/backwards
             let md = self.buffer.meta_data();
-            let first_line = self.buffer.cursor_row();
-            let last_line = md
+            let first_line_number = self.buffer.cursor_row();
+            let last_line_number = md
                 .get_line_number_of_buffer_index(absolute_metacursor_position)
                 .map_or(Line(md.line_count()).offset(-1), |l| Line(l));
 
-            if first_line == last_line {
-                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+            if first_line_number == last_line_number {
+                let rows_down_in_view: i32 = *first_line_number as i32 - self.topmost_line_in_buffer;
                 let line_begin = self.buffer.meta_data().get_line_start_index(self.buffer.cursor_row()).unwrap();
                 // let begin_selection = marker - line_begin;
                 let begin_selection = Index(*self.buffer.cursor_col());
@@ -569,7 +571,7 @@ impl View {
                 let rect = BoundingBox::new(min, max).translate(Vec2i::new(0, -3));
                 self.cursor_renderer.add_rect(rect, selection_color);
             } else {
-                let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
+                let rows_down_in_view: i32 = *first_line_number as i32 - self.topmost_line_in_buffer;
                 // let rows_down_in_view: i32 = *first_line as i32 - self.topmost_line_in_buffer;
                 let translate_vector = self.view_frame.anchor + Vec2i::new(self.text_margin_left, -(rows_down_in_view * self.edit_font.row_height()));
                 let rendered = self.render_selection_requires_translation(self.buffer.cursor_abs(), absolute_metacursor_position);
@@ -719,6 +721,7 @@ impl View {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         }
+        self.scroll_bar.max = self.buffer.meta_data().line_count();
         self.scroll_bar.scroll_value = *self.buffer.cursor_row();
         self.scroll_bar.update_ui_position_by_value();
         self.view_changed = true;

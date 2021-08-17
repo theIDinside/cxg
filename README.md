@@ -119,4 +119,4 @@ which accounts for memory that can be accessed without triggering a page fault i
 So RSS is a much better metric for resource/memory usage.
 
 Keyboard command
-![Input box for quick select of file browsing](docs/img/example.png)ng)
+![Input box for quick select of file browsing](docs/img/example.png)
