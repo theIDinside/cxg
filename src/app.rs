@@ -907,6 +907,8 @@ impl<'app> Application<'app> {
                 let v = self.get_active_view();
                 println!("Cursor row: {}, Topmost line: {}", *v.buffer.cursor_row(), v.topmost_line_in_buffer);
                 println!("Cursor: {:?} <===> Meta cursor: {:?}", v.buffer.get_cursor(), v.buffer.meta_cursor);
+                println!("{:?}", v.scroll_bar);
+                v.scroll_bar.debug();
             }
             ViewAction::SaveFile => {
                 let v = self.get_active_view();

@@ -70,7 +70,7 @@ pub struct View {
     pub visible: bool,
     background_image: Texture,
     text_margin_left: i32,
-    scroll_bar: ScrollBar,
+    pub scroll_bar: ScrollBar,
     pub scroll_bar_interacting: bool,
 }
 
@@ -420,7 +420,7 @@ impl View {
         }
         let total_size = self.total_size();
         if self.view_changed {
-            self.scroll_bar.max = self.buffer.meta_data().line_count();
+            self.scroll_bar.set_max(self.buffer.meta_data().line_count());
             self.text_renderer.clear_data();
             self.cursor_renderer.clear_data();
             self.update(None);
@@ -674,7 +674,7 @@ impl View {
             self.buffer.load_file(path);
             self.set_view_on_buffer_cursor();
         }
-        self.scroll_bar.max = self.buffer.meta_data().line_count();
+        self.scroll_bar.set_max(self.buffer.meta_data().line_count())
     }
 
     pub fn insert_ch(&mut self, ch: char) {
@@ -689,7 +689,7 @@ impl View {
             self.buffer_in_view.end += 1;
             self.view_changed = true;
         }
-        self.scroll_bar.max = self.buffer.meta_data().line_count();
+        self.scroll_bar.set_max(self.buffer.meta_data().line_count());
     }
 
     /// Sets the view of the buffer, so that it "sees" the buffer cursor.
@@ -721,7 +721,7 @@ impl View {
                 self.buffer_in_view = *a..*end.unwrap_or(Index(self.buffer.len()));
             }
         }
-        self.scroll_bar.max = self.buffer.meta_data().line_count();
+        self.scroll_bar.set_max(self.buffer.meta_data().line_count());
         self.scroll_bar.scroll_value = self.topmost_line_in_buffer as _;
         self.scroll_bar.update_ui_position_by_value();
         self.view_changed = true;
@@ -831,7 +831,7 @@ impl Viewable for View {
             Frame::new(self.view_frame.anchor + Vec2i::new(self.view_frame.size.width, 0), Size::new(View::SCROLL_BAR_WIDTH, self.view_frame.size.height));
         self.scroll_bar.frame = sb_frame;
         self.scroll_bar.ui_update();
-        self.scroll_bar.max = self.buffer.meta_data().line_count();
+        self.scroll_bar.set_max(self.buffer.meta_data().line_count());
     }
 
     fn set_anchor(&mut self, anchor: Vec2i) {
