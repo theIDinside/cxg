@@ -722,7 +722,7 @@ impl View {
             }
         }
         self.scroll_bar.max = self.buffer.meta_data().line_count();
-        self.scroll_bar.scroll_value = *self.buffer.cursor_row();
+        self.scroll_bar.scroll_value = self.topmost_line_in_buffer as _;
         self.scroll_bar.update_ui_position_by_value();
         self.view_changed = true;
     }
@@ -916,7 +916,12 @@ impl Viewable for View {
                         .map_or(self.buffer.len(), |v| *v);
 
                     self.buffer_in_view = buf_view_begin..buf_view_end;
-                    self.topmost_line_in_buffer = self.scroll_bar.scroll_value as i32;
+                    // fuck me this is a cryptic name. But it means "the most scrollable down to line"
+                    // so if we have 30 lines, indexed by 0-29, the *absolute* most we can scroll down to, is 29, thus showing only the 30th line
+                    // In the view. We can not scroll down further, since this would mean, the cursor disappear and we'd be typing off view and all hell would break loose
+                    // as far as layout
+                    let top_mostable_line = (md.line_count() - 1) as i32;
+                    self.topmost_line_in_buffer = std::cmp::min(top_mostable_line, self.scroll_bar.scroll_value as i32);
                     self.view_changed = true;
                     Some(current_coordinate)
                 }
