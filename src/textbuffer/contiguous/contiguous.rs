@@ -901,6 +901,24 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     }
                 }
                 TextKind::Block => {
+                    if let Some(b) = self.find_index_of_prev_from(self.edit_cursor.pos.offset(1), |c| c == '}') {
+                        let mut level = 1;
+                        for (i, &c) in self.data[..*b].iter().rev().enumerate() {
+                            if c == '}' {
+                                level += 1;
+                            }
+                            if c == '{' {
+                                level -= 1;
+                            }
+                            if level == 0 {
+                                // we found the end of block
+                                println!("found");
+                                self.cursor_goto(b.offset(-(i as isize)));
+                                return;
+                            }
+                        }
+                    }
+
                     if let Some(block_begin) = self.find_index_of_prev_from(self.edit_cursor.pos.offset(-1), |f| f == '{') {
                         self.cursor_goto(block_begin);
                     }
@@ -931,8 +949,23 @@ impl<'a> CharBuffer<'a> for ContiguousBuffer {
                     self.cursor_goto(end);
                 }
                 TextKind::Block => {
-                    if let Some(block_begin) = self.find_index_of_next_from(self.edit_cursor.pos.offset(1), |f| f == '}') {
-                        self.cursor_goto(block_begin);
+                    if let Some(b) = self.find_index_of_prev_from(self.edit_cursor.pos.offset(1), |c| c == '{') {
+                        let start = b.offset(1);
+                        let mut level = 1;
+                        for (i, &c) in self.data.iter().skip(*start).enumerate() {
+                            if c == '{' {
+                                level += 1;
+                            }
+                            if c == '}' {
+                                level -= 1;
+                            }
+                            if level == 0 {
+                                // we found the end of block
+                                println!("found");
+                                self.cursor_goto(start.offset(i as _));
+                                return;
+                            }
+                        }
                     }
                 }
                 TextKind::File => self.cursor_goto(md::Index(self.len()).offset(-1)),

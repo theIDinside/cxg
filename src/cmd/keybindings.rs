@@ -247,6 +247,13 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
     m.insert(BindingRequirement(K::Right, M::SHIFT), B::held(A::TextSelect(Movement::Forward(TextKind::Char, 1))));
     m.insert(BindingRequirement(K::Right, M::CONTROL), B::held(A::Movement(Movement::End(TextKind::Word))));
     m.insert(BindingRequirement(K::Right, M::CONTROL | M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Word))));
+
+    m.insert(BindingRequirement(K::Left, M::ALT), B::held(A::Movement(Movement::Begin(TextKind::Block))));
+    m.insert(BindingRequirement(K::Left, M::ALT | M::SHIFT), B::held(A::TextSelect(Movement::Begin(TextKind::Block))));
+
+    m.insert(BindingRequirement(K::Right, M::ALT), B::held(A::Movement(Movement::End(TextKind::Block))));
+    m.insert(BindingRequirement(K::Right, M::ALT | M::SHIFT), B::held(A::TextSelect(Movement::End(TextKind::Block))));
+
     m.insert(BindingRequirement(K::Up, M::empty()), B::held(A::Movement(Movement::Backward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Up, M::SHIFT), B::held(A::TextSelect(Movement::Backward(TextKind::Line, 1))));
     m.insert(BindingRequirement(K::Down, M::empty()), B::held(A::Movement(Movement::Forward(TextKind::Line, 1))));
