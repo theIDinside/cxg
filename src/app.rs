@@ -727,7 +727,7 @@ impl<'app> Application<'app> {
                 AppAction::ListCommands => self.toggle_input_box(Mode::CommandList),
             }
         }
-        self.debug_view.handle_key_time = time.elapsed().as_nanos();
+        self.debug_view.user_input_event_time = time.elapsed().as_nanos();
     }
 
     fn translate_screen_to_application_space(&self, glfw_coordinate: Vec2d) -> Vec2d {
@@ -765,14 +765,19 @@ impl<'app> Application<'app> {
             } else {
                 v.bg_color = self.view_config.background;
             }
-            v.draw();
+            v.render();
         }
+
+        for v in self.panels.iter_mut().flat_map(|p| p.children.iter_mut()) {
+            v.present();
+        }
+
         unsafe {
             gl::Scissor(0, 0, self.width(), self.height());
         }
 
         if self.popup.visible {
-            self.popup.view.draw();
+            self.popup.view.render();
         }
         unsafe {
             gl::Scissor(0, 0, self.width(), self.height());

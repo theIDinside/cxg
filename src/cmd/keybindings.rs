@@ -285,7 +285,7 @@ pub fn tv_default() -> HashMap<BindingRequirement, TextViewKeyBinding> {
 
     m.insert(BindingRequirement(K::C, M::CONTROL), B::press(A::Copy));
     m.insert(BindingRequirement(K::X, M::CONTROL), B::press(A::Cut));
-    m.insert(BindingRequirement(K::V, M::CONTROL), B::press(A::Paste));
+    m.insert(BindingRequirement(K::V, M::CONTROL), B::held(A::Paste));
     m.insert(BindingRequirement(K::Tab, M::empty()), B::press(A::LineOperation(LineOperation::ShiftRight { shift_by: 4 })));
     m.insert(BindingRequirement(K::Tab, M::SHIFT), B::press(A::LineOperation(LineOperation::ShiftLeft { shift_by: 4 })));
 

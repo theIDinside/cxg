@@ -414,7 +414,7 @@ impl View {
         self.set_need_redraw();
     }
 
-    pub fn draw(&mut self) {
+    pub fn render(&mut self) {
         if !self.visible {
             return;
         }
@@ -488,14 +488,19 @@ impl View {
             self.render_normal_cursor();
             self.view_changed = false;
         }
+    }
 
-        // Remember to draw in correct Z-order! We manage our own "layers". Therefore, draw cursor last
-        self.window_renderer.execute_draw_list();
+    pub fn present(&mut self) {
+        let total_size = self.total_size();
         let Vec2i { x: top_x, y: top_y } = self.title_frame.anchor;
+
         unsafe {
             gl::Enable(gl::SCISSOR_TEST);
+            gl::Scissor(top_x, top_y - total_size.height, self.view_frame.width() + self.scroll_bar.frame.width(), total_size.height);
+            self.window_renderer.execute_draw_list();
             gl::Scissor(top_x + 2, top_y - total_size.height, self.view_frame.width() - self.text_margin_left, total_size.height);
         }
+
         self.text_renderer.execute_draw_list();
 
         // we clip here as well, because otherwise the cursor might show up "on top" of the title bar, which is undesirable
